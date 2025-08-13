@@ -65,56 +65,77 @@ def parameter_adapter(file_ext: str, **kwargs) -> Dict:
     Returns:
         Dict: A dictionary of parameters adapted for the specific parser
     """
+    # Common parameters that most parsers support
     common_params = {
+        "resource_path": kwargs.get("file_path", ""),
         "save_parsed_content": kwargs.get("save_parsed_content", False),
-        "output_dir": kwargs.get("output_dir"),
+        "output_dir": kwargs.get("output_dir", ""),
     }
 
+    # File-specific parameters for each parser type
     file_params = {
         "pdf": {
-            "pdf_file_path": kwargs.get("file_path"),
+            "resource_path": kwargs.get("file_path", ""),
+            "parse_method": kwargs.get("parse_method", "auto"),
+            "lang": kwargs.get("lang", "ch"),
             "save_parsed_content": kwargs.get("save_parsed_content", False),
-            "output_dir": kwargs.get("output_dir"),
+            "save_middle_content": kwargs.get("save_middle_content", False),
+            "output_dir": kwargs.get("output_dir", "outputs"),
             "start_page": kwargs.get("start_page", 0),
             "end_page": kwargs.get("end_page"),
         },
         "img": {
-            "img_file_path": kwargs.get("file_path"),
+            "resource_path": kwargs.get("file_path", ""),
+            "save_parsed_content": kwargs.get("save_parsed_content", False),
+            "output_dir": kwargs.get("output_dir", ""),
+            "parse_backend": kwargs.get("parse_backend", "pipeline"),
         },
         "docx": {
-            "docx_file_path": kwargs.get("file_path"),
-        },
-        "ppt": {
-            "ppt_file_path": kwargs.get("file_path"),
-        },
-        "pptx": {
-            "pptx_file_path": kwargs.get("file_path"),
-        },
-        "html": {
-            "html_file_path": kwargs.get("file_path"),
-        },
-        "xlsx": {
-            "xlsx_file_path": kwargs.get("file_path"),
-        },
-        "epub": {
-            "epub_file_path": kwargs.get("file_path"),
-        },
-        "url": {
-            "url": kwargs.get("url"),
+            "resource_path": kwargs.get("file_path", ""),
+            "save_parsed_content": kwargs.get("save_parsed_content", False),
+            "output_dir": kwargs.get("output_dir", ""),
         },
         "doc": {
-            "doc_file_path": kwargs.get("file_path"),
+            "resource_path": kwargs.get("file_path", ""),
+            "save_parsed_content": kwargs.get("save_parsed_content", False),
+            "output_dir": kwargs.get("output_dir", ""),
+        },
+        "ppt": {
+            "resource_path": kwargs.get("file_path", ""),
+            "save_parsed_content": kwargs.get("save_parsed_content", False),
+            "output_dir": kwargs.get("output_dir", ""),
+        },
+        "pptx": {
+            "resource_path": kwargs.get("file_path", ""),
+            "save_parsed_content": kwargs.get("save_parsed_content", False),
+            "output_dir": kwargs.get("output_dir", ""),
+        },
+        "html": {
+            "resource_path": kwargs.get("file_path", ""),
+            "save_parsed_content": kwargs.get("save_parsed_content", False),
+            "output_dir": kwargs.get("output_dir", ""),
+        },
+        "htm": {
+            "resource_path": kwargs.get("file_path", ""),
+            "save_parsed_content": kwargs.get("save_parsed_content", False),
+            "output_dir": kwargs.get("output_dir", ""),
+        },
+        "xlsx": {
+            "resource_path": kwargs.get("file_path", ""),
+            "save_parsed_content": kwargs.get("save_parsed_content", False),
+            "output_dir": kwargs.get("output_dir", ""),
+        },
+        "epub": {
+            "resource_path": kwargs.get("file_path", ""),
+            "save_parsed_content": kwargs.get("save_parsed_content", False),
+            "output_dir": kwargs.get("output_dir", ""),
+        },
+        "url": {
+            "resource_path": kwargs.get("url", ""),
+            "save_parsed_content": kwargs.get("save_parsed_content", False),
+            "output_dir": kwargs.get("output_dir", ""),
         },
     }
-
-    # Add specific parameters for pipeline engine
-    if file_ext == "pdf" and pdf_parse_engine == "pipeline":
-        file_params["pdf"].update(
-            {
-                "parse_method": kwargs.get("parse_method", "auto"),
-                "save_middle_content": kwargs.get("save_middle_content", False),
-            }
-        )
 
     # Validate required parameters
     if file_ext not in file_params:
@@ -132,6 +153,10 @@ def parameter_adapter(file_ext: str, **kwargs) -> Dict:
 
     # Combine common and file-specific parameters
     params = {**common_params, **file_params.get(file_ext, {})}
+    
+    # Remove None values to avoid passing None to parser functions
+    params = {k: v for k, v in params.items() if v is not None}
+    
     return params
 
 
@@ -365,17 +390,25 @@ def merge_json_files(root_folder: str, output_file: str, file_type: str) -> None
 
 
 async def main():
-    """改进的主函数，支持更多配置选项"""
-    # 配置参数
+    """改进的主函数，配置参数直接写死在函数中"""
+    # 基础配置参数 - 直接写死
     folder_path = "./input_files"
-    max_workers = int(os.getenv("MAX_WORKERS", "4"))
-    batch_size = int(os.getenv("BATCH_SIZE", "10"))
-    use_process_pool = os.getenv("USE_PROCESS_POOL", "false").lower() == "true"
+    max_workers = 4
+    batch_size = 10
+    use_process_pool = False
     merged_output_path = "./outputs/merged_output.jsonl"
     output_dir = "./outputs"
-    parse_method = os.getenv("PARSE_METHOD", "auto")
-    save_parsed_content = os.getenv("SAVE_PARSED_CONTENT", "true").lower() == "true"
-    save_middle_content = os.getenv("SAVE_MIDDLE_CONTENT", "false").lower() == "true"
+    
+    # Parser相关配置参数 - 直接写死
+    parse_method = "auto"
+    lang = "ch"
+    save_parsed_content = True
+    save_middle_content = False
+    parse_backend = "pipeline"
+    
+    # PDF特定参数 - 直接写死
+    start_page = 0
+    end_page = None
 
     try:
         # 创建输出目录
@@ -385,6 +418,12 @@ async def main():
         logger.info(
             f"Configuration: max_workers={max_workers}, batch_size={batch_size}, use_process_pool={use_process_pool}"
         )
+        logger.info(
+            f"Parser config: parse_method={parse_method}, lang={lang}, parse_backend={parse_backend}"
+        )
+        logger.info(
+            f"Output config: save_parsed_content={save_parsed_content}, save_middle_content={save_middle_content}"
+        )
 
         await process_files_in_folder(
             folder_path=folder_path,
@@ -392,9 +431,13 @@ async def main():
             batch_size=batch_size,
             use_process_pool=use_process_pool,
             parse_method=parse_method,
+            lang=lang,
             save_parsed_content=save_parsed_content,
             save_middle_content=save_middle_content,
             output_dir=output_dir,
+            parse_backend=parse_backend,
+            start_page=start_page,
+            end_page=end_page,
         )
 
         if merged_output_path:
