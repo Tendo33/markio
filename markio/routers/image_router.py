@@ -89,11 +89,15 @@ async def parse_image_file_endpoint(
 
         logger.debug(f"Processing image file: {file.filename}")
 
+        parse_backend = settings.pdf_parse_engine
+        logger.info(f"Using image parse engine: {parse_backend}")
+
         # Parse the image file
         parsed_content = await image_parse_main(
             resource_path=temp_img_path,
             save_parsed_content=config.save_parsed_content,
             output_dir=output_dir,
+            parse_backend=parse_backend,
         )
 
         # Log success

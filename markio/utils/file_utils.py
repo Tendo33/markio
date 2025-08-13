@@ -26,7 +26,7 @@ def ensure_output_directory(output_dir: str) -> str:
     """
     abs_output_dir = Path(output_dir).resolve()
     abs_output_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Ensured output directory exists: {abs_output_dir}")
+    logger.debug(f"Ensured output directory exists: {abs_output_dir}")
 
     return str(output_dir)
 
@@ -183,9 +183,6 @@ async def download_file_from_url(
 
     except Exception as e:
         logger.error(f"Failed to download file from {url}. Error: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error during download: {e}")
         raise
 
 

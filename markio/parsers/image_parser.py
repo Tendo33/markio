@@ -77,15 +77,15 @@ async def image_parse_main(
 
         if parse_backend == "pipeline":
             result = await pdf_parse_main(
-                pdf_file_path=pdf_file_path,
+                resource_path=pdf_file_path,
                 parse_method="auto",
                 save_parsed_content=save_parsed_content,
                 save_middle_content=False,
                 output_dir=output_dir,
             )
-        elif parse_backend == "vlm":
+        elif parse_backend.startswith("vlm-"):
             result = await pdf_parse_vlm_main(
-                pdf_file_path=pdf_file_path,
+                resource_path=pdf_file_path,
                 parse_method="auto",
                 save_parsed_content=save_parsed_content,
                 save_middle_content=False,

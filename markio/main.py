@@ -5,7 +5,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
-from markio.markio_mcp.markio_mcp_server import MarkioMCP
+from markio.mcps.mcp_server import MarkioMCP
 from markio.middlewares.handle import handle_middleware
 from markio.routers.doc_router import router as doc_router
 from markio.routers.docx_router import router as docx_router
@@ -79,7 +79,6 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     handle_middleware(app)
-    logger.info("Global middleware initialized")
     return app
 
 
