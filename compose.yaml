@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  markio:
+    build: .
+    container_name: markio
+    ports:
+      - "8000:8000"
+      - "7860:7860"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
+    environment:
+      - PYTHONPATH=/app
+    restart: unless-stopped
