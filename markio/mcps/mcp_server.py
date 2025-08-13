@@ -290,7 +290,7 @@ class MarkioMCP:
                     raise ValueError("URL must start with http:// or https://")
                 logger.info(f"Starting to parse URL: {url}")
                 result = await url_parse_main(
-                    url=url, save_parsed_content=False, output_dir="outputs"
+                    url=url, save_parsed_content=False, output_dir="output"
                 )
                 if isinstance(result, str):
                     logger.info(f"Successfully parsed URL: {url}")
