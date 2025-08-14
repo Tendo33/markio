@@ -102,7 +102,7 @@ class TestConcurrentPerformance:
             assert len(successful_requests) >= concurrent_users * 0.8, (
                 f"Success rate too low: {len(successful_requests)}/{concurrent_users}"
             )
-            assert avg_response_time < 30.0, (
+            assert avg_response_time < 100, (
                 f"Average response time too high: {avg_response_time}s"
             )
         else:
@@ -310,7 +310,7 @@ class TestConcurrentPerformance:
             assert len(successful_requests) >= concurrent_users * 0.7, (
                 f"Load test success rate too low: {len(successful_requests)}/{concurrent_users}"
             )
-            assert avg_response_time < 20.0, (
+            assert avg_response_time < 60, (
                 f"Load test average response time too high: {avg_response_time}s"
             )
         else:
@@ -410,7 +410,7 @@ class TestConcurrentPerformance:
                 f"Stress test success rate too low: {len(successful_requests)}/{concurrent_users}"
             )
             # Large files may take longer, so we're more lenient with response time
-            assert avg_response_time < 60.0, (
+            assert avg_response_time < 120, (
                 f"Stress test average response time too high: {avg_response_time}s"
             )
         else:

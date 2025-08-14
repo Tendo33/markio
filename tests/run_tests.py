@@ -71,24 +71,26 @@ def run_tests(test_type="all", verbose=False, output_file=None):
         sys.executable,
         "-m",
         "pytest",
-        str(test_dir),
         "-v",  # 详细输出
+        "-s",  # 显示print输出（不捕获）
+        "--durations=10",  # 显示最慢的10个测试
+        "--durations-min=0.1",  # 显示所有超过0.1秒的测试
     ]
 
     # 根据测试类型选择测试文件
     if test_type == "api":
-        cmd.append("test_all_parsers.py")
+        cmd.append(str(test_dir / "test_all_parsers.py::TestAllParsers"))
     elif test_type == "concurrent":
-        cmd.append("test_concurrent.py")
+        cmd.append(str(test_dir / "test_concurrent.py::TestConcurrentPerformance"))
     elif test_type == "all":
-        pass  # 运行所有测试
+        cmd.append(str(test_dir))  # 运行所有测试
     else:
         print(f"❌ 未知的测试类型: {test_type}")
         return False
 
     # 添加详细输出选项
     if verbose:
-        cmd.extend(["--tb=long", "--durations=10"])
+        cmd.extend(["--tb=long", "--durations=20", "--durations-min=0.05"])
 
     # 添加输出文件选项
     if output_file:
