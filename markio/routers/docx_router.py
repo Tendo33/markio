@@ -21,7 +21,11 @@ from fastapi.responses import JSONResponse
 from markio.parsers.docx_parser import docx_parse_main
 from markio.schemas.parsers_schemas import DOCXParserConfig
 from markio.settings import settings
-from markio.utils.file_utils import calculate_file_size, ensure_output_directory
+from markio.utils.file_utils import (
+    calculate_file_size,
+    create_unique_temp_file,
+    ensure_output_directory,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -79,7 +83,9 @@ async def parse_docx_endpoint(
         # Create temporary file with original filename to preserve the name
         temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
         original_filename = os.path.basename(file.filename)
-        temp_docx_path = os.path.join(temp_dir, original_filename)
+        temp_docx_path, unique_filename = create_unique_temp_file(
+            original_filename, temp_dir
+        )
 
         # Write the uploaded file content to the temporary file
         with open(temp_docx_path, "wb") as temp_docx:

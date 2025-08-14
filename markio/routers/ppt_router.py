@@ -21,7 +21,10 @@ from fastapi.responses import JSONResponse
 from markio.parsers.ppt_parser import ppt_parse_main
 from markio.schemas.parsers_schemas import PPTParserConfig
 from markio.settings import settings
-from markio.utils.file_utils import ensure_output_directory
+from markio.utils.file_utils import (
+    create_unique_temp_file,
+    ensure_output_directory,
+)
 from markio.utils.logger_config import get_logger
 
 router = APIRouter()
@@ -73,16 +76,20 @@ async def parse_ppt_file_endpoint(
         f"Starting to parse file: {file.filename}, File size: {file.size} bytes"
     )
 
-    # Create temporary file with original filename to preserve the name
+    # Create temporary file with unique filename to avoid conflicts
     temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
     original_filename = os.path.basename(file.filename)
-    temp_ppt_path = os.path.join(temp_dir, original_filename)
+
+    # Use utility function to create unique temp file
+    temp_ppt_path, unique_filename = create_unique_temp_file(
+        original_filename, temp_dir
+    )
 
     # Write the uploaded file content to the temporary file
     with open(temp_ppt_path, "wb") as temp_ppt:
         temp_ppt.write(await file.read())
 
-    logger.debug(f"Temporary PPT file created with original name: {temp_ppt_path}")
+    logger.debug(f"Temporary PPT file created with unique name: {temp_ppt_path}")
 
     logger.debug(f"Processing PPT file: {file.filename}")
 

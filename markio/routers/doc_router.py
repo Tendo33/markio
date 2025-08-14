@@ -21,7 +21,11 @@ from fastapi.responses import JSONResponse
 from markio.parsers.doc_parser import doc_parse_main
 from markio.schemas.parsers_schemas import DOCXParserConfig
 from markio.settings import settings
-from markio.utils.file_utils import calculate_file_size, ensure_output_directory
+from markio.utils.file_utils import (
+    calculate_file_size,
+    create_unique_temp_file,
+    ensure_output_directory,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -76,16 +80,20 @@ async def parse_doc_file_endpoint(
     )
 
     try:
-        # Create temporary file with original filename to preserve the name
+        # Create temporary file with unique filename to avoid conflicts
         temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
         original_filename = os.path.basename(file.filename)
-        temp_doc_path = os.path.join(temp_dir, original_filename)
+
+        # Use utility function to create unique temp file
+        temp_doc_path, unique_filename = create_unique_temp_file(
+            original_filename, temp_dir
+        )
 
         # Write the uploaded file content to the temporary file
         with open(temp_doc_path, "wb") as temp_doc:
             temp_doc.write(await file.read())
 
-        logger.debug(f"Temporary DOC file created with original name: {temp_doc_path}")
+        logger.debug(f"Temporary DOC file created with unique name: {temp_doc_path}")
 
         logger.debug(f"Processing DOC file: {file.filename}")
 

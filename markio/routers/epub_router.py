@@ -21,7 +21,10 @@ from fastapi.responses import JSONResponse
 from markio.parsers.epub_parser import epub_parse_main
 from markio.schemas.parsers_schemas import EPUBParserConfig
 from markio.settings import settings
-from markio.utils.file_utils import ensure_output_directory
+from markio.utils.file_utils import (
+    create_unique_temp_file,
+    ensure_output_directory,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -70,16 +73,20 @@ async def parse_epub_file_endpoint(
 
     logger.info(f"Starting to parse file: {file.filename}")
 
-    # Create temporary file with original filename to preserve the name
+    # Create temporary file with unique filename to avoid conflicts
     temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
     original_filename = os.path.basename(file.filename)
-    temp_epub_path = os.path.join(temp_dir, original_filename)
+
+    # Use utility function to create unique temp file
+    temp_epub_path, unique_filename = create_unique_temp_file(
+        original_filename, temp_dir
+    )
 
     # Write the uploaded file content to the temporary file
     with open(temp_epub_path, "wb") as temp_epub:
         temp_epub.write(await file.read())
 
-    logger.debug(f"Temporary EPUB file created with original name: {temp_epub_path}")
+    logger.debug(f"Temporary EPUB file created with unique name: {temp_epub_path}")
 
     logger.debug(f"Processing EPUB file: {file.filename}")
 

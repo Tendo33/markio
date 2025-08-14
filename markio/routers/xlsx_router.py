@@ -21,7 +21,11 @@ from fastapi.responses import JSONResponse
 from markio.parsers.xlsx_parser import xlsx_parse_main
 from markio.schemas.parsers_schemas import XLSXParserConfig
 from markio.settings import settings
-from markio.utils.file_utils import calculate_file_size, ensure_output_directory
+from markio.utils.file_utils import (
+    calculate_file_size,
+    create_unique_temp_file,
+    ensure_output_directory,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -71,12 +75,16 @@ async def parse_xlsx_file_endpoint(
 
     temp_dir = os.path.dirname(NamedTemporaryFile().name)
     original_filename = os.path.basename(file.filename)
-    temp_xlsx_path = os.path.join(temp_dir, original_filename)
+
+    # Use utility function to create unique temp file
+    temp_xlsx_path, unique_filename = create_unique_temp_file(
+        original_filename, temp_dir
+    )
 
     with open(temp_xlsx_path, "wb") as temp_xlsx:
         temp_xlsx.write(await file.read())
 
-    logger.debug(f"Temporary XLSX file created with original name: {temp_xlsx_path}")
+    logger.debug(f"Temporary XLSX file created with unique name: {temp_xlsx_path}")
     logger.debug(f"Processing XLSX file: {file.filename}")
 
     try:

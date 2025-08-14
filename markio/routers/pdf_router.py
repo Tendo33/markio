@@ -22,7 +22,11 @@ from markio.parsers.pdf_parser import pdf_parse_main
 from markio.parsers.pdf_parser_vlm import pdf_parse_vlm_main
 from markio.schemas.parsers_schemas import PDFParserConfig
 from markio.settings import settings
-from markio.utils.file_utils import calculate_file_size, ensure_output_directory
+from markio.utils.file_utils import (
+    calculate_file_size,
+    create_unique_temp_file,
+    ensure_output_directory,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -77,16 +81,20 @@ async def parse_pdf_file_endpoint(
     )
 
     try:
-        # Create temporary file with original filename to preserve the name
+        # Create temporary file with unique filename to avoid conflicts
         temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
         original_filename = os.path.basename(file.filename)
-        temp_pdf_path = os.path.join(temp_dir, original_filename)
+
+        # Use utility function to create unique temp file
+        temp_pdf_path, unique_filename = create_unique_temp_file(
+            original_filename, temp_dir
+        )
 
         # Write the uploaded file content to the temporary file
         with open(temp_pdf_path, "wb") as temp_pdf:
             temp_pdf.write(await file.read())
 
-        logger.debug(f"Temporary PDF file created with original name: {temp_pdf_path}")
+        logger.debug(f"Temporary PDF file created with unique name: {temp_pdf_path}")
 
         logger.debug(f"Processing PDF file: {file.filename}")
 

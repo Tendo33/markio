@@ -21,7 +21,10 @@ from fastapi.responses import JSONResponse
 from markio.parsers.pptx_parser import pptx_parse_main
 from markio.schemas.parsers_schemas import PPTXParserConfig
 from markio.settings import settings
-from markio.utils.file_utils import ensure_output_directory
+from markio.utils.file_utils import (
+    create_unique_temp_file,
+    ensure_output_directory,
+)
 from markio.utils.logger_config import get_logger
 
 router = APIRouter()
@@ -72,16 +75,20 @@ async def parse_pptx_file_endpoint(
 
     logger.info(f"Starting to parse file: {file.filename}")
 
-    # Create temporary file with original filename to preserve the name
+    # Create temporary file with unique filename to avoid conflicts
     temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
     original_filename = os.path.basename(file.filename)
-    temp_pptx_path = os.path.join(temp_dir, original_filename)
+
+    # Use utility function to create unique temp file
+    temp_pptx_path, unique_filename = create_unique_temp_file(
+        original_filename, temp_dir
+    )
 
     # Write the uploaded file content to the temporary file
     with open(temp_pptx_path, "wb") as temp_pptx:
         temp_pptx.write(await file.read())
 
-    logger.debug(f"Temporary PPTX file created with original name: {temp_pptx_path}")
+    logger.debug(f"Temporary PPTX file created with unique name: {temp_pptx_path}")
 
     logger.debug(f"Processing PPTX file: {file.filename}")
 

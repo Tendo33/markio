@@ -22,7 +22,11 @@ from fastapi.responses import JSONResponse
 from markio.parsers.image_parser import image_parse_main
 from markio.schemas.parsers_schemas import ImageParserConfig
 from markio.settings import settings
-from markio.utils.file_utils import calculate_file_size, ensure_output_directory
+from markio.utils.file_utils import (
+    calculate_file_size,
+    create_unique_temp_file,
+    ensure_output_directory,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -74,18 +78,20 @@ async def parse_image_file_endpoint(
     output_dir = ensure_output_directory(config.output_dir or DEFAULT_OUTPUT_DIR)
 
     try:
-        # Create temporary file with original filename to preserve the name
+        # Create temporary file with unique filename to avoid conflicts
         temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
         original_filename = os.path.basename(file.filename)
-        temp_img_path = os.path.join(temp_dir, original_filename)
+
+        # Use utility function to create unique temp file
+        temp_img_path, unique_filename = create_unique_temp_file(
+            original_filename, temp_dir
+        )
 
         # Write the uploaded file content to the temporary file
         with open(temp_img_path, "wb") as temp_img:
             temp_img.write(await file.read())
 
-        logger.debug(
-            f"Temporary image file created with original name: {temp_img_path}"
-        )
+        logger.debug(f"Temporary image file created with unique name: {temp_img_path}")
 
         logger.debug(f"Processing image file: {file.filename}")
 

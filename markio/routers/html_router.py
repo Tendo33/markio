@@ -21,7 +21,11 @@ from fastapi.responses import JSONResponse
 from markio.parsers.html_parser import html_parse_main
 from markio.schemas.parsers_schemas import HTMLParserConfig
 from markio.settings import settings
-from markio.utils.file_utils import calculate_file_size, ensure_output_directory
+from markio.utils.file_utils import (
+    calculate_file_size,
+    create_unique_temp_file,
+    ensure_output_directory,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -70,12 +74,16 @@ async def parse_html_file_endpoint(
 
     temp_dir = os.path.dirname(NamedTemporaryFile().name)
     original_filename = os.path.basename(file.filename)
-    temp_html_path = os.path.join(temp_dir, original_filename)
+
+    # Use utility function to create unique temp file
+    temp_html_path, unique_filename = create_unique_temp_file(
+        original_filename, temp_dir
+    )
 
     with open(temp_html_path, "wb") as temp_html:
         temp_html.write(await file.read())
 
-    logger.debug(f"Temporary HTML file created with original name: {temp_html_path}")
+    logger.debug(f"Temporary HTML file created with unique name: {temp_html_path}")
     logger.debug(f"Processing HTML file: {file.filename}")
 
     try:

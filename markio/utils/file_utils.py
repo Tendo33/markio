@@ -286,3 +286,36 @@ async def process_resource_path(
     else:
         logger.info(f"Using local file: {resource_path}")
         return resource_path
+
+
+def create_unique_temp_file(
+    original_filename: str, temp_dir: str = None
+) -> tuple[str, str]:
+    """
+    Create a unique temporary file path to avoid conflicts when multiple files with the same name are processed concurrently.
+
+    Args:
+        original_filename (str): The original filename to preserve extension
+        temp_dir (str, optional): Directory for temporary file. If None, uses system temp directory
+
+    Returns:
+        tuple[str, str]: (temp_file_path, unique_filename)
+
+    Example:
+        temp_path, unique_name = create_unique_temp_file("document.docx")
+        # Returns: ("/tmp/abc123.docx", "abc123.docx")
+    """
+    import tempfile
+    import uuid
+
+    if temp_dir is None:
+        temp_dir = tempfile.gettempdir()
+
+    # Extract file extension
+    file_extension = os.path.splitext(original_filename)[1]
+
+    # Generate unique filename while preserving extension
+    unique_filename = f"{uuid.uuid4().hex}{file_extension}"
+    temp_file_path = os.path.join(temp_dir, unique_filename)
+
+    return temp_file_path, unique_filename
