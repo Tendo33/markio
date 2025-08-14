@@ -3,6 +3,7 @@ Test all parser API endpoints for markio service
 """
 
 import json
+import time
 
 
 class TestAllParsers:
@@ -20,22 +21,35 @@ class TestAllParsers:
         pdf_file = test_files_dir / test_files["pdf"]
         assert pdf_file.exists(), f"Test PDF file not found: {pdf_file}"
 
+        start_time = time.time()
+
         with open(pdf_file, "rb") as f:
             files = {"file": (test_files["pdf"], f, "application/pdf")}
             data = {"config": json.dumps({"save_parsed_content": False})}
 
             response = client.post(api_endpoints["pdf"], files=files, data=data)
 
+        end_time = time.time()
+        conversion_time = end_time - start_time
+
+        # 验证接口工作正常
         assert response.status_code == 200, f"PDF parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
         assert "status_code" in result
         assert result["status_code"] == 200
 
+        # 输出转换时间
+        print(
+            f"✅ PDF接口测试通过 - 状态码: {response.status_code}, 转换时间: {conversion_time:.2f}秒"
+        )
+
     def test_doc_parser(self, client, test_files_dir, test_files, api_endpoints):
         """Test DOC file parsing"""
         doc_file = test_files_dir / test_files["doc"]
         assert doc_file.exists(), f"Test DOC file not found: {doc_file}"
+
+        start_time = time.time()
 
         with open(doc_file, "rb") as f:
             files = {"file": (test_files["doc"], f, "application/msword")}
@@ -43,16 +57,27 @@ class TestAllParsers:
 
             response = client.post(api_endpoints["doc"], files=files, data=data)
 
+        end_time = time.time()
+        conversion_time = end_time - start_time
+
+        # 验证接口工作正常
         assert response.status_code == 200, f"DOC parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
         assert "status_code" in result
         assert result["status_code"] == 200
 
+        # 输出转换时间
+        print(
+            f"✅ DOC接口测试通过 - 状态码: {response.status_code}, 转换时间: {conversion_time:.2f}秒"
+        )
+
     def test_docx_parser(self, client, test_files_dir, test_files, api_endpoints):
         """Test DOCX file parsing"""
         docx_file = test_files_dir / test_files["docx"]
         assert docx_file.exists(), f"Test DOCX file not found: {docx_file}"
+
+        start_time = time.time()
 
         with open(docx_file, "rb") as f:
             files = {
@@ -66,16 +91,27 @@ class TestAllParsers:
 
             response = client.post(api_endpoints["docx"], files=files, data=data)
 
+        end_time = time.time()
+        conversion_time = end_time - start_time
+
+        # 验证接口工作正常
         assert response.status_code == 200, f"DOCX parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
         assert "status_code" in result
         assert result["status_code"] == 200
 
+        # 输出转换时间
+        print(
+            f"✅ DOCX接口测试通过 - 状态码: {response.status_code}, 转换时间: {conversion_time:.2f}秒"
+        )
+
     def test_ppt_parser(self, client, test_files_dir, test_files, api_endpoints):
         """Test PPT file parsing"""
         ppt_file = test_files_dir / test_files["ppt"]
         assert ppt_file.exists(), f"Test PPT file not found: {ppt_file}"
+
+        start_time = time.time()
 
         with open(ppt_file, "rb") as f:
             files = {"file": (test_files["ppt"], f, "application/vnd.ms-powerpoint")}
@@ -83,16 +119,27 @@ class TestAllParsers:
 
             response = client.post(api_endpoints["ppt"], files=files, data=data)
 
+        end_time = time.time()
+        conversion_time = end_time - start_time
+
+        # 验证接口工作正常
         assert response.status_code == 200, f"PPT parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
         assert "status_code" in result
         assert result["status_code"] == 200
 
+        # 输出转换时间
+        print(
+            f"✅ PPT接口测试通过 - 状态码: {response.status_code}, 转换时间: {conversion_time:.2f}秒"
+        )
+
     def test_pptx_parser(self, client, test_files_dir, test_files, api_endpoints):
         """Test PPTX file parsing"""
         pptx_file = test_files_dir / test_files["pptx"]
         assert pptx_file.exists(), f"Test PPTX file not found: {pptx_file}"
+
+        start_time = time.time()
 
         with open(pptx_file, "rb") as f:
             files = {
@@ -106,16 +153,27 @@ class TestAllParsers:
 
             response = client.post(api_endpoints["pptx"], files=files, data=data)
 
+        end_time = time.time()
+        conversion_time = end_time - start_time
+
+        # 验证接口工作正常
         assert response.status_code == 200, f"PPTX parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
         assert "status_code" in result
         assert result["status_code"] == 200
 
+        # 输出转换时间
+        print(
+            f"✅ PPTX接口测试通过 - 状态码: {response.status_code}, 转换时间: {conversion_time:.2f}秒"
+        )
+
     def test_xlsx_parser(self, client, test_files_dir, test_files, api_endpoints):
         """Test XLSX file parsing"""
         xlsx_file = test_files_dir / test_files["xlsx"]
         assert xlsx_file.exists(), f"Test XLSX file not found: {xlsx_file}"
+
+        start_time = time.time()
 
         with open(xlsx_file, "rb") as f:
             files = {
@@ -129,16 +187,27 @@ class TestAllParsers:
 
             response = client.post(api_endpoints["xlsx"], files=files, data=data)
 
+        end_time = time.time()
+        conversion_time = end_time - start_time
+
+        # 验证接口工作正常
         assert response.status_code == 200, f"XLSX parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
         assert "status_code" in result
         assert result["status_code"] == 200
 
+        # 输出转换时间
+        print(
+            f"✅ XLSX接口测试通过 - 状态码: {response.status_code}, 转换时间: {conversion_time:.2f}秒"
+        )
+
     def test_html_parser(self, client, test_files_dir, test_files, api_endpoints):
         """Test HTML file parsing"""
         html_file = test_files_dir / test_files["html"]
         assert html_file.exists(), f"Test HTML file not found: {html_file}"
+
+        start_time = time.time()
 
         with open(html_file, "rb") as f:
             files = {"file": (test_files["html"], f, "text/html")}
@@ -146,16 +215,27 @@ class TestAllParsers:
 
             response = client.post(api_endpoints["html"], files=files, data=data)
 
+        end_time = time.time()
+        conversion_time = end_time - start_time
+
+        # 验证接口工作正常
         assert response.status_code == 200, f"HTML parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
         assert "status_code" in result
         assert result["status_code"] == 200
 
+        # 输出转换时间
+        print(
+            f"✅ HTML接口测试通过 - 状态码: {response.status_code}, 转换时间: {conversion_time:.2f}秒"
+        )
+
     def test_epub_parser(self, client, test_files_dir, test_files, api_endpoints):
         """Test EPUB file parsing"""
         epub_file = test_files_dir / test_files["epub"]
         assert epub_file.exists(), f"Test EPUB file not found: {epub_file}"
+
+        start_time = time.time()
 
         with open(epub_file, "rb") as f:
             files = {"file": (test_files["epub"], f, "application/epub+zip")}
@@ -163,11 +243,19 @@ class TestAllParsers:
 
             response = client.post(api_endpoints["epub"], files=files, data=data)
 
+        end_time = time.time()
+        conversion_time = end_time - start_time
+
+        # 验证接口工作正常
         assert response.status_code == 200, f"EPUB parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
         assert "status_code" in result
         assert result["status_code"] == 200
+        # 输出转换时间
+        print(
+            f"✅ EPUB接口测试通过 - 状态码: {response.status_code}, 转换时间: {conversion_time:.2f}秒"
+        )
 
     def test_image_parser(self, client, test_files_dir, test_files, api_endpoints):
         """Test image file parsing"""
@@ -175,15 +263,25 @@ class TestAllParsers:
         image_file = test_files_dir / test_files["image"]
         assert image_file.exists(), f"Test image file not found: {image_file}"
 
+        start_time = time.time()
+
         with open(image_file, "rb") as f:
             files = {"file": (test_files["image"], f, "image/png")}
             data = {"config": json.dumps({"save_parsed_content": False})}
 
             response = client.post(api_endpoints["image"], files=files, data=data)
 
+        end_time = time.time()
+        conversion_time = end_time - start_time
+
+        # 验证接口工作正常
         # Image parsing might return different status codes depending on implementation
         assert response.status_code in [200, 400, 500], (
             f"Image parsing unexpected response: {response.status_code}"
+        )
+        # 输出转换时间
+        print(
+            f"✅ 图片接口测试通过 - 状态码: {response.status_code}, 转换时间: {conversion_time:.2f}秒"
         )
 
     def test_invalid_file_type(self, client, api_endpoints):
