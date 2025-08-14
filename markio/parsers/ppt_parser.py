@@ -41,7 +41,7 @@ async def ppt_parse_main(
 
     # Directly call the PPTX parsing function
     parsed_content = await pptx_parse_main(
-        pptx_file_path=converted_pptx_path,
+        resource_path=converted_pptx_path,
         save_parsed_content=save_parsed_content,
         output_dir=output_dir,
     )

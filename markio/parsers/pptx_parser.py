@@ -27,7 +27,7 @@ async def pptx_parse_main(
     - Document metadata
 
     Args:
-        pptx_file_path: Path to the PPTX file to be parsed
+        resource_path: Path to the PPTX file to be parsed
         save_parsed_content: Whether to save parsed markdown content to file
         output_dir: Directory where parsed content and images will be saved
 

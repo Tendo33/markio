@@ -82,7 +82,7 @@ class MarkioSDK:
         output_path = str(self.output_dir / Path(file_path).stem)
 
         markdown_content = await pdf_parse_main(
-            pdf_file_path=file_path,
+            resource_path=file_path,
             parse_method=parse_method,
             save_parsed_content=save_parsed_content,
             save_middle_content=save_middle_content,
@@ -127,7 +127,7 @@ class MarkioSDK:
         output_path = str(self.output_dir / Path(file_path).stem)
 
         markdown_content = await pdf_parse_vlm_main(
-            pdf_file_path=file_path,
+            resource_path=file_path,
             save_parsed_content=save_parsed_content,
             save_middle_content=save_middle_content,
             output_dir=str(self.output_dir),
@@ -158,7 +158,7 @@ class MarkioSDK:
             Dict containing parsed content and metadata
         """
         markdown_content = await docx_parse_main(
-            docx_file_path=file_path,
+            resource_path=file_path,
             save_parsed_content=save_parsed_content,
             output_dir=str(self.output_dir),
         )
@@ -187,7 +187,7 @@ class MarkioSDK:
             Dict containing parsed content and metadata
         """
         markdown_content = await doc_parse_main(
-            doc_file_path=file_path,
+            resource_path=file_path,
             save_parsed_content=save_parsed_content,
             output_dir=str(self.output_dir),
         )
@@ -214,7 +214,7 @@ class MarkioSDK:
             Dict containing parsed content and metadata
         """
         markdown_content = await pptx_parse_main(
-            pptx_file_path=file_path,
+            resource_path=file_path,
             save_parsed_content=save_parsed_content,
             output_dir=str(self.output_dir),
         )
@@ -243,7 +243,7 @@ class MarkioSDK:
             Dict containing parsed content and metadata
         """
         markdown_content = await ppt_parse_main(
-            ppt_file_path=file_path,
+            resource_path=file_path,
             save_parsed_content=save_parsed_content,
             output_dir=str(self.output_dir),
         )
@@ -270,7 +270,7 @@ class MarkioSDK:
             Dict containing parsed content and metadata
         """
         markdown_content = await xlsx_parse_main(
-            xlsx_file_path=file_path,
+            resource_path=file_path,
             save_parsed_content=save_parsed_content,
             output_dir=str(self.output_dir),
         )
@@ -297,7 +297,7 @@ class MarkioSDK:
             Dict containing parsed content and metadata
         """
         markdown_content = await html_parse_main(
-            html_file_path=file_path,
+            resource_path=file_path,
             save_parsed_content=save_parsed_content,
             output_dir=str(self.output_dir),
         )
@@ -353,7 +353,7 @@ class MarkioSDK:
             Dict containing parsed content and metadata
         """
         markdown_content = await epub_parse_main(
-            epub_file_path=file_path,
+            resource_path=file_path,
             save_parsed_content=save_parsed_content,
             output_dir=str(self.output_dir),
         )
@@ -380,7 +380,7 @@ class MarkioSDK:
             Dict containing parsed content and metadata
         """
         markdown_content = await image_parse_main(
-            img_file_path=file_path,
+            resource_path=file_path,
             save_parsed_content=save_parsed_content,
             output_dir=str(self.output_dir),
         )
