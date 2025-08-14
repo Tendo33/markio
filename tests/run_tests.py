@@ -16,7 +16,7 @@ def check_service_health():
     import httpx
 
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=15.0) as client:
             response = client.get("http://0.0.0.0:8000/")
             if response.status_code in [200, 307]:
                 print("✅ Markio 服务运行正常")

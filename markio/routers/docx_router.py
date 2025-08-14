@@ -106,7 +106,7 @@ async def parse_docx_endpoint(
 
         logger.info(f"DOCX {file.filename} parsed successfully")
 
-        return JSONResponse({"markdown_content": parsed_content}, status_code=200)
+        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
 
     except Exception as e:
         error_msg = f"Error occurred while parsing {file.filename}: {str(e)}"
