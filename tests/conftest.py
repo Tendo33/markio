@@ -1,150 +1,63 @@
 """
-Pytest配置文件
-提供通用的测试fixtures和配置
+Pytest configuration file for markio API tests
 """
-import tempfile
+
 from pathlib import Path
-from unittest.mock import Mock
 
+import httpx
 import pytest
-from fastapi.testclient import TestClient
 
-# 导入应用
-from markio.main import app
+# Test configuration
+BASE_URL = "http://0.0.0.0:8000"
+API_PREFIX = "/v1"
 
 
 @pytest.fixture
 def client():
-    """FastAPI测试客户端"""
-    return TestClient(app)
+    """HTTP client for testing API endpoints"""
+    with httpx.Client(base_url=BASE_URL, timeout=60.0) as client:
+        yield client
 
 
 @pytest.fixture
-def async_client():
-    """异步测试客户端（如果需要）"""
-    # 这里可以配置异步测试客户端
-    return Mock()
+def test_files_dir():
+    """Path to test documents directory"""
+    return Path(__file__).parent / "test_docs"
 
 
 @pytest.fixture
-def temp_dir():
-    """临时目录fixture"""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        yield Path(temp_dir)
-
-
-@pytest.fixture
-def test_docs_dir():
-    """测试文档目录fixture - 使用真实的测试文件"""
-    # 获取项目根目录下的tests/test_docs文件夹
-    project_root = Path(__file__).parent.parent
-    test_docs_path = project_root / "tests" / "test_docs"
-    
-    if not test_docs_path.exists():
-        pytest.skip("测试文档目录不存在")
-    
-    return test_docs_path
-
-
-@pytest.fixture
-def real_test_files(test_docs_dir):
-    """真实测试文件路径fixture"""
+def test_files():
+    """Mapping of file types to test files"""
     return {
-        "pdf": test_docs_dir / "test_pdf1.pdf",
-        "pdf_small": test_docs_dir / "test_pdf3.pdf",
-        "docx": test_docs_dir / "test_docx.docx",
-        "doc": test_docs_dir / "test_doc.doc",
-        "xlsx": test_docs_dir / "test_xlsx.xlsx",
-        "html": test_docs_dir / "test_html.html",
-        "epub": test_docs_dir / "test_epub.epub",
-        "ppt": test_docs_dir / "test_ppt.ppt",
-        "pptx": test_docs_dir / "test_pptx.pptx"
+        "pdf": "test_pdf1.pdf",
+        "doc": "test_doc.doc",
+        "docx": "test_docx.docx",
+        "ppt": "test_ppt.ppt",
+        "pptx": "test_pptx.pptx",
+        "xlsx": "test_xlsx.xlsx",
+        "html": "test_html.html",
+        "epub": "test_epub.epub",
+        "image": "test_pdf1.pdf",  # Using PDF as image test for now
     }
 
 
 @pytest.fixture
-def sample_files_dir(temp_dir):
-    """示例文件目录fixture"""
-    # 创建示例文件目录结构
-    sample_dir = temp_dir / "sample_files"
-    sample_dir.mkdir()
-    
-    # 创建子目录
-    (sample_dir / "pdf").mkdir()
-    (sample_dir / "docx").mkdir()
-    (sample_dir / "xlsx").mkdir()
-    (sample_dir / "html").mkdir()
-    (sample_dir / "images").mkdir()
-    
-    yield sample_dir
+def api_endpoints():
+    """Mapping of file types to API endpoints"""
+    return {
+        "pdf": f"{API_PREFIX}/parse_pdf_file",
+        "doc": f"{API_PREFIX}/parse_doc_file",
+        "docx": f"{API_PREFIX}/parse_docx_file",
+        "ppt": f"{API_PREFIX}/parse_ppt_file",
+        "pptx": f"{API_PREFIX}/parse_pptx_file",
+        "xlsx": f"{API_PREFIX}/parse_xlsx_file",
+        "html": f"{API_PREFIX}/parse_html_file",
+        "epub": f"{API_PREFIX}/parse_epub_file",
+        "image": f"{API_PREFIX}/parse_image_file",
+    }
 
 
-# 标记需要真实文件的测试
-def pytest_collection_modifyitems(config, items):
-    """修改测试收集，标记需要真实文件的测试"""
-    for item in items:
-        # 检查测试是否在需要真实文件的列表中
-        if any(test_name in item.name for test_name in [
-            "test_pdf_parse_endpoint",
-            "test_docx_parse_endpoint", 
-            "test_xlsx_parse_endpoint",
-            "test_html_parse_endpoint",
-            "test_epub_parse_endpoint",
-            "test_ppt_parse_endpoint",
-            "test_pptx_parse_endpoint",
-            "test_doc_parse_endpoint"
-        ]):
-            # 标记为需要真实文件的测试
-            item.add_marker(pytest.mark.real_files)
-        
-        # 标记为集成测试
-        if "integration" in item.name or "workflow" in item.name:
-            item.add_marker(pytest.mark.integration)
-        
-        # 标记为API测试
-        if "endpoint" in item.name or "api" in item.name:
-            item.add_marker(pytest.mark.api)
-
-
-# 自定义标记
-pytest_plugins = []
-
-
-def pytest_configure(config):
-    """配置pytest标记"""
-    config.addinivalue_line(
-        "markers", "real_files: 标记需要真实文件的测试"
-    )
-    config.addinivalue_line(
-        "markers", "integration: 标记集成测试"
-    )
-    config.addinivalue_line(
-        "markers", "api: 标记API接口测试"
-    )
-
-
-# 测试会话配置
-def pytest_sessionstart(session):
-    """测试会话开始时的配置"""
-    print("\n🚀 开始测试会话")
-    print("📋 测试配置:")
-    print("   - 使用临时目录进行文件测试")
-    print("   - 需要真实文件的测试将被跳过")
-    print("   - 使用mock数据进行功能测试")
-
-
-def pytest_sessionfinish(session, exitstatus):
-    """测试会话结束时的配置"""
-    print("\n🏁 测试会话结束")
-    print(f"📊 退出状态: {exitstatus}")
-    
-    if exitstatus == 0:
-        print("✅ 所有测试通过")
-    else:
-        print("❌ 部分测试失败")
-    
-    print("\n💡 下一步建议:")
-    print("   1. 检查被跳过的测试（需要真实文件）")
-    print("   2. 准备真实测试文件")
-    print("   3. 更新测试数据准备函数")
-    print("   4. 移除@pytest.mark.skip装饰器")
+@pytest.fixture
+def parser_config():
+    """Default parser configuration"""
+    return {"save_parsed_content": False, "output_dir": None}

@@ -153,10 +153,10 @@ def parameter_adapter(file_ext: str, **kwargs) -> Dict:
 
     # Combine common and file-specific parameters
     params = {**common_params, **file_params.get(file_ext, {})}
-    
+
     # Remove None values to avoid passing None to parser functions
     params = {k: v for k, v in params.items() if v is not None}
-    
+
     return params
 
 
@@ -398,14 +398,14 @@ async def main():
     use_process_pool = False
     merged_output_path = "./outputs/merged_output.jsonl"
     output_dir = "./outputs"
-    
+
     # Parser相关配置参数 - 直接写死
     parse_method = "auto"
     lang = "ch"
     save_parsed_content = True
     save_middle_content = False
     parse_backend = "pipeline"
-    
+
     # PDF特定参数 - 直接写死
     start_page = 0
     end_page = None

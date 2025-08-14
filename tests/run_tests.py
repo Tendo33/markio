@@ -1,148 +1,188 @@
 #!/usr/bin/env python3
 """
-测试运行脚本
-提供多种测试运行选项，包括单元测试、集成测试、性能测试等
+Markio API 测试启动脚本
+用于运行所有API功能测试
 """
-import os
+
+import argparse
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
-def run_command(command, description):
-    """运行命令并显示结果"""
-    print(f"\n{'='*60}")
-    print(f"🚀 {description}")
-    print(f"{'='*60}")
-    print(f"执行命令: {command}")
-    print("-" * 60)
-    
+def check_service_health():
+    """检查服务健康状态"""
+    import httpx
+
     try:
-        result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
-        print("✅ 命令执行成功!")
-        if result.stdout:
-            print("输出:")
-            print(result.stdout)
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"❌ 命令执行失败 (退出码: {e.returncode})")
-        if e.stdout:
-            print("标准输出:")
-            print(e.stdout)
-        if e.stderr:
-            print("错误输出:")
-            print(e.stderr)
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get("http://0.0.0.0:8000/")
+            if response.status_code in [200, 307]:
+                print("✅ Markio 服务运行正常")
+                return True
+            else:
+                print(f"❌ 服务响应异常: {response.status_code}")
+                return False
+    except Exception as e:
+        print(f"❌ 无法连接到 Markio 服务: {e}")
+        print("请确保服务正在 http://0.0.0.0:8000 运行")
         return False
+
+
+def check_test_files():
+    """检查测试文件是否存在"""
+    test_docs_dir = Path(__file__).parent / "test_docs"
+
+    if not test_docs_dir.exists():
+        print(f"❌ 测试文档目录不存在: {test_docs_dir}")
+        return False
+
+    required_files = [
+        "test_pdf1.pdf",
+        "test_doc.doc",
+        "test_docx.docx",
+        "test_ppt.ppt",
+        "test_pptx.pptx",
+        "test_xlsx.xlsx",
+        "test_html.html",
+        "test_epub.epub",
+    ]
+
+    missing_files = []
+    for file in required_files:
+        if not (test_docs_dir / file).exists():
+            missing_files.append(file)
+
+    if missing_files:
+        print(f"❌ 缺少测试文件: {', '.join(missing_files)}")
+        return False
+
+    print("✅ 测试文件检查通过")
+    return True
+
+
+def run_tests(test_type="all", verbose=False, output_file=None):
+    """运行测试"""
+    test_dir = Path(__file__).parent
+
+    # 构建pytest命令
+    cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        str(test_dir),
+        "-v",  # 详细输出
+    ]
+
+    # 根据测试类型选择测试文件
+    if test_type == "api":
+        cmd.append("test_all_parsers.py")
+    elif test_type == "concurrent":
+        cmd.append("test_concurrent.py")
+    elif test_type == "all":
+        pass  # 运行所有测试
+    else:
+        print(f"❌ 未知的测试类型: {test_type}")
+        return False
+
+    # 添加详细输出选项
+    if verbose:
+        cmd.extend(["--tb=long", "--durations=10"])
+
+    # 添加输出文件选项
+    if output_file:
+        cmd.extend([f"--junit-xml={output_file}"])
+
+    print(f"🚀 开始运行测试: {' '.join(cmd)}")
+    print(f"📁 测试目录: {test_dir}")
+    print(f"🔧 测试类型: {test_type}")
+    print("-" * 50)
+
+    # 记录开始时间
+    start_time = time.time()
+
+    try:
+        # 运行测试
+        result = subprocess.run(cmd, capture_output=False, text=True)
+
+        # 计算运行时间
+        end_time = time.time()
+        duration = end_time - start_time
+
+        print("-" * 50)
+        print(f"⏱️  测试完成，耗时: {duration:.2f} 秒")
+
+        if result.returncode == 0:
+            print("✅ 所有测试通过！")
+            return True
+        else:
+            print(f"❌ 测试失败，退出码: {result.returncode}")
+            return False
+
+    except KeyboardInterrupt:
+        print("\n⏹️  测试被用户中断")
+        return False
+    except Exception as e:
+        print(f"❌ 运行测试时发生错误: {e}")
+        return False
+
 
 def main():
     """主函数"""
-    print("🧪 Markio 测试套件")
+    parser = argparse.ArgumentParser(description="Markio API 测试启动脚本")
+    parser.add_argument(
+        "--type",
+        "-t",
+        choices=["all", "api", "concurrent"],
+        default="all",
+        help="测试类型: all(全部), api(API功能), concurrent(并发性能)",
+    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="详细输出模式")
+    parser.add_argument("--output", "-o", help="测试报告输出文件路径")
+    parser.add_argument(
+        "--skip-checks", action="store_true", help="跳过服务健康检查和文件检查"
+    )
+
+    args = parser.parse_args()
+
     print("=" * 60)
-    
-    # 检查是否在正确的目录
-    project_root = Path(__file__).parent.parent
-    if not (project_root / "markio").exists():
-        print("❌ 错误: 请在项目根目录下运行此脚本")
+    print("🚀 Markio API 测试套件")
+    print("=" * 60)
+
+    # 检查当前目录
+    if not Path(__file__).parent.exists():
+        print("❌ 请在项目根目录运行此脚本")
         sys.exit(1)
-    
-    # 切换到项目根目录
-    os.chdir(project_root)
-    print(f"📁 工作目录: {os.getcwd()}")
-    
-    # 检查测试依赖
-    print("\n🔍 检查测试依赖...")
-    try:
-        import pytest
-        print(f"✅ pytest 版本: {pytest.__version__}")
-    except ImportError:
-        print("❌ pytest 未安装，正在安装...")
-        if not run_command("pip install pytest", "安装pytest"):
-            print("❌ 无法安装pytest，请手动安装")
+
+    # 执行预检查
+    if not args.skip_checks:
+        print("\n🔍 执行预检查...")
+
+        if not check_service_health():
+            print("\n❌ 服务检查失败，请确保 Markio 服务正在运行")
             sys.exit(1)
-    
-    try:
-        from fastapi.testclient import TestClient
-        print("✅ FastAPI TestClient 可用")
-    except ImportError:
-        print("❌ FastAPI TestClient 不可用")
+
+        if not check_test_files():
+            print("\n❌ 测试文件检查失败")
+            sys.exit(1)
+
+        print("✅ 预检查通过")
+
+    # 运行测试
+    print(f"\n🎯 开始运行 {args.type} 测试...")
+    success = run_tests(
+        test_type=args.type, verbose=args.verbose, output_file=args.output
+    )
+
+    # 输出结果
+    if success:
+        print("\n🎉 测试执行成功！")
+        sys.exit(0)
+    else:
+        print("\n💥 测试执行失败！")
         sys.exit(1)
-    
-    # 显示可用的测试选项
-    print("\n📋 可用的测试选项:")
-    print("1. 运行所有测试")
-    print("2. 运行API端点测试")
-    print("3. 运行集成测试")
-    print("4. 运行性能测试")
-    print("5. 运行安全测试")
-    print("6. 运行特定测试文件")
-    print("7. 生成测试覆盖率报告")
-    print("8. 退出")
-    
-    while True:
-        try:
-            choice = input("\n请选择测试选项 (1-8): ").strip()
-            
-            if choice == "1":
-                print("\n🔍 运行所有测试...")
-                run_command("python -m pytest tests/ -v", "运行所有测试")
-                
-            elif choice == "2":
-                print("\n🔍 运行API端点测试...")
-                run_command("python -m pytest tests/test_api_endpoints.py -v", "运行API端点测试")
-                
-            elif choice == "3":
-                print("\n🔍 运行集成测试...")
-                run_command("python -m pytest tests/ -m integration -v", "运行集成测试")
-                
-            elif choice == "4":
-                print("\n🔍 运行性能测试...")
-                run_command("python -m pytest tests/test_api_endpoints.py::TestPerformanceAndLimits -v", "运行性能测试")
-                
-            elif choice == "5":
-                print("\n🔍 运行安全测试...")
-                run_command("python -m pytest tests/test_api_endpoints.py::TestSecurityFeatures -v", "运行安全测试")
-                
-            elif choice == "6":
-                test_file = input("请输入测试文件路径 (例如: tests/test_api_endpoints.py): ").strip()
-                if test_file and Path(test_file).exists():
-                    run_command(f"python -m pytest {test_file} -v", f"运行测试文件: {test_file}")
-                else:
-                    print("❌ 测试文件不存在")
-                    
-            elif choice == "7":
-                print("\n🔍 生成测试覆盖率报告...")
-                # 检查是否安装了pytest-cov
-                try:
-                    import pytest_cov
-                    print("✅ pytest-cov 已安装")
-                except ImportError:
-                    print("📦 安装 pytest-cov...")
-                    run_command("pip install pytest-cov", "安装pytest-cov")
-                
-                run_command(
-                    "python -m pytest tests/ --cov=markio --cov-report=html --cov-report=term",
-                    "生成测试覆盖率报告"
-                )
-                print("\n📊 覆盖率报告已生成，请查看 htmlcov/index.html")
-                
-            elif choice == "8":
-                print("\n👋 再见!")
-                break
-                
-            else:
-                print("❌ 无效选择，请输入 1-8")
-                
-        except KeyboardInterrupt:
-            print("\n\n👋 测试被中断，再见!")
-            break
-        except Exception as e:
-            print(f"❌ 发生错误: {e}")
-    
-    print("\n💡 提示:")
-    print("- 使用 'python -m pytest tests/ -v' 运行所有测试")
-    print("- 使用 'python -m pytest tests/ -k test_name' 运行特定测试")
-    print("- 使用 'python -m pytest tests/ -m marker' 运行标记的测试")
-    print("- 使用 'python -m pytest tests/ --tb=short' 显示简短错误信息")
+
 
 if __name__ == "__main__":
     main()

@@ -59,6 +59,28 @@ Markio is a high-performance document conversion service based on FastAPI, **bui
 - **Real-time Preview**: Provide web interface for real-time preview of conversion results
 - **Format Compatibility**: Support automatic conversion of old and new Office formats
 
+## 🧪 Testing
+
+### Quick Test Run
+```bash
+# Run the interactive test suite
+python tests/run_tests.py
+
+# Or run tests directly
+pytest tests/ -v
+```
+
+### Test Coverage
+```bash
+# Generate coverage report
+pytest tests/ --cov=markio --cov-report=html
+
+# View coverage report
+open htmlcov/index.html
+```
+
+For detailed testing information, see [tests/README.md](tests/README.md).
+
 ## 🚀 Quick Start
 
 ### Method 1: Docker (Recommended)
