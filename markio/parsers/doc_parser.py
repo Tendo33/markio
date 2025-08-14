@@ -38,7 +38,7 @@ async def doc_parse_main(
     )
 
     parsed_content = await docx_parse_main(
-        docx_file_path=converted_docx_path,
+        resource_path=converted_docx_path,
         save_parsed_content=save_parsed_content,
         output_dir=output_dir,
     )

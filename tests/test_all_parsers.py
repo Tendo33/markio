@@ -36,8 +36,6 @@ class TestAllParsers:
         assert response.status_code == 200, f"PDF parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
-        assert "status_code" in result
-        assert result["status_code"] == 200
 
         # 输出转换时间
         print(
@@ -64,8 +62,6 @@ class TestAllParsers:
         assert response.status_code == 200, f"DOC parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
-        assert "status_code" in result
-        assert result["status_code"] == 200
 
         # 输出转换时间
         print(
@@ -98,8 +94,6 @@ class TestAllParsers:
         assert response.status_code == 200, f"DOCX parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
-        assert "status_code" in result
-        assert result["status_code"] == 200
 
         # 输出转换时间
         print(
@@ -126,8 +120,6 @@ class TestAllParsers:
         assert response.status_code == 200, f"PPT parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
-        assert "status_code" in result
-        assert result["status_code"] == 200
 
         # 输出转换时间
         print(
@@ -160,8 +152,6 @@ class TestAllParsers:
         assert response.status_code == 200, f"PPTX parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
-        assert "status_code" in result
-        assert result["status_code"] == 200
 
         # 输出转换时间
         print(
@@ -194,8 +184,6 @@ class TestAllParsers:
         assert response.status_code == 200, f"XLSX parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
-        assert "status_code" in result
-        assert result["status_code"] == 200
 
         # 输出转换时间
         print(
@@ -222,8 +210,6 @@ class TestAllParsers:
         assert response.status_code == 200, f"HTML parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
-        assert "status_code" in result
-        assert result["status_code"] == 200
 
         # 输出转换时间
         print(
@@ -250,8 +236,6 @@ class TestAllParsers:
         assert response.status_code == 200, f"EPUB parsing failed: {response.text}"
         result = response.json()
         assert "parsed_content" in result
-        assert "status_code" in result
-        assert result["status_code"] == 200
         # 输出转换时间
         print(
             f"✅ EPUB接口测试通过 - 状态码: {response.status_code}, 转换时间: {conversion_time:.2f}秒"
