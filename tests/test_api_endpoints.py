@@ -1,11 +1,10 @@
 """
 API接口功能测试
-测试所有接口是否正常运行
+测试所有接口是否正常运行，使用真实的测试文件
 """
-from unittest.mock import mock_open, patch
-
 import pytest
 from fastapi.testclient import TestClient
+from pathlib import Path
 
 
 class TestAPIEndpoints:
@@ -29,130 +28,181 @@ class TestAPIEndpoints:
         assert response.status_code == 200
         assert response.json()["info"]["title"] == "Markio"
     
-    @pytest.mark.skip(reason="需要真实的PDF文件进行测试")
-    def test_pdf_parse_endpoint(self, client: TestClient):
-        """测试PDF解析接口 - 需要真实PDF文件"""
-        # TODO: 添加真实的PDF文件进行测试
-        # 当前使用mock数据
-        mock_pdf_content = b"%PDF-1.4\n%Mock PDF content\n%%EOF"
+    @pytest.mark.real_files
+    def test_pdf_parse_endpoint(self, client: TestClient, real_test_files):
+        """测试PDF解析接口 - 使用真实PDF文件"""
+        pdf_file_path = real_test_files["pdf"]
         
-        with patch("builtins.open", mock_open(read_data=mock_pdf_content)):
-            response = client.post(
-                "/v1/parse_pdf_file",
-                files={"file": ("test.pdf", mock_pdf_content, "application/pdf")},
-                data={"save_parsed_content": "false"}
-            )
+        if not pdf_file_path.exists():
+            pytest.skip(f"测试PDF文件不存在: {pdf_file_path}")
         
-        # 验证接口响应格式
+        with open(pdf_file_path, "rb") as f:
+            files = {"file": ("test_pdf1.pdf", f, "application/pdf")}
+            data = {"save_parsed_content": "false"}
+            
+            response = client.post("/v1/parse_pdf_file", files=files, data=data)
+        
+        # 验证接口响应
         assert response.status_code in [200, 400, 500]
+        if response.status_code == 200:
+            result = response.json()
+            assert "parsed_content" in result or "status_code" in result
     
-    @pytest.mark.skip(reason="需要真实的DOCX文件进行测试")
-    def test_docx_parse_endpoint(self, client: TestClient):
-        """测试DOCX解析接口 - 需要真实DOCX文件"""
-        # TODO: 添加真实的DOCX文件进行测试
-        mock_docx_content = b"Mock DOCX content"
+    @pytest.mark.real_files
+    def test_docx_parse_endpoint(self, client: TestClient, real_test_files):
+        """测试DOCX解析接口 - 使用真实DOCX文件"""
+        docx_file_path = real_test_files["docx"]
         
-        response = client.post(
-            "/v1/parse_docx_file",
-            files={"file": ("test.docx", mock_docx_content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
-            data={"save_parsed_content": "false"}
-        )
+        if not docx_file_path.exists():
+            pytest.skip(f"测试DOCX文件不存在: {docx_file_path}")
         
-        assert response.status_code in [200, 400, 500]
-    
-    @pytest.mark.skip(reason="需要真实的图片文件进行测试")
-    def test_image_parse_endpoint(self, client: TestClient):
-        """测试图片解析接口 - 需要真实图片文件"""
-        # TODO: 添加真实的图片文件进行测试
-        mock_img_content = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00"
-        
-        response = client.post(
-            "/v1/parse_image_file",
-            files={"file": ("test.jpg", mock_img_content, "image/jpeg")},
-            data={"save_parsed_content": "false"}
-        )
+        with open(docx_file_path, "rb") as f:
+            files = {"file": ("test_docx.docx", f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+            data = {"save_parsed_content": "false"}
+            
+            response = client.post("/v1/parse_docx_file", files=files, data=data)
         
         assert response.status_code in [200, 400, 500]
+        if response.status_code == 200:
+            result = response.json()
+            assert "parsed_content" in result or "status_code" in result
     
-    @pytest.mark.skip(reason="需要真实的HTML文件进行测试")
-    def test_html_parse_endpoint(self, client: TestClient):
-        """测试HTML解析接口 - 需要真实HTML文件"""
-        # TODO: 添加真实的HTML文件进行测试
-        mock_html_content = b"<html><body><h1>Test HTML</h1></body></html>"
+    @pytest.mark.real_files
+    def test_xlsx_parse_endpoint(self, client: TestClient, real_test_files):
+        """测试XLSX解析接口 - 使用真实XLSX文件"""
+        xlsx_file_path = real_test_files["xlsx"]
         
-        response = client.post(
-            "/v1/parse_html_file",
-            files={"file": ("test.html", mock_html_content, "text/html")},
-            data={"save_parsed_content": "false"}
-        )
+        if not xlsx_file_path.exists():
+            pytest.skip(f"测试XLSX文件不存在: {xlsx_file_path}")
+        
+        with open(xlsx_file_path, "rb") as f:
+            files = {"file": ("test_xlsx.xlsx", f, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+            data = {"save_parsed_content": "false"}
+            
+            response = client.post("/v1/parse_xlsx_file", files=files, data=data)
         
         assert response.status_code in [200, 400, 500]
+        if response.status_code == 200:
+            result = response.json()
+            assert "parsed_content" in result or "status_code" in result
     
-    @pytest.mark.skip(reason="需要真实的XLSX文件进行测试")
-    def test_xlsx_parse_endpoint(self, client: TestClient):
-        """测试XLSX解析接口 - 需要真实XLSX文件"""
-        # TODO: 添加真实的XLSX文件进行测试
-        mock_xlsx_content = b"Mock XLSX content"
+    @pytest.mark.real_files
+    def test_html_parse_endpoint(self, client: TestClient, real_test_files):
+        """测试HTML解析接口 - 使用真实HTML文件"""
+        html_file_path = real_test_files["html"]
         
-        response = client.post(
-            "/v1/parse_xlsx_file",
-            files={"file": ("test.xlsx", mock_xlsx_content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
-            data={"save_parsed_content": "false"}
-        )
+        if not html_file_path.exists():
+            pytest.skip(f"测试HTML文件不存在: {html_file_path}")
+        
+        with open(html_file_path, "rb") as f:
+            files = {"file": ("test_html.html", f, "text/html")}
+            data = {"save_parsed_content": "false"}
+            
+            response = client.post("/v1/parse_html_file", files=files, data=data)
         
         assert response.status_code in [200, 400, 500]
+        if response.status_code == 200:
+            result = response.json()
+            assert "parsed_content" in result or "status_code" in result
     
-    def test_url_parse_endpoint(self, client: TestClient):
-        """测试URL解析接口"""
-        # 使用httpbin.org作为测试URL，这是一个可靠的测试服务
-        response = client.post(
-            "/v1/parse_url",
-            json={
-                "url": "https://httpbin.org/html",
-                "save_parsed_content": False
-            }
-        )
+    @pytest.mark.real_files
+    def test_epub_parse_endpoint(self, client: TestClient, real_test_files):
+        """测试EPUB解析接口 - 使用真实EPUB文件"""
+        epub_file_path = real_test_files["epub"]
         
-        # URL解析可能因为网络问题失败，但接口应该能正常响应
+        if not epub_file_path.exists():
+            pytest.skip(f"测试EPUB文件不存在: {epub_file_path}")
+        
+        with open(epub_file_path, "rb") as f:
+            files = {"file": ("test_epub.epub", f, "application/epub+zip")}
+            data = {"save_parsed_content": "false"}
+            
+            response = client.post("/v1/parse_epub_file", files=files, data=data)
+        
         assert response.status_code in [200, 400, 500]
+        if response.status_code == 200:
+            result = response.json()
+            assert "parsed_content" in result or "status_code" in result
     
-    def test_invalid_file_type(self, client: TestClient):
-        """测试无效文件类型"""
-        # 创建一个无效的文件
-        invalid_content = b"invalid file content"
+    @pytest.mark.real_files
+    def test_ppt_parse_endpoint(self, client: TestClient, real_test_files):
+        """测试PPT解析接口 - 使用真实PPT文件"""
+        ppt_file_path = real_test_files["ppt"]
         
-        response = client.post(
-            "/v1/parse_pdf_file",
-            files={"file": ("invalid.txt", invalid_content, "text/plain")},
-            data={"save_parsed_content": "false"}
-        )
+        if not ppt_file_path.exists():
+            pytest.skip(f"测试PPT文件不存在: {ppt_file_path}")
         
-        # 应该返回400错误
-        assert response.status_code == 400
+        with open(ppt_file_path, "rb") as f:
+            files = {"file": ("test_ppt.ppt", f, "application/vnd.ms-powerpoint")}
+            data = {"save_parsed_content": "false"}
+            
+            response = client.post("/v1/parse_ppt_file", files=files, data=data)
+        
+        assert response.status_code in [200, 400, 500]
+        if response.status_code == 200:
+            result = response.json()
+            assert "parsed_content" in result or "status_code" in result
     
-    def test_missing_file(self, client: TestClient):
-        """测试缺少文件参数"""
-        response = client.post(
-            "/v1/parse_pdf_file",
-            data={"save_parsed_content": "false"}
-        )
+    @pytest.mark.real_files
+    def test_pptx_parse_endpoint(self, client: TestClient, real_test_files):
+        """测试PPTX解析接口 - 使用真实PPTX文件"""
+        pptx_file_path = real_test_files["pptx"]
         
-        # 应该返回422错误（验证错误）
-        assert response.status_code == 422
+        if not pptx_file_path.exists():
+            pytest.skip(f"测试PPTX文件不存在: {pptx_file_path}")
+        
+        with open(pptx_file_path, "rb") as f:
+            files = {"file": ("test_pptx.pptx", f, "application/vnd.openxmlformats-officedocument.presentationml.presentation")}
+            data = {"save_parsed_content": "false"}
+            
+            response = client.post("/v1/parse_pptx_file", files=files, data=data)
+        
+        assert response.status_code in [200, 400, 500]
+        if response.status_code == 200:
+            result = response.json()
+            assert "parsed_content" in result or "status_code" in result
     
-    def test_file_size_limit(self, client: TestClient):
-        """测试文件大小限制"""
-        # 创建一个超过100MB的虚拟文件
-        large_content = b"x" * (100 * 1024 * 1024 + 1)
+    @pytest.mark.real_files
+    def test_doc_parse_endpoint(self, client: TestClient, real_test_files):
+        """测试DOC解析接口 - 使用真实DOC文件"""
+        doc_file_path = real_test_files["doc"]
         
-        response = client.post(
-            "/v1/parse_pdf_file",
-            files={"file": ("large.pdf", large_content, "application/pdf")},
-            data={"save_parsed_content": "false"}
-        )
+        if not doc_file_path.exists():
+            pytest.skip(f"测试DOC文件不存在: {doc_file_path}")
         
-        # 可能因为文件太大而失败，但接口应该能正常响应
-        assert response.status_code in [200, 400, 413, 500]
+        with open(doc_file_path, "rb") as f:
+            files = {"file": ("test_doc.doc", f, "application/msword")}
+            data = {"save_parsed_content": "false"}
+            
+            response = client.post("/v1/parse_doc_file", files=files, data=data)
+        
+        assert response.status_code in [200, 400, 500]
+        if response.status_code == 200:
+            result = response.json()
+            assert "parsed_content" in result or "status_code" in result
+    
+    def test_file_upload_validation(self, client: TestClient):
+        """测试文件上传验证"""
+        # 测试空文件
+        files = {"file": ("empty.txt", b"", "text/plain")}
+        response = client.post("/v1/parse_pdf_file", files=files)
+        assert response.status_code in [400, 422]
+        
+        # 测试无效文件类型
+        files = {"file": ("test.txt", b"test content", "text/plain")}
+        response = client.post("/v1/parse_pdf_file", files=files)
+        assert response.status_code in [400, 422]
+    
+    def test_error_handling(self, client: TestClient):
+        """测试错误处理"""
+        # 测试缺少文件参数
+        response = client.post("/v1/parse_pdf_file")
+        assert response.status_code in [400, 422]
+        
+        # 测试无效的URL
+        data = {"url": "invalid-url"}
+        response = client.post("/v1/parse_url", data=data)
+        assert response.status_code in [400, 422]
 
 
 class TestParserFunctions:

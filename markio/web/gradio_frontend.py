@@ -205,7 +205,12 @@ def create_simple_interface():
                             )
 
                         # PDF preview component
-                        pdf_preview = PDF(label="PDF Preview", interactive=False, visible=True, height=600)
+                        pdf_preview = PDF(
+                            label="PDF Preview",
+                            interactive=False,
+                            visible=True,
+                            height=600,
+                        )
 
                     # URL parsing
                     with gr.Tab("🌐 URL Parsing"):
@@ -299,7 +304,14 @@ def create_simple_interface():
         )
 
         clear_btn.add(
-            [file_input, url_input, raw_result, rendered_result, upload_status, pdf_preview]
+            [
+                file_input,
+                url_input,
+                raw_result,
+                rendered_result,
+                upload_status,
+                pdf_preview,
+            ]
         )
 
     return demo

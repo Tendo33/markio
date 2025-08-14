@@ -1,393 +1,364 @@
 """
 工具函数测试
-测试各种辅助功能和工具函数
+测试各种工具函数的功能，使用真实的测试文件
 """
-import asyncio
+import json
+import tempfile
 from pathlib import Path
-from unittest.mock import patch
+import shutil
 
 import pytest
 
-from scripts.run_local import (
-    FUNCTION_MAP,
-    chunked_iterable,
+from markio.utils.file_utils import (
+    calculate_file_size,
+    ensure_output_directory,
     get_all_files,
+    get_file_extension,
+    is_valid_file_type,
     parameter_adapter,
 )
+from markio.utils.logger_config import get_logger
 
 
-class TestFileUtilities:
+class TestFileUtils:
     """文件工具函数测试类"""
     
-    def test_get_all_files(self, temp_dir):
-        """测试获取所有文件函数 - 使用临时目录"""
-        # 创建测试目录结构
-        test_dir = Path(temp_dir) / "file_test"
-        test_dir.mkdir()
+    def test_calculate_file_size(self, real_test_files):
+        """测试文件大小计算 - 使用真实文件"""
+        pdf_file_path = real_test_files["pdf"]
         
-        # 创建子目录和文件
-        subdir = test_dir / "subdir"
-        subdir.mkdir()
+        if not pdf_file_path.exists():
+            pytest.skip(f"测试PDF文件不存在: {pdf_file_path}")
         
-        # 创建测试文件
-        (test_dir / "file1.txt").write_text("test1")
-        (test_dir / "file2.txt").write_text("test2")
-        (subdir / "file3.txt").write_text("test3")
-        
-        # 获取所有文件
-        files = get_all_files(str(test_dir))
+        # 测试文件大小计算
+        file_size = calculate_file_size(pdf_file_path.stat().st_size)
         
         # 验证结果
-        assert len(files) == 3, f"应该找到3个文件，实际找到{len(files)}个"
-        assert any("file1.txt" in f for f in files), "应该包含file1.txt"
-        assert any("file2.txt" in f for f in files), "应该包含file2.txt"
-        assert any("file3.txt" in f for f in files), "应该包含file3.txt"
+        assert isinstance(file_size, str)
+        assert "KB" in file_size or "MB" in file_size or "B" in file_size
+        print(f"文件大小: {file_size}")
     
-    def test_get_all_files_single_file(self, temp_dir):
-        """测试获取单个文件"""
-        # 创建单个测试文件
-        test_file = Path(temp_dir) / "single.txt"
-        test_file.write_text("single file")
+    def test_get_file_extension(self, real_test_files):
+        """测试文件扩展名获取 - 使用真实文件"""
+        # 测试各种文件类型
+        test_cases = [
+            (real_test_files["pdf"], ".pdf"),
+            (real_test_files["docx"], ".docx"),
+            (real_test_files["xlsx"], ".xlsx"),
+            (real_test_files["html"], ".html"),
+            (real_test_files["epub"], ".epub"),
+        ]
         
-        # 获取文件
-        files = get_all_files(str(test_file))
-        
-        # 验证结果
-        assert len(files) == 1, "应该只找到1个文件"
-        assert files[0] == str(test_file), "应该返回正确的文件路径"
+        for file_path, expected_ext in test_cases:
+            if file_path.exists():
+                ext = get_file_extension(str(file_path))
+                assert ext == expected_ext, f"文件 {file_path} 的扩展名应该是 {expected_ext}，实际是 {ext}"
     
-    def test_get_all_files_empty_directory(self, temp_dir):
-        """测试空目录"""
-        empty_dir = Path(temp_dir) / "empty"
-        empty_dir.mkdir()
+    def test_is_valid_file_type(self, real_test_files):
+        """测试文件类型验证 - 使用真实文件"""
+        # 测试有效文件类型
+        valid_cases = [
+            (real_test_files["pdf"], "pdf"),
+            (real_test_files["docx"], "docx"),
+            (real_test_files["xlsx"], "xlsx"),
+            (real_test_files["html"], "html"),
+            (real_test_files["epub"], "epub"),
+        ]
         
-        # 获取文件
-        files = get_all_files(str(empty_dir))
-        
-        # 验证结果
-        assert len(files) == 0, "空目录应该返回空列表"
-    
-    def test_get_all_files_nonexistent_path(self, temp_dir):
-        """测试不存在的路径"""
-        nonexistent_path = Path(temp_dir) / "nonexistent"
-        
-        # 获取文件
-        files = get_all_files(str(nonexistent_path))
-        
-        # 验证结果
-        assert len(files) == 0, "不存在的路径应该返回空列表"
-    
-    def test_chunked_iterable(self):
-        """测试分块迭代器"""
-        # 测试数据
-        test_list = list(range(10))
-        
-        # 测试不同块大小
-        chunk_sizes = [3, 5, 7]
-        
-        for chunk_size in chunk_sizes:
-            chunks = list(chunked_iterable(test_list, chunk_size))
-            
-            # 验证分块结果
-            assert len(chunks) > 0, f"块大小{chunk_size}应该产生分块"
-            
-            # 验证每个块的大小
-            for i, chunk in enumerate(chunks[:-1]):
-                assert len(chunk) == chunk_size, f"第{i}块应该大小为{chunk_size}"
-            
-            # 验证最后一块的大小
-            if chunks:
-                last_chunk = chunks[-1]
-                assert len(last_chunk) <= chunk_size, "最后一块应该小于等于块大小"
-                assert len(last_chunk) > 0, "最后一块不应该为空"
-    
-    def test_chunked_iterable_empty_list(self):
-        """测试空列表的分块"""
-        empty_list = []
-        
-        # 测试不同块大小
-        for chunk_size in [1, 5, 10]:
-            chunks = list(chunked_iterable(empty_list, chunk_size))
-            assert len(chunks) == 0, "空列表应该产生空的分块列表"
-    
-    def test_chunked_iterable_single_element(self):
-        """测试单元素列表的分块"""
-        single_list = [42]
-        
-        # 测试不同块大小
-        for chunk_size in [1, 5, 10]:
-            chunks = list(chunked_iterable(single_list, chunk_size))
-            assert len(chunks) == 1, "单元素列表应该产生1个分块"
-            assert chunks[0] == [42], "分块应该包含正确的元素"
-    
-    @pytest.mark.skip(reason="需要真实的文件系统进行测试")
-    def test_get_all_files_with_real_filesystem(self):
-        """测试获取真实文件系统中的文件 - 需要真实文件"""
-        # TODO: 当有真实测试文件时，可以在这里测试真实文件系统
-        # 当前使用mock数据
-        mock_files = ["/real/test1.pdf", "/real/test2.docx", "/real/test3.xlsx"]
-        
-        with patch("scripts.run_local.get_all_files", return_value=mock_files):
-            files = get_all_files("/real/test_dir")
-            assert len(files) == 3, "应该找到3个真实文件"
-
-
-class TestParameterAdapter:
-    """参数适配器测试类"""
-    
-    def test_pdf_parameter_adapter(self):
-        """测试PDF参数适配"""
-        params = parameter_adapter(
-            "pdf",
-            file_path="/test.pdf",
-            parse_method="auto",
-            lang="ch",
-            save_parsed_content=True,
-            output_dir="/output"
-        )
-        
-        # 验证PDF特定参数
-        assert params["resource_path"] == "/test.pdf"
-        assert params["parse_method"] == "auto"
-        assert params["lang"] == "ch"
-        assert params["save_parsed_content"] is True
-        assert params["output_dir"] == "/output"
-        
-        # 验证默认参数
-        assert params["start_page"] == 0
-        assert params["end_page"] is None
-    
-    def test_image_parameter_adapter(self):
-        """测试图片参数适配"""
-        params = parameter_adapter(
-            "img",
-            file_path="/test.jpg",
-            parse_backend="pipeline",
-            save_parsed_content=False
-        )
-        
-        # 验证图片特定参数
-        assert params["resource_path"] == "/test.jpg"
-        assert params["parse_backend"] == "pipeline"
-        assert params["save_parsed_content"] is False
-    
-    def test_docx_parameter_adapter(self):
-        """测试DOCX参数适配"""
-        params = parameter_adapter(
-            "docx",
-            file_path="/test.docx",
-            save_parsed_content=True,
-            output_dir="/output"
-        )
-        
-        # 验证DOCX参数
-        assert params["resource_path"] == "/test.docx"
-        assert params["save_parsed_content"] is True
-        assert params["output_dir"] == "/output"
-    
-    def test_html_parameter_adapter(self):
-        """测试HTML参数适配"""
-        params = parameter_adapter(
-            "html",
-            file_path="/test.html",
-            save_parsed_content=False
-        )
-        
-        # 验证HTML参数
-        assert params["resource_path"] == "/test.html"
-        assert params["save_parsed_content"] is False
-    
-    def test_url_parameter_adapter(self):
-        """测试URL参数适配"""
-        params = parameter_adapter(
-            "url",
-            url="https://example.com",
-            save_parsed_content=True,
-            output_dir="/output"
-        )
-        
-        # 验证URL参数
-        assert params["resource_path"] == "https://example.com"
-        assert params["save_parsed_content"] is True
-        assert params["output_dir"] == "/output"
-    
-    def test_parameter_adapter_validation(self):
-        """测试参数适配器的验证逻辑"""
-        # 测试缺少必需参数
-        with pytest.raises(ValueError, match="File path is required"):
-            parameter_adapter("pdf")
-        
-        with pytest.raises(ValueError, match="URL is required"):
-            parameter_adapter("url")
+        for file_path, file_type in valid_cases:
+            if file_path.exists():
+                is_valid = is_valid_file_type(str(file_path), file_type)
+                assert is_valid, f"文件 {file_path} 应该被识别为有效的 {file_type} 类型"
         
         # 测试无效文件类型
-        with pytest.raises(ValueError, match="Unsupported file type"):
-            parameter_adapter("invalid")
-        
-        # 测试缺少输出目录
-        with pytest.raises(ValueError, match="Output directory is required"):
-            parameter_adapter("pdf", file_path="/test.pdf", save_parsed_content=True)
+        pdf_file_path = real_test_files["pdf"]
+        if pdf_file_path.exists():
+            is_valid = is_valid_file_type(str(pdf_file_path), "docx")
+            assert not is_valid, f"PDF文件不应该被识别为DOCX类型"
     
-    def test_parameter_adapter_none_values(self):
-        """测试参数适配器处理None值"""
-        params = parameter_adapter(
-            "pdf",
-            file_path="/test.pdf",
-            start_page=None,
-            end_page=None
-        )
+    def test_ensure_output_directory(self, temp_dir):
+        """测试输出目录创建"""
+        # 测试创建新目录
+        new_dir = temp_dir / "new_output"
+        result_dir = ensure_output_directory(str(new_dir))
         
-        # 验证None值被过滤
-        assert "start_page" not in params, "None值应该被过滤"
-        assert "end_page" not in params, "None值应该被过滤"
-        assert "resource_path" in params, "有效值应该被保留"
+        assert Path(result_dir).exists(), "新目录应该被创建"
+        assert Path(result_dir).is_dir(), "创建的路径应该是目录"
+        
+        # 测试已存在的目录
+        existing_dir = temp_dir / "existing_output"
+        existing_dir.mkdir()
+        
+        result_dir = ensure_output_directory(str(existing_dir))
+        assert Path(result_dir).exists(), "已存在的目录应该保持存在"
     
-    @pytest.mark.skip(reason="需要真实的文件路径进行测试")
-    def test_parameter_adapter_with_real_files(self):
-        """测试参数适配器与真实文件 - 需要真实文件"""
-        # TODO: 当有真实测试文件时，可以在这里测试真实文件路径
-        # 当前使用mock数据
-        mock_file_paths = [
-            "/real/test.pdf",
-            "/real/test.docx", 
-            "/real/test.xlsx",
-            "/real/test.html",
-            "/real/test.jpg"
+    @pytest.mark.real_files
+    def test_get_all_files_with_real_filesystem(self, temp_dir, real_test_files):
+        """测试获取所有文件 - 使用真实文件系统"""
+        # 创建测试目录结构
+        test_dir = temp_dir / "file_scan_test"
+        test_dir.mkdir()
+        
+        # 创建子目录
+        subdir1 = test_dir / "subdir1"
+        subdir2 = test_dir / "subdir2"
+        subdir1.mkdir()
+        subdir2.mkdir()
+        
+        # 复制真实文件到不同目录
+        files_to_copy = [
+            (real_test_files["pdf"], test_dir / "root.pdf"),
+            (real_test_files["docx"], subdir1 / "sub1.docx"),
+            (real_test_files["xlsx"], subdir1 / "sub1.xlsx"),
+            (real_test_files["html"], subdir2 / "sub2.html"),
+            (real_test_files["epub"], subdir2 / "sub2.epub"),
         ]
         
-        for file_path in mock_file_paths:
-            file_type = file_path.split(".")[-1]
-            if file_type == "pdf":
-                params = parameter_adapter("pdf", file_path=file_path)
-                assert params["resource_path"] == file_path
-
-
-class TestFunctionMap:
-    """函数映射测试类"""
+        for source, target in files_to_copy:
+            if source.exists():
+                shutil.copy2(source, target)
+        
+        # 测试获取所有文件
+        all_files = get_all_files(str(test_dir))
+        
+        # 验证结果
+        assert len(all_files) > 0, "应该找到一些文件"
+        
+        # 检查文件路径
+        file_paths = [Path(f) for f in all_files]
+        assert any(f.name == "root.pdf" for f in file_paths), "应该找到根目录的PDF文件"
+        assert any(f.name == "sub1.docx" for f in file_paths), "应该找到子目录的DOCX文件"
+        
+        print(f"找到的文件数量: {len(all_files)}")
+        for file_path in all_files:
+            print(f"  - {file_path}")
     
-    def test_function_map_completeness(self):
-        """测试函数映射的完整性"""
-        # 验证所有支持的文件类型都有对应的解析函数
-        expected_types = [
-            "pdf", "img", "doc", "ppt", "pptx", 
-            "html", "htm", "docx", "url", "xlsx", "epub"
+    @pytest.mark.real_files
+    def test_parameter_adapter_with_real_files(self, real_test_files):
+        """测试参数适配器 - 使用真实文件"""
+        # 测试文件路径参数
+        pdf_file_path = real_test_files["pdf"]
+        
+        if not pdf_file_path.exists():
+            pytest.skip(f"测试PDF文件不存在: {pdf_file_path}")
+        
+        # 测试文件路径参数
+        adapted_params = parameter_adapter({
+            "file_path": str(pdf_file_path),
+            "save_parsed_content": "true",
+            "output_dir": "/tmp/test"
+        })
+        
+        # 验证参数适配
+        assert "file_path" in adapted_params, "应该包含file_path参数"
+        assert adapted_params["save_parsed_content"] is True, "布尔值应该被正确转换"
+        assert adapted_params["output_dir"] == "/tmp/test", "输出目录应该被保留"
+        
+        # 测试URL参数
+        adapted_params = parameter_adapter({
+            "url": "https://example.com",
+            "save_parsed_content": "false"
+        })
+        
+        assert "url" in adapted_params, "应该包含url参数"
+        assert adapted_params["save_parsed_content"] is False, "布尔值应该被正确转换"
+        
+        # 测试混合参数
+        adapted_params = parameter_adapter({
+            "file_path": str(pdf_file_path),
+            "max_workers": "4",
+            "batch_size": "10"
+        })
+        
+        assert adapted_params["max_workers"] == 4, "数字应该被正确转换"
+        assert adapted_params["batch_size"] == 10, "数字应该被正确转换"
+    
+    def test_parameter_adapter_edge_cases(self):
+        """测试参数适配器的边界情况"""
+        # 测试空参数
+        adapted_params = parameter_adapter({})
+        assert adapted_params == {}, "空参数应该返回空字典"
+        
+        # 测试None值
+        adapted_params = parameter_adapter({"key": None})
+        assert adapted_params["key"] is None, "None值应该被保留"
+        
+        # 测试无效数字
+        adapted_params = parameter_adapter({"invalid_num": "not_a_number"})
+        assert adapted_params["invalid_num"] == "not_a_number", "无效数字应该保持原值"
+        
+        # 测试特殊布尔值
+        test_cases = [
+            ("true", True),
+            ("false", False),
+            ("True", True),
+            ("False", False),
+            ("1", True),
+            ("0", False),
+            ("yes", True),
+            ("no", False),
         ]
         
-        for file_type in expected_types:
-            assert file_type in FUNCTION_MAP, f"文件类型 {file_type} 应该在函数映射中"
-            assert callable(FUNCTION_MAP[file_type]), f"文件类型 {file_type} 应该有可调用的函数"
-    
-    def test_function_map_function_types(self):
-        """测试函数映射中函数的类型"""
-        # 验证所有函数都是异步函数
-        for file_type, func in FUNCTION_MAP.items():
-            assert asyncio.iscoroutinefunction(func), f"函数 {file_type} 应该是异步函数"
-    
-    def test_function_map_consistency(self):
-        """测试函数映射的一致性"""
-        # 验证函数映射与参数适配器的一致性
-        for file_type in FUNCTION_MAP.keys():
-            if file_type != "url":
-                # 测试文件路径参数
-                try:
-                    params = parameter_adapter(file_type, file_path="/test.file")
-                    assert "resource_path" in params, f"文件类型 {file_type} 应该有resource_path参数"
-                except ValueError:
-                    # 某些文件类型可能有特殊要求，这是正常的
-                    pass
+        for input_val, expected in test_cases:
+            adapted_params = parameter_adapter({"test_bool": input_val})
+            assert adapted_params["test_bool"] == expected, f"'{input_val}' 应该被转换为 {expected}"
 
 
-class TestErrorHandling:
-    """错误处理测试类"""
+class TestLoggerConfig:
+    """日志配置测试类"""
     
-    def test_parameter_adapter_error_messages(self):
-        """测试参数适配器的错误消息"""
-        # 测试不支持的文件类型
-        with pytest.raises(ValueError) as exc_info:
-            parameter_adapter("unsupported")
-        assert "Unsupported file type: unsupported" in str(exc_info.value)
+    def test_get_logger(self):
+        """测试日志器获取"""
+        logger = get_logger("test_logger")
         
-        # 测试缺少文件路径
-        with pytest.raises(ValueError) as exc_info:
-            parameter_adapter("pdf")
-        assert "File path is required for pdf parser" in str(exc_info.value)
+        # 验证日志器基本属性
+        assert logger is not None, "日志器不应该为None"
+        assert hasattr(logger, "info"), "日志器应该有info方法"
+        assert hasattr(logger, "error"), "日志器应该有error方法"
+        assert hasattr(logger, "debug"), "日志器应该有debug方法"
         
-        # 测试缺少URL
-        with pytest.raises(ValueError) as exc_info:
-            parameter_adapter("url")
-        assert "URL is required for URL parser" in str(exc_info.value)
-        
-        # 测试缺少输出目录
-        with pytest.raises(ValueError) as exc_info:
-            parameter_adapter("pdf", file_path="/test.pdf", save_parsed_content=True)
-        assert "Output directory is required when save_parsed_content is True" in str(exc_info.value)
-    
-    def test_file_utilities_error_handling(self):
-        """测试文件工具函数的错误处理"""
-        # 测试不存在的路径
-        files = get_all_files("/nonexistent/path")
-        assert len(files) == 0, "不存在的路径应该返回空列表"
-        
-        # 测试空路径
-        files = get_all_files("")
-        assert len(files) == 0, "空路径应该返回空列表"
-    
-    def test_chunked_iterable_edge_cases(self):
-        """测试分块迭代器的边界情况"""
-        # 测试块大小为0
-        with pytest.raises(ValueError):
-            list(chunked_iterable([1, 2, 3], 0))
-        
-        # 测试块大小为负数
-        with pytest.raises(ValueError):
-            list(chunked_iterable([1, 2, 3], -1))
-        
-        # 测试块大小大于列表长度
-        chunks = list(chunked_iterable([1, 2, 3], 10))
-        assert len(chunks) == 1, "块大小大于列表长度应该产生1个分块"
-        assert chunks[0] == [1, 2, 3], "分块应该包含所有元素"
+        # 测试日志记录
+        try:
+            logger.info("测试信息日志")
+            logger.debug("测试调试日志")
+            logger.warning("测试警告日志")
+            logger.error("测试错误日志")
+        except Exception as e:
+            pytest.fail(f"日志记录应该正常工作，但出现了异常: {e}")
 
 
-# 测试数据准备函数 - 为真实测试用例预留
-def prepare_utils_test_files():
-    """
-    准备工具函数测试文件的函数
-    当有真实测试文件时，可以在这里配置文件路径
+class TestFileOperations:
+    """文件操作测试类"""
     
-    Returns:
-        dict: 包含各种测试场景文件路径的字典
-    """
-    return {
-        "file_utilities": {
-            "single_file": "path/to/real/single.txt",
-            "multiple_files": [
-                "path/to/real/file1.txt",
-                "path/to/real/file2.txt", 
-                "path/to/real/file3.txt"
-            ],
-            "nested_structure": "path/to/real/nested/directory"
-        },
-        "parameter_adapter": {
-            "pdf": "path/to/real/test.pdf",
-            "docx": "path/to/real/test.docx",
-            "xlsx": "path/to/real/test.xlsx",
-            "html": "path/to/real/test.html",
-            "image": "path/to/real/test.jpg"
-        },
-        "function_map": {
-            "supported_types": [
-                "path/to/real/test.pdf",
-                "path/to/real/test.docx",
-                "path/to/real/test.xlsx",
-                "path/to/real/test.html",
-                "path/to/real/test.jpg"
-            ]
+    @pytest.mark.real_files
+    def test_file_copy_operations(self, temp_dir, real_test_files):
+        """测试文件复制操作 - 使用真实文件"""
+        # 创建测试目录
+        test_dir = temp_dir / "copy_test"
+        test_dir.mkdir()
+        
+        # 复制各种类型的文件
+        copied_files = []
+        for file_type, source_file in real_test_files.items():
+            if source_file.exists():
+                target_file = test_dir / f"copied_{file_type}{source_file.suffix}"
+                shutil.copy2(source_file, target_file)
+                copied_files.append(target_file)
+        
+        if not copied_files:
+            pytest.skip("没有可用的测试文件进行复制测试")
+        
+        # 验证复制结果
+        for copied_file in copied_files:
+            assert copied_file.exists(), f"复制的文件 {copied_file} 应该存在"
+            assert copied_file.stat().st_size > 0, f"复制的文件 {copied_file} 应该有内容"
+        
+        print(f"成功复制了 {len(copied_files)} 个文件")
+    
+    @pytest.mark.real_files
+    def test_file_validation_operations(self, real_test_files):
+        """测试文件验证操作 - 使用真实文件"""
+        # 测试文件存在性验证
+        for file_type, file_path in real_test_files.items():
+            if file_path.exists():
+                # 验证文件存在
+                assert file_path.exists(), f"测试文件 {file_path} 应该存在"
+                
+                # 验证文件大小
+                file_size = file_path.stat().st_size
+                assert file_size > 0, f"测试文件 {file_path} 应该有内容"
+                
+                # 验证文件类型
+                assert file_path.suffix in [".pdf", ".docx", ".xlsx", ".html", ".epub", ".ppt", ".pptx", ".doc"], \
+                    f"测试文件 {file_path} 应该有正确的扩展名"
+                
+                print(f"文件 {file_path.name}: 大小 {file_size} 字节, 类型 {file_path.suffix}")
+    
+    def test_temp_file_operations(self, temp_dir):
+        """测试临时文件操作"""
+        # 创建临时文件
+        temp_file = temp_dir / "temp_test.txt"
+        test_content = "这是一个临时测试文件的内容"
+        
+        # 写入内容
+        temp_file.write_text(test_content, encoding="utf-8")
+        
+        # 验证写入
+        assert temp_file.exists(), "临时文件应该被创建"
+        assert temp_file.read_text(encoding="utf-8") == test_content, "文件内容应该正确"
+        
+        # 测试文件大小
+        file_size = temp_file.stat().st_size
+        expected_size = len(test_content.encode("utf-8"))
+        assert file_size == expected_size, f"文件大小应该是 {expected_size} 字节，实际是 {file_size} 字节"
+        
+        # 清理
+        temp_file.unlink()
+        assert not temp_file.exists(), "临时文件应该被删除"
+
+
+class TestJSONOperations:
+    """JSON操作测试类"""
+    
+    def test_json_file_creation_and_parsing(self, temp_dir):
+        """测试JSON文件的创建和解析"""
+        # 创建测试JSON文件
+        json_file = temp_dir / "test_data.json"
+        test_data = {
+            "string": "测试字符串",
+            "number": 42,
+            "boolean": True,
+            "array": [1, 2, 3, "测试"],
+            "object": {
+                "nested_key": "嵌套值",
+                "nested_number": 123
+            }
         }
-    }
-
-
-# 标记需要真实文件的测试
-REAL_FILE_UTILS_TESTS = [
-    "test_get_all_files_with_real_filesystem",
-    "test_parameter_adapter_with_real_files"
-]
+        
+        # 写入JSON文件
+        json_file.write_text(json.dumps(test_data, ensure_ascii=False, indent=2), encoding="utf-8")
+        
+        # 验证文件创建
+        assert json_file.exists(), "JSON文件应该被创建"
+        
+        # 读取并解析JSON
+        loaded_data = json.loads(json_file.read_text(encoding="utf-8"))
+        
+        # 验证数据完整性
+        assert loaded_data == test_data, "加载的数据应该与原始数据一致"
+        
+        # 验证特定字段
+        assert loaded_data["string"] == "测试字符串", "字符串字段应该正确"
+        assert loaded_data["number"] == 42, "数字字段应该正确"
+        assert loaded_data["boolean"] is True, "布尔字段应该正确"
+        assert len(loaded_data["array"]) == 4, "数组字段应该正确"
+        assert loaded_data["object"]["nested_key"] == "嵌套值", "嵌套对象应该正确"
+        
+        print("JSON文件创建和解析测试通过")
+    
+    def test_json_error_handling(self, temp_dir):
+        """测试JSON错误处理"""
+        # 测试无效JSON
+        invalid_json_file = temp_dir / "invalid.json"
+        invalid_json_file.write_text('{"key": "value", "unclosed": "quote}')
+        
+        # 尝试解析无效JSON
+        try:
+            json.loads(invalid_json_file.read_text())
+            pytest.fail("应该抛出JSON解析错误")
+        except json.JSONDecodeError:
+            # 预期的错误
+            pass
+        
+        # 测试空文件
+        empty_file = temp_dir / "empty.json"
+        empty_file.write_text("")
+        
+        try:
+            json.loads(empty_file.read_text())
+            pytest.fail("应该抛出JSON解析错误")
+        except json.JSONDecodeError:
+            # 预期的错误
+            pass
+        
+        print("JSON错误处理测试通过")

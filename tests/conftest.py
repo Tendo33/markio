@@ -34,6 +34,35 @@ def temp_dir():
 
 
 @pytest.fixture
+def test_docs_dir():
+    """测试文档目录fixture - 使用真实的测试文件"""
+    # 获取项目根目录下的tests/test_docs文件夹
+    project_root = Path(__file__).parent.parent
+    test_docs_path = project_root / "tests" / "test_docs"
+    
+    if not test_docs_path.exists():
+        pytest.skip("测试文档目录不存在")
+    
+    return test_docs_path
+
+
+@pytest.fixture
+def real_test_files(test_docs_dir):
+    """真实测试文件路径fixture"""
+    return {
+        "pdf": test_docs_dir / "test_pdf1.pdf",
+        "pdf_small": test_docs_dir / "test_pdf3.pdf",
+        "docx": test_docs_dir / "test_docx.docx",
+        "doc": test_docs_dir / "test_doc.doc",
+        "xlsx": test_docs_dir / "test_xlsx.xlsx",
+        "html": test_docs_dir / "test_html.html",
+        "epub": test_docs_dir / "test_epub.epub",
+        "ppt": test_docs_dir / "test_ppt.ppt",
+        "pptx": test_docs_dir / "test_pptx.pptx"
+    }
+
+
+@pytest.fixture
 def sample_files_dir(temp_dir):
     """示例文件目录fixture"""
     # 创建示例文件目录结构
@@ -50,48 +79,6 @@ def sample_files_dir(temp_dir):
     yield sample_dir
 
 
-@pytest.fixture
-def mock_pdf_content():
-    """Mock PDF内容"""
-    return b"%PDF-1.4\n%Mock PDF content for testing\n%%EOF"
-
-
-@pytest.fixture
-def mock_docx_content():
-    """Mock DOCX内容"""
-    return b"Mock DOCX content for testing"
-
-
-@pytest.fixture
-def mock_xlsx_content():
-    """Mock XLSX内容"""
-    return b"Mock XLSX content for testing"
-
-
-@pytest.fixture
-def mock_html_content():
-    """Mock HTML内容"""
-    return b"<html><body><h1>Test HTML</h1><p>Mock HTML content for testing</p></body></html>"
-
-
-@pytest.fixture
-def mock_image_content():
-    """Mock图片内容"""
-    return b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00"
-
-
-@pytest.fixture
-def test_file_paths(sample_files_dir):
-    """测试文件路径fixture"""
-    return {
-        "pdf": str(sample_files_dir / "pdf" / "test.pdf"),
-        "docx": str(sample_files_dir / "docx" / "test.docx"),
-        "xlsx": str(sample_files_dir / "xlsx" / "test.xlsx"),
-        "html": str(sample_files_dir / "html" / "test.html"),
-        "image": str(sample_files_dir / "images" / "test.jpg")
-    }
-
-
 # 标记需要真实文件的测试
 def pytest_collection_modifyitems(config, items):
     """修改测试收集，标记需要真实文件的测试"""
@@ -99,46 +86,40 @@ def pytest_collection_modifyitems(config, items):
         # 检查测试是否在需要真实文件的列表中
         if any(test_name in item.name for test_name in [
             "test_pdf_parse_endpoint",
-            "test_docx_parse_endpoint",
-            "test_image_parse_endpoint",
-            "test_html_parse_endpoint",
+            "test_docx_parse_endpoint", 
             "test_xlsx_parse_endpoint",
-            "test_concurrent_pdf_parsing",
-            "test_concurrent_processing_with_semaphore",
-            "test_batch_processing_performance",
-            "test_mixed_file_types_concurrency",
-            "test_concurrent_processing_stress_test",
-            "test_memory_usage_under_concurrency",
-            "test_concurrent_error_handling",
-            "test_complete_pdf_workflow",
-            "test_batch_processing_workflow",
-            "test_concurrent_processor_workflow",
-            "test_mixed_file_types_integration",
-            "test_error_recovery_integration",
-            "test_resource_management_integration",
-            "test_large_scale_integration",
-            "test_memory_efficiency_integration",
-            "test_get_all_files_with_real_filesystem",
-            "test_parameter_adapter_with_real_files"
+            "test_html_parse_endpoint",
+            "test_epub_parse_endpoint",
+            "test_ppt_parse_endpoint",
+            "test_pptx_parse_endpoint",
+            "test_doc_parse_endpoint"
         ]):
+            # 标记为需要真实文件的测试
             item.add_marker(pytest.mark.real_files)
+        
+        # 标记为集成测试
+        if "integration" in item.name or "workflow" in item.name:
+            item.add_marker(pytest.mark.integration)
+        
+        # 标记为API测试
+        if "endpoint" in item.name or "api" in item.name:
+            item.add_marker(pytest.mark.api)
 
 
-# 测试配置
+# 自定义标记
+pytest_plugins = []
+
+
 def pytest_configure(config):
-    """配置pytest"""
-    # 添加自定义标记
+    """配置pytest标记"""
     config.addinivalue_line(
         "markers", "real_files: 标记需要真实文件的测试"
-    )
-    config.addinivalue_line(
-        "markers", "slow: 标记运行较慢的测试"
     )
     config.addinivalue_line(
         "markers", "integration: 标记集成测试"
     )
     config.addinivalue_line(
-        "markers", "unit: 标记单元测试"
+        "markers", "api: 标记API接口测试"
     )
 
 
