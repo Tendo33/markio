@@ -157,7 +157,7 @@ def create_simple_interface():
     app = MarkioFrontend()
 
     with gr.Blocks(
-        title="Markio - Intelligent Document Conversion", theme="seafoam"
+        title="Markio - Intelligent Document Conversion",
     ) as demo:
         # Use a more modern header
         gr.Markdown("""
@@ -171,13 +171,13 @@ def create_simple_interface():
                 with gr.Tabs():
                     # File upload
                     with gr.Tab("📄File Parsing"):
-                        with gr.Row():
-                            file_input = gr.File(
-                                label="Please upload a file",
-                                file_types=SUPPORTED_FORMATS,
-                                file_count="single",
-                            )
+                        file_input = gr.File(
+                            label="Please upload a file",
+                            file_types=SUPPORTED_FORMATS,
+                            file_count="single",
+                        )
 
+                        # <<< MODIFICATION START: Grouped all options into one row >>>
                         with gr.Row():
                             # Dynamic parsing method selection
                             methods, values = app.get_parse_methods()
@@ -187,15 +187,9 @@ def create_simple_interface():
                                 label="Parsing Method",
                                 info="PDF files will choose parsing engine based on environment variable",
                                 visible=app.pdf_engine == "pipeline",
+                                scale=2,
                             )
 
-                            save_content = gr.Checkbox(
-                                label="Save parsed content to file",
-                                value=False,
-                            )
-
-                        # 新增语言选择下拉框
-                        with gr.Row():
                             lang_choices = [
                                 ("ch", "简体中文 (ch)"),
                                 ("ch_server", "中文手写 (ch_server)"),
@@ -213,20 +207,29 @@ def create_simple_interface():
                                 label="Language",
                                 info="Select the language for parsing (Only PDF format supports)",
                                 visible=app.pdf_engine == "pipeline",
+                                scale=2,
                             )
 
+                            save_content = gr.Checkbox(
+                                label="Save parsed content",
+                                value=False,
+                                scale=1,
+                            )
+                        # <<< MODIFICATION END >>>
+
+                        # <<< MODIFICATION START: Grouped action buttons into one row >>>
                         with gr.Row():
                             upload_btn = gr.Button(
-                                "🚀 Start Conversion", variant="primary"
+                                "🚀 Start Conversion", variant="primary", scale=2
                             )
-                            clear_btn = gr.ClearButton(value="Clear")
+                            clear_btn = gr.ClearButton(value="Clear", scale=1)
+                        # <<< MODIFICATION END >>>
 
-                        with gr.Row():
-                            upload_status = gr.Textbox(
-                                label="Conversion Status",
-                                lines=1,
-                                interactive=False,
-                            )
+                        upload_status = gr.Textbox(
+                            label="Conversion Status",
+                            lines=1,
+                            interactive=False,
+                        )
 
                         # PDF preview component
                         pdf_preview = PDF(
@@ -238,26 +241,27 @@ def create_simple_interface():
 
                     # URL parsing
                     with gr.Tab("🌐 URL Parsing"):
+                        # <<< MODIFICATION START: Placed input, checkbox, and button on the same row >>>
                         with gr.Row():
                             url_input = gr.Textbox(
                                 label="Web URL",
                                 placeholder="https://example.com",
+                                scale=5,  # Give more space to the input field
                             )
-
                             url_save_content = gr.Checkbox(
-                                label="Save parsed content to file",
+                                label="Save content",
                                 value=False,
+                                scale=1,
                             )
-
-                        with gr.Row():
-                            url_btn = gr.Button("🌐 Parse", variant="primary")
+                            url_btn = gr.Button("🌐 Parse", variant="primary", scale=1)
+                        # <<< MODIFICATION END >>>
 
             with gr.Column(variant="panel", scale=5):
                 with gr.Tabs():
                     with gr.Tab("Markdown rendering"):
                         rendered_result = gr.Markdown(
                             label="Markdown rendering",
-                            height=800,
+                            # height=800, # Height can sometimes be restrictive, let it auto-adjust
                             show_copy_button=True,
                             line_breaks=True,
                         )
@@ -324,8 +328,11 @@ def create_simple_interface():
         url_btn.click(
             fn=app.parse_url,
             inputs=[url_input, url_save_content],
-            outputs=[rendered_result],
+            outputs=[rendered_result],  # URL parsing result shows in rendered view
         )
+
+        # When URL is parsed, also clear the raw text view
+        url_btn.click(lambda: ("", ""), outputs=[raw_result, upload_status])
 
         clear_btn.add(
             [
