@@ -1,4 +1,4 @@
-# <img src="docs/assets/logo.png" alt="Markio Logo" height="48" style="vertical-align:middle;"> Markio
+# <img src="assets/logo.png" alt="Markio Logo" height="48" style="vertical-align:middle;"> Markio
 
 > **High-Performance Document Conversion API Platform**  
 > *Parse, convert, and structure your documents with one command.*
@@ -11,8 +11,6 @@
 [![docling](https://img.shields.io/badge/Based%20on-docling-purple.svg)](https://github.com/docling-project/docling)
 [![pandoc](https://img.shields.io/badge/Based%20on-pandoc-green.svg)](https://pandoc.org)
 [![LibreOffice](https://img.shields.io/badge/Based%20on-LibreOffice-blue.svg)](https://www.libreoffice.org)
-
-![Demo Screenshot/Animation](docs/assets/demo.gif)
 
 ---
 
@@ -102,9 +100,49 @@ print(result["content"])
 <details>
 <summary>⚙️ Configuration & Project Structure</summary>
 
-- [Configuration Guide](docs/README_zh.md#配置)
-- [Project Structure](docs/README_zh.md#项目结构)
-- [Environment Variables](docs/README_zh.md#环境变量)
+### Configuration Guide
+
+| Parameter           | Default   | Description                                 |
+|---------------------|-----------|---------------------------------------------|
+| `log_level`         | INFO      | Log level (DEBUG/INFO/WARNING/ERROR)        |
+| `log_dir`           | logs      | Log output directory                        |
+| `output_dir`        | outputs   | Output directory for parsed content         |
+| `pdf_parse_engine`  | pipeline  | PDF parsing engine (pipeline/vlm-sglang)    |
+| `enable_mcp`        | false     | Enable MCP server integration               |
+
+### Project Structure
+
+```
+markio/
+├── markio/           # Main package
+│   ├── main.py       # FastAPI application entry point
+│   ├── routers/      # API route definitions
+│   ├── parsers/      # Document parsing modules
+│   ├── schemas/      # Data models and validation
+│   ├── utils/        # Utility functions
+│   ├── web/          # Web interface (Gradio)
+│   ├── sdk/          # Python SDK
+│   └── mcps/         # MCP server integration
+├── docs/             # Documentation
+├── scripts/          # Utility scripts
+├── tests/            # Test files
+├── Dockerfile        # Docker configuration
+├── compose.yaml      # Docker Compose configuration
+├── pyproject.toml    # Project configuration
+```
+
+### Environment Variables
+
+| Variable             | Default   | Description                |
+|----------------------|-----------|----------------------------|
+| `LOG_LEVEL`          | INFO      | Log level                  |
+| `LOG_DIR`            | logs      | Log directory              |
+| `OUTPUT_DIR`         | outputs   | Output directory           |
+| `PDF_PARSE_ENGINE`   | pipeline  | PDF parsing engine         |
+| `ENABLE_MCP`         | false     | Enable MCP integration     |
+| `HOST`               | 0.0.0.0   | Server listen address      |
+| `PORT`               | 8000      | Server port                |
+
 </details>
 
 ---
@@ -124,4 +162,4 @@ print(result["content"])
 
 ---
 
-> 中文文档：[README_zh.md](docs/README_zh.md)
+> 中文文档：[README_zh.md](README_zh.md)

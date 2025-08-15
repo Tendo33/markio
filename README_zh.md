@@ -102,9 +102,49 @@ print(result["content"])
 <details>
 <summary>⚙️ 配置与项目结构</summary>
 
-- [详细配置说明](#配置)
-- [项目结构](#项目结构)
-- [环境变量](#环境变量)
+### 配置说明
+
+| 参数名               | 默认值    | 说明                                 |
+|----------------------|----------|--------------------------------------|
+| `log_level`          | INFO     | 日志级别（DEBUG/INFO/WARNING/ERROR） |
+| `log_dir`            | logs     | 日志输出目录                         |
+| `output_dir`         | outputs  | 解析内容输出目录                     |
+| `pdf_parse_engine`   | pipeline | PDF解析引擎（pipeline/vlm-sglang）   |
+| `enable_mcp`         | false    | 是否启用MCP智能集成                  |
+
+### 项目结构
+
+```
+markio/
+├── markio/           # 主包
+│   ├── main.py       # FastAPI应用入口
+│   ├── routers/      # API路由
+│   ├── parsers/      # 各类文档解析器
+│   ├── schemas/      # 数据模型
+│   ├── utils/        # 工具函数
+│   ├── web/          # Gradio前端
+│   ├── sdk/          # Python SDK
+│   └── mcps/         # MCP集成
+├── docs/             # 文档
+├── scripts/          # 工具脚本
+├── tests/            # 测试
+├── Dockerfile        # Docker配置
+├── compose.yaml      # Docker Compose
+├── pyproject.toml    # 项目配置
+```
+
+### 环境变量
+
+| 变量名               | 默认值   | 说明                   |
+|----------------------|----------|------------------------|
+| `LOG_LEVEL`          | INFO     | 日志级别               |
+| `LOG_DIR`            | logs     | 日志目录               |
+| `OUTPUT_DIR`         | outputs  | 解析输出目录           |
+| `PDF_PARSE_ENGINE`   | pipeline | PDF解析引擎            |
+| `ENABLE_MCP`         | false    | 启用MCP集成            |
+| `HOST`               | 0.0.0.0  | 服务监听地址           |
+| `PORT`               | 8000     | 服务端口               |
+
 </details>
 
 ---
@@ -124,4 +164,4 @@ print(result["content"])
 
 ---
 
-> English: [README.md](../README.md) 
+> English: [README.md](README.md) 
