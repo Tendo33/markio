@@ -1,4 +1,4 @@
-# <img src="assets/logo.png" alt="Markio Logo" height="48" style="vertical-align:middle;"> Markio
+<img src="assets/image.png" alt="Markio Logo"  height="250" style="display:block;margin:auto;">
 
 > **高性能文档解析API平台**  
 > *一行命令，解析、转换、结构化你的文档。*
@@ -63,6 +63,26 @@ uv venv && uv pip install -e .
 import httpx
 resp = httpx.post("http://localhost:8000/v1/parse_pdf_file", files={"file": open("test.pdf", "rb")})
 print(resp.json())
+```
+
+#### 请求参数
+| 参数名              | 类型         | 必填 | 说明                                   |
+|---------------------|--------------|------|----------------------------------------|
+| file                | 文件         | 是   | 需要解析的 PDF 文件                    |
+| save_parsed_content | bool         | 否   | 是否保存解析内容到本地（默认 false）   |
+| output_dir          | str          | 否   | 解析内容保存目录（默认 outputs）       |
+| parse_method        | str          | 否   | 解析方式（auto/ocr/txt，默认 auto）    |
+| lang                | str          | 否   | 文档语言（ch/en/korean/japan...，默认 ch）|
+| start_page          | int          | 否   | 起始页码（默认 0）                     |
+| end_page            | int/None     | 否   | 结束页码（默认 None，解析到末页）      |
+
+#### 返回格式
+返回 JSON 示例：
+```json
+{
+  "parsed_content": "# 解析后的 Markdown 内容 ...",
+  "status_code": 200
+}
 ```
 
 ### CLI 示例

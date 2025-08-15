@@ -1,4 +1,4 @@
-# <img src="assets/logo.png" alt="Markio Logo" height="48" style="vertical-align:middle;"> Markio
+<img src="assets/image.png" alt="Markio Logo"  height="250" style="display:block;margin:auto;">
 
 > **High-Performance Document Conversion API Platform**  
 > *Parse, convert, and structure your documents with one command.*
@@ -61,6 +61,26 @@ uv venv && uv pip install -e .
 import httpx
 resp = httpx.post("http://localhost:8000/v1/parse_pdf_file", files={"file": open("test.pdf", "rb")})
 print(resp.json())
+```
+
+#### Request Parameters
+| Name                | Type         | Required | Description                                      |
+|---------------------|--------------|----------|--------------------------------------------------|
+| file                | file         | Yes      | The PDF file to be parsed                        |
+| save_parsed_content | bool         | No       | Whether to save parsed content (default: false)  |
+| output_dir          | str          | No       | Directory to save parsed content (default: outputs) |
+| parse_method        | str          | No       | Parsing method (auto/ocr/txt, default: auto)     |
+| lang                | str          | No       | Document language (ch/en/korean/japan..., default: ch) |
+| start_page          | int          | No       | Start page (default: 0)                          |
+| end_page            | int/None     | No       | End page (default: None, parse to last page)     |
+
+#### Response Format
+Example JSON:
+```json
+{
+  "parsed_content": "# Markdown content ...",
+  "status_code": 200
+}
 ```
 
 ### CLI Example
