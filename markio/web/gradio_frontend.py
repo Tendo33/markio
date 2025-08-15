@@ -156,14 +156,16 @@ def create_simple_interface():
     """Create simplified interface"""
     app = MarkioFrontend()
 
-    with gr.Blocks(title="MarkFlowsAPI - Intelligent Document Conversion") as demo:
-        gr.HTML("""
-        <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; margin-bottom: 20px;">
-            <h1 style="margin: 0; font-size: 2.5em;">🚀 MarkFlowsAPI</h1>
-            <p style="margin: 10px 0 0 0; font-size: 1.2em; opacity: 0.9;">Intelligent Document Conversion Solution</p>
+    with gr.Blocks(
+        title="Markio - Intelligent Document Conversion", theme="seafoam"
+    ) as demo:
+        # Use a more modern header
+        gr.Markdown("""
+        <div style="text-align: center; padding: 20px 0; background: linear-gradient(90deg, #536DFE, #42A5F5); color: white; border-radius: 12px; margin: 0 0 20px 0; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+            <h1 style="margin: 0; font-size: 2.8em; font-weight: 700;">✨ Markio</h1>
+            <p style="margin: 10px 0 0; font-size: 1.3em; opacity: 0.9;">Intelligent Document & Web Content Conversion</p>
         </div>
         """)
-
         with gr.Row():
             with gr.Column(variant="panel", scale=5):
                 with gr.Tabs():
@@ -341,7 +343,7 @@ def create_simple_interface():
 
 def main():
     demo = create_simple_interface()
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=False, show_error=True)
+    demo.launch(server_name="0.0.0.0", server_port=7861, share=False, show_error=True)
 
 
 if __name__ == "__main__":
