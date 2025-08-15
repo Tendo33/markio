@@ -1,5 +1,5 @@
 import os
-from typing import Tuple
+from typing import Generator, Tuple
 
 import gradio as gr
 import requests
@@ -126,13 +126,14 @@ class MarkioFrontend:
             error_msg = f"Conversion failed: {str(e)}"
             return error_msg, "", ""
 
-    def parse_url(self, url: str, save_content: bool = False) -> str:
+    # 让返回值与 upload_file 一致，方便UI同步更新
+    def parse_url(self, url: str, save_content: bool = False) -> Tuple[str, str, str]:
         """Parse URL"""
         if not url:
-            return "Please enter URL"
+            return "Please enter URL", "", ""
 
         if not self.check_api():
-            return "API service unavailable"
+            return "API service unavailable", "", ""
 
         try:
             # Use query parameters, including save_parsed_content
@@ -144,12 +145,16 @@ class MarkioFrontend:
             content = result.get("parsed_content", "")
 
             if content:
-                return f"# 🌐 {url}\n\n{content}"
+                status = "✅ URL parsing successful"
+                formatted_content = f"# 🌐 {url}\n\n{content}"
+                return status, formatted_content, formatted_content
             else:
-                return "Parsing result is empty"
+                return "Parsing result is empty", "", ""
 
         except Exception as e:
-            return f"Parsing failed: {str(e)}"
+            error_msg = f"Parsing failed: {str(e)}"
+            return error_msg, "", ""
+
 
 
 def create_simple_interface():
@@ -177,10 +182,10 @@ def create_simple_interface():
                             file_count="single",
                         )
 
-                        # <<< MODIFICATION START: Grouped all options into one row >>>
                         with gr.Row():
                             # Dynamic parsing method selection
                             methods, values = app.get_parse_methods()
+
                             parse_method = gr.Dropdown(
                                 choices=methods,
                                 value=methods[0] if methods else "Auto Select",
@@ -201,8 +206,9 @@ def create_simple_interface():
                                 ("te", "泰卢固文 (te)"),
                                 ("ka", "格鲁吉亚文 (ka)"),
                             ]
+
                             lang_dropdown = gr.Dropdown(
-                                choices=[x[0] for x in lang_choices],
+                                choices=[(x[1], x[0]) for x in lang_choices],
                                 value="ch",
                                 label="Language",
                                 info="Select the language for parsing (Only PDF format supports)",
@@ -211,25 +217,26 @@ def create_simple_interface():
                             )
 
                             save_content = gr.Checkbox(
-                                label="Save parsed content",
+                                label="Save content",
                                 value=False,
                                 scale=1,
                             )
-                        # <<< MODIFICATION END >>>
 
-                        # <<< MODIFICATION START: Grouped action buttons into one row >>>
+                        gr.Markdown("")  # Add a little vertical space
+
                         with gr.Row():
                             upload_btn = gr.Button(
                                 "🚀 Start Conversion", variant="primary", scale=2
                             )
                             clear_btn = gr.ClearButton(value="Clear", scale=1)
-                        # <<< MODIFICATION END >>>
 
                         upload_status = gr.Textbox(
                             label="Conversion Status",
                             lines=1,
                             interactive=False,
                         )
+
+                        gr.Markdown("")  # Add a little vertical space
 
                         # PDF preview component
                         pdf_preview = PDF(
@@ -241,7 +248,6 @@ def create_simple_interface():
 
                     # URL parsing
                     with gr.Tab("🌐 URL Parsing"):
-                        # <<< MODIFICATION START: Placed input, checkbox, and button on the same row >>>
                         with gr.Row():
                             url_input = gr.Textbox(
                                 label="Web URL",
@@ -254,14 +260,12 @@ def create_simple_interface():
                                 scale=1,
                             )
                             url_btn = gr.Button("🌐 Parse", variant="primary", scale=1)
-                        # <<< MODIFICATION END >>>
 
             with gr.Column(variant="panel", scale=5):
                 with gr.Tabs():
                     with gr.Tab("Markdown rendering"):
                         rendered_result = gr.Markdown(
                             label="Markdown rendering",
-                            # height=800, # Height can sometimes be restrictive, let it auto-adjust
                             show_copy_button=True,
                             line_breaks=True,
                         )
@@ -312,6 +316,49 @@ def create_simple_interface():
             """)
 
         # Event handlers
+
+        def handle_upload(file, method, save, lang) -> Generator:
+            if not file:
+                yield {upload_status: gr.update(value="请先选择一个文件")}
+                return
+
+            # 1. 更新UI为加载状态
+            yield {
+                upload_btn: gr.update(value="🚀 转换中...", interactive=False),
+                upload_status: gr.update(value="正在处理，请稍候..."),
+            }
+            # 2. 调用后端函数
+            status, raw, rendered = app.upload_file(file, method, save, lang)
+            # 3. 更新UI为结果状态
+            yield {
+                upload_btn: gr.update(value="🚀 开始转换", interactive=True),
+                upload_status: gr.update(value=status),
+                raw_result: gr.update(value=raw),
+                rendered_result: gr.update(value=rendered),
+            }
+
+        def handle_url_parse(url, save) -> Generator:
+            if not url:
+                yield {upload_status: gr.update(value="请输入URL")}
+                return
+
+            # 1. 更新UI为加载状态
+            yield {
+                url_btn: gr.update(value="🌐 解析中...", interactive=False),
+                upload_status: gr.update(value="正在解析URL，请稍候..."),
+                raw_result: gr.update(value=""),  # 清空上一次的结果
+                rendered_result: gr.update(value=""),
+            }
+            # 2. 调用后端函数
+            status, raw, rendered = app.parse_url(url, save)
+            # 3. 更新UI为结果状态
+            yield {
+                url_btn: gr.update(value="🌐 解析", interactive=True),
+                upload_status: gr.update(value=status),
+                raw_result: gr.update(value=raw),
+                rendered_result: gr.update(value=rendered),
+            }
+
         # Update PDF preview when file is uploaded
         file_input.change(
             fn=lambda x: x,
@@ -320,19 +367,16 @@ def create_simple_interface():
         )
 
         upload_btn.click(
-            fn=app.upload_file,
+            fn=handle_upload,
             inputs=[file_input, parse_method, save_content, lang_dropdown],
-            outputs=[upload_status, raw_result, rendered_result],
+            outputs=[upload_btn, upload_status, raw_result, rendered_result],
         )
 
         url_btn.click(
-            fn=app.parse_url,
+            fn=handle_url_parse,
             inputs=[url_input, url_save_content],
-            outputs=[rendered_result],  # URL parsing result shows in rendered view
+            outputs=[url_btn, upload_status, raw_result, rendered_result],
         )
-
-        # When URL is parsed, also clear the raw text view
-        url_btn.click(lambda: ("", ""), outputs=[raw_result, upload_status])
 
         clear_btn.add(
             [
