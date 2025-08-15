@@ -1,4 +1,4 @@
-<img src="assets/image.png" alt="Markio Logo"  height="250" style="display:block;margin:auto;">
+<img src="assets/image.png" alt="Markio Logo"  height="350" style="display:block;margin:auto;">
 
 > **高性能文档解析API平台**  
 > *一行命令，解析、转换、结构化你的文档。*

@@ -1,4 +1,4 @@
-<img src="assets/image.png" alt="Markio Logo"  height="250" style="display:block;margin:auto;">
+<img src="assets/image.png" alt="Markio Logo"  height="350" style="display:block;margin:auto;">
 
 > **High-Performance Document Conversion API Platform**  
 > *Parse, convert, and structure your documents with one command.*
