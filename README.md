@@ -130,6 +130,18 @@ print(result["content"])
 | `pdf_parse_engine`  | pipeline  | PDF parsing engine (pipeline/vlm-sglang)    |
 | `enable_mcp`        | false     | Enable MCP server integration               |
 
+### Environment Variables
+
+| Variable             | Default   | Description                |
+|----------------------|-----------|----------------------------|
+| `LOG_LEVEL`          | INFO      | Log level                  |
+| `LOG_DIR`            | logs      | Log directory              |
+| `OUTPUT_DIR`         | outputs   | Output directory           |
+| `PDF_PARSE_ENGINE`   | pipeline  | PDF parsing engine         |
+| `ENABLE_MCP`         | false     | Enable MCP integration     |
+| `HOST`               | 0.0.0.0   | Server listen address      |
+| `PORT`               | 8000      | Server port                |
+
 ### Project Structure
 
 ```
@@ -151,17 +163,6 @@ markio/
 ├── pyproject.toml    # Project configuration
 ```
 
-### Environment Variables
-
-| Variable             | Default   | Description                |
-|----------------------|-----------|----------------------------|
-| `LOG_LEVEL`          | INFO      | Log level                  |
-| `LOG_DIR`            | logs      | Log directory              |
-| `OUTPUT_DIR`         | outputs   | Output directory           |
-| `PDF_PARSE_ENGINE`   | pipeline  | PDF parsing engine         |
-| `ENABLE_MCP`         | false     | Enable MCP integration     |
-| `HOST`               | 0.0.0.0   | Server listen address      |
-| `PORT`               | 8000      | Server port                |
 
 </details>
 

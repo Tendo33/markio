@@ -132,6 +132,18 @@ print(result["content"])
 | `pdf_parse_engine`   | pipeline | PDF解析引擎（pipeline/vlm-sglang）   |
 | `enable_mcp`         | false    | 是否启用MCP智能集成                  |
 
+### 环境变量
+
+| 变量名               | 默认值   | 说明                   |
+|----------------------|----------|------------------------|
+| `LOG_LEVEL`          | INFO     | 日志级别               |
+| `LOG_DIR`            | logs     | 日志目录               |
+| `OUTPUT_DIR`         | outputs  | 解析输出目录           |
+| `PDF_PARSE_ENGINE`   | pipeline | PDF解析引擎            |
+| `ENABLE_MCP`         | false    | 启用MCP集成            |
+| `HOST`               | 0.0.0.0  | 服务监听地址           |
+| `PORT`               | 8000     | 服务端口               |
+
 ### 项目结构
 
 ```
@@ -152,18 +164,6 @@ markio/
 ├── compose.yaml      # Docker Compose
 ├── pyproject.toml    # 项目配置
 ```
-
-### 环境变量
-
-| 变量名               | 默认值   | 说明                   |
-|----------------------|----------|------------------------|
-| `LOG_LEVEL`          | INFO     | 日志级别               |
-| `LOG_DIR`            | logs     | 日志目录               |
-| `OUTPUT_DIR`         | outputs  | 解析输出目录           |
-| `PDF_PARSE_ENGINE`   | pipeline | PDF解析引擎            |
-| `ENABLE_MCP`         | false    | 启用MCP集成            |
-| `HOST`               | 0.0.0.0  | 服务监听地址           |
-| `PORT`               | 8000     | 服务端口               |
 
 </details>
 
