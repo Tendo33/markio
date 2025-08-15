@@ -255,6 +255,7 @@ def create_simple_interface():
 
                     # URL parsing
                     with gr.Tab("🌐 URL Parsing"):
+                        # 第一行：URL输入框和保存内容复选框
                         with gr.Row():
                             url_input = gr.Textbox(
                                 label="Web URL",
@@ -266,7 +267,16 @@ def create_simple_interface():
                                 value=False,
                                 scale=1,
                             )
-                            url_btn = gr.Button("🌐 Parse", variant="primary", scale=1)
+                        # 第二行：Parse按钮和Clear按钮
+                        with gr.Row():
+                            url_btn = gr.Button("🌐 Parse", variant="primary", scale=2)
+                            url_clear_btn = gr.ClearButton(value="Clear", scale=1)
+                        # 独立状态栏
+                        url_status = gr.Textbox(
+                            label="Parsing Status",
+                            lines=1,
+                            interactive=False,
+                        )
 
             with gr.Column(variant="panel", scale=5):
                 with gr.Tabs():
@@ -358,7 +368,8 @@ def create_simple_interface():
             # 1. Update UI to loading state
             yield {
                 url_btn: gr.update(value="🌐 Parsing...", interactive=False),
-                upload_status: gr.update(value="Parsing URL, please wait..."),
+                url_status: gr.update(value="Parsing URL, please wait..."),
+                upload_status: gr.update(value=""),
                 raw_result: gr.update(value=""),
                 rendered_result: gr.update(value=""),
             }
@@ -368,7 +379,8 @@ def create_simple_interface():
                 # 3. If successful, update UI with the results
                 yield {
                     url_btn: gr.update(value="🌐 Parse", interactive=True),
-                    upload_status: gr.update(value=status),
+                    url_status: gr.update(value=status),
+                    upload_status: gr.update(value=""),
                     raw_result: gr.update(value=raw),
                     rendered_result: gr.update(value=rendered),
                 }
@@ -377,7 +389,7 @@ def create_simple_interface():
                 # First, reset the UI to its initial state
                 yield {
                     url_btn: gr.update(value="🌐 Parse", interactive=True),
-                    upload_status: gr.update(value=""),  # Clear the status box
+                    url_status: gr.update(value=""),  # Clear the status box
                 }
                 # Then, raise a gr.Error to show a prominent notification
                 raise gr_Error(str(e))
@@ -405,7 +417,15 @@ def create_simple_interface():
         url_btn.click(
             fn=handle_url_parse,
             inputs=[url_input, url_save_content],
-            outputs=[url_btn, upload_status, raw_result, rendered_result],
+            outputs=[url_btn, url_status, upload_status, raw_result, rendered_result],
+        )
+        url_clear_btn.add(
+            [
+                url_input,
+                url_status,
+                raw_result,
+                rendered_result,
+            ]
         )
 
         clear_btn.add(
@@ -424,7 +444,7 @@ def create_simple_interface():
 
 def main():
     demo = create_simple_interface()
-    demo.launch(server_name="0.0.0.0", server_port=7861, share=False)
+    demo.launch(server_name="0.0.0.0", server_port=7860, share=False)
 
 
 if __name__ == "__main__":

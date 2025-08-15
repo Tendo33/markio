@@ -14,6 +14,7 @@ The main functionality includes:
 import traceback
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 from markio.parsers.url_parser import url_parse_main
 from markio.settings import settings
@@ -72,7 +73,7 @@ async def parse_html_url_endpoint(
             url=url, save_parsed_content=save_parsed_content, output_dir=output_dir
         )
         logger.info("Successfully parsed content from URL", extra={"url": url})
-        return parsed_content
+        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
 
     except Exception as e:
         logger.exception(f"Error during URL parsing: {url} - {traceback.format_exc()}")
