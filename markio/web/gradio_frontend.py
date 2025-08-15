@@ -66,7 +66,7 @@ class MarkioFrontend:
             return False
 
     def upload_file(
-        self, file, parse_method: str, save_content: bool
+        self, file, parse_method: str, save_content: bool, lang: str = "ch"
     ) -> Tuple[str, str, str]:
         """Upload file and directly get conversion result"""
         if not file:
@@ -96,7 +96,7 @@ class MarkioFrontend:
             )
             if file_extension == "pdf":
                 params["parse_method"] = method_value
-
+                params["lang"] = lang
             # Send request to unified file parsing endpoint
             response = self.session.post(
                 f"{API_BASE_URL}/parse_file", files=files, params=params
@@ -184,11 +184,33 @@ def create_simple_interface():
                                 value=methods[0] if methods else "Auto Select",
                                 label="Parsing Method",
                                 info="PDF files will choose parsing engine based on environment variable",
+                                visible=app.pdf_engine == "pipeline",
                             )
 
                             save_content = gr.Checkbox(
                                 label="Save parsed content to file",
                                 value=False,
+                            )
+
+                        # 新增语言选择下拉框
+                        with gr.Row():
+                            lang_choices = [
+                                ("ch", "简体中文 (ch)"),
+                                ("ch_server", "中文手写 (ch_server)"),
+                                ("chinese_cht", "繁体中文 (chinese_cht)"),
+                                ("en", "英文 (en)"),
+                                ("korean", "韩文 (korean)"),
+                                ("japan", "日文 (japan)"),
+                                ("ta", "泰米尔文 (ta)"),
+                                ("te", "泰卢固文 (te)"),
+                                ("ka", "格鲁吉亚文 (ka)"),
+                            ]
+                            lang_dropdown = gr.Dropdown(
+                                choices=[x[0] for x in lang_choices],
+                                value="ch",
+                                label="Language",
+                                info="Select the language for parsing (Only PDF format supports)",
+                                visible=app.pdf_engine == "pipeline",
                             )
 
                         with gr.Row():
@@ -293,7 +315,7 @@ def create_simple_interface():
 
         upload_btn.click(
             fn=app.upload_file,
-            inputs=[file_input, parse_method, save_content],
+            inputs=[file_input, parse_method, save_content, lang_dropdown],
             outputs=[upload_status, raw_result, rendered_result],
         )
 
