@@ -1,4 +1,3 @@
-import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -22,9 +21,8 @@ from markio.settings import settings
 from markio.utils.logger_config import get_logger, setup_logger
 from markio.utils.model_manager import get_model_manager
 
-# Initialize logging configuration
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Initialize logger
+logger = get_logger(__name__)
 
 # Setup project logging
 LOG_DIR = settings.log_dir
@@ -33,7 +31,6 @@ LOG_LEVEL = settings.log_level
 PROJECT_NAME = "Markio"
 
 setup_logger(project_name=PROJECT_NAME, log_dir=LOG_DIR, log_level=LOG_LEVEL)
-logger = get_logger(__name__)
 
 
 def initialize_models_safely():
