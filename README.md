@@ -15,18 +15,18 @@
 ---
 
 ## 🚀 Why Markio?
-- **All-in-One**: Parse PDF, Office, HTML, EPUB, Images, and more.
-- **Intelligent Engine**: Auto-selects best parsing (OCR/VLM/Text).
-- **Batch & Real-time**: Supports batch conversion and web preview.
-- **CLI, SDK, API**: Flexible integration for any workflow.
-- **GPU & Docker Ready**: High performance, easy deployment.
+- **🎯 All-in-One Solution**: Parse PDF, Office (DOC/DOCX/PPT/PPTX/XLSX), HTML, EPUB, Images, and more in a unified platform
+- **⚡ High Performance**: Async processing, GPU acceleration, and concurrent request handling
+- **🔧 Flexible Integration**: CLI, Python SDK, and REST API for any workflow
+- **🐳 Production Ready**: Docker support, health checks, and monitoring capabilities
+- **🌐 Multi-Format Output**: Consistent Markdown output with metadata preservation
 
-| Use Case         | Description                        |
-|------------------|------------------------------------|
-| API Integration  | Unified REST API for all formats   |
-| CLI Automation   | Batch convert docs in one command  |
-| Web Preview      | Gradio UI for instant feedback     |
-| ...              | ...                                |
+| Use Case         | Description                        | Best For                          |
+|------------------|------------------------------------|-----------------------------------|
+| API Integration  | Unified REST API for all formats   | Microservices, Web Apps          |
+| CLI Automation   | Batch convert docs in one command  | CI/CD, Data Processing Pipelines |
+| Web Preview      | Gradio UI for instant feedback     | Prototyping, User Testing         |
+| SDK Integration  | Python library for custom apps     | Data Science, ML Workflows       |
 
 ---
 
@@ -34,33 +34,106 @@
 
 ### Docker (Recommended)
 ```bash
+# Clone and start services
 git clone https://github.com/Tendo33/markio.git
 cd markio
 docker compose up -d
-# Access: http://localhost:8000/docs  (API)
-#         http://localhost:7860       (Web UI)
+
+# Access services
+# API Documentation: http://localhost:8000/docs
+# Web Interface:    http://localhost:7860
+# Health Check:     http://localhost:8000/health
 ```
 
-### Local Install
+### Local Installation
 ```bash
-# System dependencies
-sudo apt install libreoffice pandoc
-# Python 3.11+ & uv
+# System dependencies (Ubuntu/Debian)
+sudo apt update && sudo apt install -y libreoffice pandoc
+
+# Install Python package manager
 curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc  # or restart terminal
+
+# Clone and install
 git clone https://github.com/Tendo33/markio.git
 cd markio
-uv venv && uv pip install -e .
+uv venv && source .venv/bin/activate  # On Windows: .venv\\Scripts\\activate
+uv pip install -e .
+
+# Start services
+./start_services.sh  # or run separately:
+# python markio/main.py          # API server
+# python markio/web/gradio_frontend.py  # Web UI
 ```
 
 ---
 
-## 🛠️ Typical Usage
+## 🛠️ Usage Examples
 
-### REST API Example
+### REST API
+
+#### PDF Parsing with Advanced Options
 ```python
 import httpx
-resp = httpx.post("http://localhost:8000/v1/parse_pdf_file", files={"file": open("test.pdf", "rb")})
-print(resp.json())
+import asyncio
+
+async def parse_pdf():
+    async with httpx.AsyncClient() as client:
+        # Basic parsing
+        files = {"file": open("document.pdf", "rb")}
+        resp = await client.post("http://localhost:8000/v1/parse_pdf_file", files=files)
+        result = resp.json()
+        print(f"Status: {result['status_code']}")
+        print(f"Content length: {len(result['parsed_content'])} chars")
+        
+        # Advanced parsing with options
+        data = {
+            "save_parsed_content": True,
+            "output_dir": "./results",
+            "parse_method": "auto",  # auto/ocr/txt
+            "lang": "en",
+            "start_page": 0,
+            "end_page": 10
+        }
+        resp = await client.post(
+            "http://localhost:8000/v1/parse_pdf_file", 
+            files=files, 
+            data=data
+        )
+        return resp.json()
+
+# Run the function
+result = asyncio.run(parse_pdf())
+```
+
+#### Batch Processing
+```python
+import os
+import httpx
+from pathlib import Path
+
+def batch_convert_documents(directory: str, output_dir: str):
+    """Convert all PDFs in a directory"""
+    Path(output_dir).mkdir(exist_ok=True)
+    
+    with httpx.Client() as client:
+        for pdf_file in Path(directory).glob("*.pdf"):
+            files = {"file": open(pdf_file, "rb")}
+            data = {"save_parsed_content": True, "output_dir": output_dir}
+            
+            response = client.post(
+                "http://localhost:8000/v1/parse_pdf_file", 
+                files=files, 
+                data=data
+            )
+            
+            if response.status_code == 200:
+                print(f"✅ Converted: {pdf_file.name}")
+            else:
+                print(f"❌ Failed: {pdf_file.name}")
+
+# Usage
+batch_convert_documents("./input_pdfs", "./converted_md")
 ```
 
 #### Request Parameters
@@ -83,18 +156,122 @@ Example JSON:
 }
 ```
 
-### CLI Example
+### CLI Examples
+
+#### Basic Usage
 ```bash
-markio pdf test.pdf -o result.md
-markio docx test.docx --save --output result.md
+# Simple PDF conversion
+markio pdf document.pdf
+
+# Save output with custom filename
+markio pdf document.pdf -o my_document.md
+
+# Batch convert multiple files
+markio pdf *.pdf --save --output ./results/
 ```
 
-### Python SDK Example
+#### Advanced CLI Options
+```bash
+# Convert with specific language and page range
+markio pdf document.pdf \
+  --lang en \
+  --start-page 5 \
+  --end-page 15 \
+  --save \
+  --output ./results/
+
+# Convert Office documents
+markio docx report.docx --save
+markio pptx presentation.pptx --save --output ./slides/
+markio xlsx data.xlsx --save
+
+# Convert web content
+markio url https://example.com --save
+markio html page.html --save
+
+# Convert images with OCR
+markio image screenshot.png --save --lang en
+
+# Convert EPUB to markdown
+markio epub book.epub --save --output ./books/
+```
+
+#### CLI Configuration
+```bash
+# Check configuration
+markio config
+
+# Set default output directory
+markio config set output_dir ~/Documents/markio_output
+
+# Set default language
+markio config set lang en
+
+# Reset to defaults
+markio config reset
+```
+
+### Python SDK Examples
+
+#### Basic SDK Usage
 ```python
 from markio.sdk.markio_sdk import MarkioSDK
-sdk = MarkioSDK()
-result = await sdk.parse_document(file_path="test.pdf", save_parsed_content=True)
-print(result["content"])
+import asyncio
+
+async def basic_sdk_example():
+    # Initialize SDK
+    sdk = MarkioSDK(base_url="http://localhost:8000")
+    
+    # Parse a document
+    result = await sdk.parse_document(
+        file_path="document.pdf",
+        save_parsed_content=True,
+        output_dir="./results"
+    )
+    
+    print(f"Content: {result['content'][:200]}...")
+    print(f"Metadata: {result['metadata']}")
+    
+    return result
+
+# Run
+result = asyncio.run(basic_sdk_example())
+```
+
+#### Advanced SDK Features
+```python
+from markio.sdk.markio_sdk import MarkioSDK
+from markio.sdk.schemas import ParseOptions
+
+async def advanced_sdk_example():
+    sdk = MarkioSDK()
+    
+    # Configure parsing options
+    options = ParseOptions(
+        parse_method="auto",
+        language="en",
+        start_page=0,
+        end_page=None,
+        save_parsed_content=True,
+        output_dir="./results"
+    )
+    
+    # Parse multiple documents concurrently
+    files = ["doc1.pdf", "doc2.pdf", "doc3.pdf"]
+    tasks = [sdk.parse_document(file_path=f, options=options) for f in files]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Process results
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            print(f"❌ {files[i]} failed: {result}")
+        else:
+            print(f"✅ {files[i]}: {len(result['content'])} chars")
+    
+    return results
+
+# Run
+results = asyncio.run(advanced_sdk_example())
 ```
 
 ---
@@ -122,25 +299,70 @@ print(result["content"])
 
 ### Configuration Guide
 
-| Parameter           | Default   | Description                                 |
-|---------------------|-----------|---------------------------------------------|
-| `log_level`         | INFO      | Log level (DEBUG/INFO/WARNING/ERROR)        |
-| `log_dir`           | logs      | Log output directory                        |
-| `output_dir`        | outputs   | Output directory for parsed content         |
-| `pdf_parse_engine`  | pipeline  | PDF parsing engine (pipeline/vlm-sglang)    |
-| `enable_mcp`        | false     | Enable MCP server integration               |
+#### Environment Variables
 
-### Environment Variables
+| Variable | Default | Description | Example |
+|----------|---------|-------------|---------|
+| `LOG_LEVEL` | INFO | Log verbosity level | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `LOG_DIR` | logs | Log file directory | `/var/log/markio` |
+| `OUTPUT_DIR` | outputs | Parsed content output directory | `/data/outputs` |
+| `PDF_PARSE_ENGINE` | pipeline | PDF parsing method | `pipeline`, `vlm-sglang-engine` |
+| `MINERU_DEVICE_MODE` | auto | MinerU device selection | `cuda`, `cpu`, `mps` |
+| `VLM_SERVER_URL` | - | VLM server endpoint | `http://localhost:30000` |
+| `ENABLE_MCP` | false | Enable MCP server | `true`, `false` |
+| `HOST` | 0.0.0.0 | Server bind address | `127.0.0.1` |
+| `PORT` | 8000 | Server port | `8080` |
 
-| Variable             | Default   | Description                |
-|----------------------|-----------|----------------------------|
-| `LOG_LEVEL`          | INFO      | Log level                  |
-| `LOG_DIR`            | logs      | Log directory              |
-| `OUTPUT_DIR`         | outputs   | Output directory           |
-| `PDF_PARSE_ENGINE`   | pipeline  | PDF parsing engine         |
-| `ENABLE_MCP`         | false     | Enable MCP integration     |
-| `HOST`               | 0.0.0.0   | Server listen address      |
-| `PORT`               | 8000      | Server port                |
+#### Configuration Files
+
+Create a `.env` file in the project root:
+
+```bash
+# Basic configuration
+LOG_LEVEL=INFO
+OUTPUT_DIR=./parsed_documents
+PDF_PARSE_ENGINE=pipeline
+
+# GPU configuration (if available)
+MINERU_DEVICE_MODE=cuda
+
+# VLM configuration (if using VLM engine)
+VLM_SERVER_URL=http://localhost:30000
+
+# Server configuration
+HOST=0.0.0.0
+PORT=8000
+```
+
+#### PDF Engine Configuration
+
+**Pipeline Engine (Default)**
+```bash
+# Uses MinerU with automatic OCR/VLM selection
+PDF_PARSE_ENGINE=pipeline
+```
+
+**VLM Engine**
+```bash
+# Requires external VLM server
+PDF_PARSE_ENGINE=vlm-sglang-engine
+VLM_SERVER_URL=http://localhost:30000
+```
+
+#### Performance Tuning
+
+```bash
+# Memory optimization
+MINERU_DEVICE_MODE=cpu  # For systems without GPU
+
+# Batch processing
+PDF_PARSE_ENGINE=pipeline
+MINERU_BATCH_SIZE=4
+
+# Logging for debugging
+LOG_LEVEL=DEBUG
+LOG_DIR=./debug_logs
+```
 
 ### Project Structure
 
