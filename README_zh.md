@@ -1,7 +1,7 @@
 <img src="assets/image.png" alt="Markio Logo"  height="350" style="display:block;margin:auto;">
 
 > **高性能文档转换API平台**  
-> *一行命令，解析、转换、结构化你的文档。*
+> 一行命令，解析、转换、结构化你的文档。
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com)
@@ -16,23 +16,25 @@
 
 ---
 
-## 🚀 为什么选择 Markio？
-- **一站式**：支持PDF、Office（DOC/DOCX/PPT/PPTX/XLSX）、HTML、EPUB、图片等多格式解析，统一平台。
-- **高性能**：异步处理、GPU加速、并发请求。
-- **灵活集成**：CLI、Python SDK、REST API，适配任意工作流。
-- **生产级**：Docker支持、健康检查、监控能力。
-- **多格式输出**：一致的Markdown输出，保留元数据。
+## 为什么选择 Markio？
+- **多格式支持**：PDF、Office、HTML、EPUB、图片等
+- **高性能**：异步处理、GPU加速、并发请求
+- **灵活集成**：CLI、Python SDK、REST API
+- **生产就绪**：Docker支持、健康检查、监控
+- **统一输出**：一致的Markdown格式，保留元数据
+- **开发友好**：简洁API、完整文档、类型提示
 
-| 应用场景     | 说明                       |
-|--------------|----------------------------|
-| API集成      | 统一REST接口，支持多格式   |
-| CLI自动化    | 一行命令批量转换文档       |
-| Web预览      | Gradio界面实时反馈         |
-| ...          | ...                        |
+| 应用场景   | 说明                     | 适用场景                 |
+|------------|--------------------------|--------------------------|
+| API集成    | 统一REST接口，多格式支持  | 微服务、Web应用           |
+| CLI自动化  | 一行命令批量转换文档      | CI/CD、数据处理流水线     |
+| Web预览    | Gradio界面实时反馈        | 原型设计、用户测试        |
+| SDK集成    | Python库集成到自定义应用  | 数据科学、机器学习工作流  |
+| 企业应用   | 可扩展的文档处理          | 文档管理系统              |
 
 ---
 
-## ⚡ 快速上手
+## 快速上手
 
 ### Docker（推荐）
 ```bash
@@ -69,7 +71,7 @@ source ~/.bashrc  # 或重启终端
 
 ---
 
-## 🛠️ 用法示例
+## 用法示例
 
 ### REST API
 
@@ -210,6 +212,9 @@ markio config set lang en
 markio config reset
 ```
 
+#### CLI文档
+详细的CLI使用指南、命令和示例，请查看 [CLI使用指南](docs/cli_usage_zh.md)
+
 ### Python SDK 示例
 
 #### 基础用法
@@ -237,41 +242,8 @@ async def basic_sdk_example():
 result = asyncio.run(basic_sdk_example())
 ```
 
-#### 高级SDK特性
-```python
-from markio.sdk.markio_sdk import MarkioSDK
-from markio.sdk.schemas import ParseOptions
-
-async def advanced_sdk_example():
-    sdk = MarkioSDK()
-    
-    # 配置解析选项
-    options = ParseOptions(
-        parse_method="auto",
-        language="en",
-        start_page=0,
-        end_page=None,
-        save_parsed_content=True,
-        output_dir="./results"
-    )
-    
-    # 并发解析多个文档
-    files = ["doc1.pdf", "doc2.pdf", "doc3.pdf"]
-    tasks = [sdk.parse_document(file_path=f, options=options) for f in files]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    # 处理结果
-    for i, result in enumerate(results):
-        if isinstance(result, Exception):
-            print(f"❌ {files[i]} 失败: {result}")
-        else:
-            print(f"✅ {files[i]}: {len(result['content'])} 字符")
-    
-    return results
-
-# 运行
-results = asyncio.run(advanced_sdk_example())
-```
+#### SDK文档
+完整的SDK文档，包括所有方法、示例和高级模式，请查看 [SDK使用指南](docs/sdk_usage_zh.md)
 
 ---
 
@@ -394,10 +366,14 @@ markio/
 - [路线图/更新日志](#)
 - [FAQ](#)
 
+### 文档链接
+- **主要文档**: [README.md](README.md)
+- **中文文档**: [README_zh.md](README_zh.md)
+- **CLI使用指南**: [docs/cli_usage.md](docs/cli_usage.md)
+- **中文CLI指南**: [docs/cli_usage_zh.md](docs/cli_usage_zh.md)
+- **SDK使用指南**: [docs/sdk_usage.md](docs/sdk_usage.md)
+- **中文SDK指南**: [docs/sdk_usage_zh.md](docs/sdk_usage_zh.md)
+
 ---
 
-**由 Markio 团队用心制作 ❤️**
-
----
-
-> English: [README.md](README.md) 
+**由 Markio 团队用心制作 ❤️** 
