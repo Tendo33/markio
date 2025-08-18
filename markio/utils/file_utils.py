@@ -52,9 +52,12 @@ async def md_dump_io(
         async with aiofiles.open(final_path, mode="w", encoding="utf-8") as f:
             await f.write(md_content)
         logger.info(f"Markdown file saved to: {final_path}")
+    except OSError as e:
+        logger.error(f"File system error saving Markdown file: {e}")
+        raise ValueError(f"Unable to save {final_path}: {str(e)}")
     except Exception as e:
-        logger.error(f"Error saving Markdown file: {e}")
-        raise ValueError(f"Unable to save {final_path} ")
+        logger.error(f"Unexpected error saving Markdown file: {e}")
+        raise ValueError(f"Unable to save {final_path}: {str(e)}")
 
 
 @contextlib.contextmanager

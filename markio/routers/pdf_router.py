@@ -128,11 +128,16 @@ async def parse_pdf_file_endpoint(
 
         return JSONResponse({"parsed_content": parsed_content}, status_code=200)
 
+    except ValueError as e:
+        logger.error(f"Configuration error: {e}")
+        raise HTTPException(status_code=400, detail=f"Configuration error: {str(e)}")
+    except RuntimeError as e:
+        logger.error(f"Runtime error: {e}")
+        raise HTTPException(status_code=500, detail=f"Runtime error: {str(e)}")
     except Exception as e:
-        error_msg = f"Error occurred while parsing {file.filename}: {str(e)}"
-        logger.error(error_msg)
+        logger.error(f"Unexpected error occurred while parsing {file.filename}: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=error_msg)
+        raise HTTPException(status_code=500, detail="Internal server error occurred")
 
     finally:
         # Clean up the temporary PDF file

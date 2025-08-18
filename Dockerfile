@@ -2,7 +2,7 @@
 # Stage 1: Base Image
 # 包含构建和运行都必需的基础环境，如CUDA、Python运行时等。
 # =================================================================================================
-FROM nvidia/cuda:12.2.2-cudnn8-devel-ubuntu22.04 AS base
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04 AS base
 
 # 设置持久化的环境变量
 ENV DEBIAN_FRONTEND=noninteractive \

@@ -59,8 +59,16 @@ class ModelManager:
 
                 return True
 
+            except ImportError as e:
+                self._initialization_error = f"Import error: {str(e)}"
+                logger.error(f"Model import failed: {e}")
+                return False
+            except RuntimeError as e:
+                self._initialization_error = f"Runtime error: {str(e)}"
+                logger.error(f"Model runtime error: {e}")
+                return False
             except Exception as e:
-                self._initialization_error = str(e)
+                self._initialization_error = f"Unexpected error: {str(e)}"
                 logger.error(f"Model initialization failed: {e}")
                 return False
 
