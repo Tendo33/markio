@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Markio API 并发测试启动脚本
-用于运行并发性能测试
+Markio API Concurrent Test Launcher
+Runs concurrent performance tests
 """
 
 import argparse
@@ -80,67 +80,67 @@ def run_concurrent_tests(concurrent_users=None, test_duration=None, verbose=Fals
             return False
 
     except KeyboardInterrupt:
-        print("\n⏹️  并发测试被用户中断")
+        print("\n⏹️  Concurrent tests interrupted by user")
         return False
     except Exception as e:
-        print(f"❌ 运行并发测试时发生错误: {e}")
+        print(f"❌ Error occurred while running concurrent tests: {e}")
         return False
 
 
 def run_specific_concurrent_test(test_name, verbose=False):
-    """运行特定的并发测试"""
+    """Run specific concurrent test."""
     test_file = Path(__file__).parent / "test_concurrent.py"
 
     if not test_file.exists():
-        print(f"❌ 并发测试文件不存在: {test_file}")
+        print(f"❌ Concurrent test file does not exist: {test_file}")
         return False
 
-    # 构建pytest命令
+    # Build pytest command
     cmd = [
         sys.executable,
         "-m",
         "pytest",
         str(test_file),
         f"TestConcurrentPerformance::{test_name}",
-        "-v",  # 详细输出
-        "-s",  # 显示print输出
+        "-v",  # Verbose output
+        "-s",  # Show print output
     ]
 
-    # 添加详细输出选项
+    # Add verbose output options
     if verbose:
         cmd.extend(["--tb=long", "--durations=10"])
 
-    print(f"🚀 开始运行特定并发测试: {test_name}")
-    print(f"📁 测试文件: {test_file}")
-    print(f"🔧 测试方法: {test_name}")
+    print(f"🚀 Starting specific concurrent test: {test_name}")
+    print(f"📁 Test file: {test_file}")
+    print(f"🔧 Test method: {test_name}")
     print("-" * 50)
 
-    # 记录开始时间
+    # Record start time
     start_time = time.time()
 
     try:
-        # 运行测试
+        # Run tests
         result = subprocess.run(cmd, capture_output=False, text=True)
 
-        # 计算运行时间
+        # Calculate runtime
         end_time = time.time()
         duration = end_time - start_time
 
         print("-" * 50)
-        print(f"⏱️  测试完成，耗时: {duration:.2f} 秒")
+        print(f"⏱️  Test completed, duration: {duration:.2f} seconds")
 
         if result.returncode == 0:
-            print("✅ 测试通过！")
+            print("✅ Test passed!")
             return True
         else:
-            print(f"❌ 测试失败，退出码: {result.returncode}")
+            print(f"❌ Test failed, exit code: {result.returncode}")
             return False
 
     except KeyboardInterrupt:
-        print("\n⏹️  测试被用户中断")
+        print("\n⏹️  Test interrupted by user")
         return False
     except Exception as e:
-        print(f"❌ 运行测试时发生错误: {e}")
+        print(f"❌ Error occurred while running test: {e}")
         return False
 
 

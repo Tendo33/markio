@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Markio API 测试启动脚本
-用于运行所有API功能测试
+Markio API Test Launcher
+Runs all API functionality tests
 """
 
 import argparse
@@ -12,30 +12,30 @@ from pathlib import Path
 
 
 def check_service_health():
-    """检查服务健康状态"""
+    """Check service health status."""
     import httpx
 
     try:
         with httpx.Client(timeout=15.0) as client:
             response = client.get("http://0.0.0.0:8000/")
             if response.status_code in [200, 307]:
-                print("✅ Markio 服务运行正常")
+                print("✅ Markio service is running normally")
                 return True
             else:
-                print(f"❌ 服务响应异常: {response.status_code}")
+                print(f"❌ Service response error: {response.status_code}")
                 return False
     except Exception as e:
-        print(f"❌ 无法连接到 Markio 服务: {e}")
-        print("请确保服务正在 http://0.0.0.0:8000 运行")
+        print(f"❌ Unable to connect to Markio service: {e}")
+        print("Please ensure the service is running at http://0.0.0.0:8000")
         return False
 
 
 def check_test_files():
-    """检查测试文件是否存在"""
+    """Check if test files exist."""
     test_docs_dir = Path(__file__).parent / "test_docs"
 
     if not test_docs_dir.exists():
-        print(f"❌ 测试文档目录不存在: {test_docs_dir}")
+        print(f"❌ Test documents directory does not exist: {test_docs_dir}")
         return False
 
     required_files = [
@@ -55,134 +55,136 @@ def check_test_files():
             missing_files.append(file)
 
     if missing_files:
-        print(f"❌ 缺少测试文件: {', '.join(missing_files)}")
+        print(f"❌ Missing test files: {', '.join(missing_files)}")
         return False
 
-    print("✅ 测试文件检查通过")
+    print("✅ Test file check passed")
     return True
 
 
 def run_tests(test_type="all", verbose=False, output_file=None):
-    """运行测试"""
+    """Run tests."""
     test_dir = Path(__file__).parent
 
-    # 构建pytest命令
+    # Build pytest command
     cmd = [
         sys.executable,
         "-m",
         "pytest",
-        "-v",  # 详细输出
-        "-s",  # 显示print输出（不捕获）
-        "--durations=10",  # 显示最慢的10个测试
-        "--durations-min=0.1",  # 显示所有超过0.1秒的测试
+        "-v",  # Verbose output
+        "-s",  # Show print output (don't capture)
+        "--durations=10",  # Show the 10 slowest tests
+        "--durations-min=0.1",  # Show all tests taking more than 0.1 seconds
     ]
 
-    # 根据测试类型选择测试文件
+    # Select test files based on test type
     if test_type == "api":
         cmd.append(str(test_dir / "test_all_parsers.py::TestAllParsers"))
     elif test_type == "concurrent":
         cmd.append(str(test_dir / "test_concurrent.py::TestConcurrentPerformance"))
     elif test_type == "all":
-        cmd.append(str(test_dir))  # 运行所有测试
+        cmd.append(str(test_dir))  # Run all tests
     else:
-        print(f"❌ 未知的测试类型: {test_type}")
+        print(f"❌ Unknown test type: {test_type}")
         return False
 
-    # 添加详细输出选项
+    # Add verbose output options
     if verbose:
         cmd.extend(["--tb=long", "--durations=20", "--durations-min=0.05"])
 
-    # 添加输出文件选项
+    # Add output file option
     if output_file:
         cmd.extend([f"--junit-xml={output_file}"])
 
-    print(f"🚀 开始运行测试: {' '.join(cmd)}")
-    print(f"📁 测试目录: {test_dir}")
-    print(f"🔧 测试类型: {test_type}")
+    print(f"🚀 Starting test run: {' '.join(cmd)}")
+    print(f"📁 Test directory: {test_dir}")
+    print(f"🔧 Test type: {test_type}")
     print("-" * 50)
 
-    # 记录开始时间
+    # Record start time
     start_time = time.time()
 
     try:
-        # 运行测试
+        # Run tests
         result = subprocess.run(cmd, capture_output=False, text=True)
 
-        # 计算运行时间
+        # Calculate runtime
         end_time = time.time()
         duration = end_time - start_time
 
         print("-" * 50)
-        print(f"⏱️  测试完成，耗时: {duration:.2f} 秒")
+        print(f"⏱️  Test completed, duration: {duration:.2f} seconds")
 
         if result.returncode == 0:
-            print("✅ 所有测试通过！")
+            print("✅ All tests passed!")
             return True
         else:
-            print(f"❌ 测试失败，退出码: {result.returncode}")
+            print(f"❌ Tests failed, exit code: {result.returncode}")
             return False
 
     except KeyboardInterrupt:
-        print("\n⏹️  测试被用户中断")
+        print("\n⏹️  Tests interrupted by user")
         return False
     except Exception as e:
-        print(f"❌ 运行测试时发生错误: {e}")
+        print(f"❌ Error occurred while running tests: {e}")
         return False
 
 
 def main():
-    """主函数"""
-    parser = argparse.ArgumentParser(description="Markio API 测试启动脚本")
+    """Main function."""
+    parser = argparse.ArgumentParser(description="Markio API Test Launcher")
     parser.add_argument(
         "--type",
         "-t",
         choices=["all", "api", "concurrent"],
         default="all",
-        help="测试类型: all(全部), api(API功能), concurrent(并发性能)",
+        help="Test type: all(complete), api(API functions), concurrent(performance)",
     )
-    parser.add_argument("--verbose", "-v", action="store_true", help="详细输出模式")
-    parser.add_argument("--output", "-o", help="测试报告输出文件路径")
     parser.add_argument(
-        "--skip-checks", action="store_true", help="跳过服务健康检查和文件检查"
+        "--verbose", "-v", action="store_true", help="Verbose output mode"
+    )
+    parser.add_argument("--output", "-o", help="Test report output file path")
+    parser.add_argument(
+        "--skip-checks", action="store_true", help="Skip service health and file checks"
     )
 
     args = parser.parse_args()
 
     print("=" * 60)
-    print("🚀 Markio API 测试套件")
+    print("🚀 Markio API Test Suite")
     print("=" * 60)
 
-    # 检查当前目录
+    # Check current directory
     if not Path(__file__).parent.exists():
-        print("❌ 请在项目根目录运行此脚本")
+        print("❌ Please run this script from the project root directory")
         sys.exit(1)
 
-    # 执行预检查
+    # Execute pre-checks
     if not args.skip_checks:
-        print("\n🔍 执行预检查...")
+        print("\n🔍 Executing pre-checks...")
 
         if not check_service_health():
-            print("\n❌ 服务检查失败，请确保 Markio 服务正在运行")
+            print("\n❌ Service check failed, please ensure Markio service is running")
             sys.exit(1)
 
         if not check_test_files():
-            print("\n❌ 测试文件检查失败")
+            print("\n❌ Test file check failed")
             sys.exit(1)
 
-        print("✅ 预检查通过")
+        print("✅ Pre-checks passed")
 
-    # 运行测试
-    print(f"\n🎯 开始运行 {args.type} 测试...")
+    # Run tests
+    print(f"\n🎯 Starting {args.type} tests...")
     success = run_tests(
         test_type=args.type, verbose=args.verbose, output_file=args.output
     )
 
-    # 输出结果
+    # Output results
     if success:
-        print("\n🎉 测试执行成功！")
+        print("\n🎉 Test execution successful!")
         sys.exit(0)
     else:
-        print("\n💥 测试执行失败！")
+        print("\n💥 Test execution failed!")
         sys.exit(1)
 
 
