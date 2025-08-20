@@ -186,33 +186,33 @@ class MarkioMCP:
         async def convert_document(
             file: UploadFile = File(
                 ...,
-                description="将上传的文档文件（支持 PDF, DOC, DOCX, EPUB, PPT, PPTX, XLSX, HTML, HTM, PNG, JPG, JPEG）转换为Markdown",
+                description="Convert uploaded document files (supports PDF, DOC, DOCX, EPUB, PPT, PPTX, XLSX, HTML, HTM, PNG, JPG, JPEG) to Markdown",
             ),
         ):
             """
-            上传文档并自动转换为 Markdown。
+            Upload document and automatically convert to Markdown.
 
-            参数:
-                file (UploadFile): 上传的文档文件。
-            返回:
-                status (str): "success" 或 "error"
-                result (str, optional): 解析后的 Markdown 内容
-                message (str, optional): 错误信息
-                file_type (str): 检测到的文件类型
-                parsed_at (str): 解析完成时间戳
-            示例:
-                >>> multipart/form-data 上传 PDF 文件
+            Parameters:
+                file (UploadFile): The uploaded document file.
+            Returns:
+                status (str): "success" or "error"
+                result (str, optional): Parsed Markdown content
+                message (str, optional): Error message
+                file_type (str): Detected file type
+                parsed_at (str): Parsing completion timestamp
+            Example:
+                >>> multipart/form-data upload PDF file
             """
             import shutil
             import tempfile
 
             try:
-                # 1. 保存上传文件到临时目录
+                # 1. Save uploaded file to temporary directory
                 suffix = os.path.splitext(file.filename)[1].lower()
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                     shutil.copyfileobj(file.file, tmp)
                     tmp_path = tmp.name
-                # 2. 校验文件类型
+                # 2. Validate file type
                 file_extension = self._validate_file_type(tmp_path)
                 config = self._create_parser_config(file_extension)
                 logger.info(
@@ -249,7 +249,7 @@ class MarkioMCP:
                     "parsed_at": datetime.now().isoformat(),
                 }
             finally:
-                # 3. 清理临时文件
+                # 3. Clean up temporary files
                 try:
                     if "tmp_path" in locals() and os.path.exists(tmp_path):
                         os.remove(tmp_path)
@@ -266,21 +266,21 @@ class MarkioMCP:
             url: str = Body(
                 ...,
                 embed=True,
-                description="将网页URL转换为Markdown",
+                description="Convert web URL to Markdown",
             ),
         ):
             """
-            解析网页内容并转换为 Markdown。
+            Parse web content and convert to Markdown.
 
-            参数:
-                url (str): 目标网页 URL。
-            返回:
-                status (str): "success" 或 "error"
-                result (str, optional): 解析后的 Markdown 内容
-                message (str, optional): 错误信息
-                file_type (str): 固定为 "url"
-                parsed_at (str): 解析完成时间戳
-            示例:
+            Parameters:
+                url (str): Target webpage URL.
+            Returns:
+                status (str): "success" or "error"
+                result (str, optional): Parsed Markdown content
+                message (str, optional): Error message
+                file_type (str): Fixed as "url"
+                parsed_at (str): Parsing completion timestamp
+            Example:
                 >>> POST /mcp/parse_url {"url": "https://example.com/article"}
             """
             try:

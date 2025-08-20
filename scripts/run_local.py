@@ -222,7 +222,7 @@ async def process_file(file_path: str, **kwargs) -> None:
 
 
 class ConcurrentProcessor:
-    """并发处理器，支持多种并发策略"""
+    """Concurrent processor with multiple processing strategies."""
 
     def __init__(self, max_workers: int = 4, use_process_pool: bool = False):
         self.max_workers = max_workers
@@ -233,12 +233,12 @@ class ConcurrentProcessor:
         self.semaphore = asyncio.Semaphore(max_workers)
 
     async def process_file_with_semaphore(self, file_path: str, **kwargs) -> None:
-        """使用信号量控制并发数量的文件处理"""
+        """Process file with semaphore-controlled concurrency."""
         async with self.semaphore:
             await process_file(file_path, **kwargs)
 
     async def process_files_concurrent(self, files: List[str], **kwargs) -> None:
-        """并发处理文件列表"""
+        """Process file list concurrently."""
         tasks = [
             self.process_file_with_semaphore(file_path, **kwargs) for file_path in files
         ]
@@ -247,7 +247,7 @@ class ConcurrentProcessor:
     async def process_files_batched(
         self, files: List[str], batch_size: int, **kwargs
     ) -> None:
-        """分批并发处理文件"""
+        """Process files in batches concurrently."""
         for i in range(0, len(files), batch_size):
             batch = files[i : i + batch_size]
             logger.info(f"Processing batch {i // batch_size + 1}: {len(batch)} files")
@@ -314,7 +314,7 @@ async def process_files_in_folder(
     use_process_pool: bool = False,
     **kwargs,
 ) -> None:
-    """改进的文件夹文件处理函数，支持更好的并发控制"""
+    """Process files in folder with improved concurrency control."""
     if os.path.isdir(folder_path):
         files = get_all_files(folder_path)
     elif os.path.isfile(folder_path):
@@ -329,7 +329,7 @@ async def process_files_in_folder(
 
     logger.info(f"Found {len(files)} files to process in {folder_path}")
 
-    # 过滤支持的文件类型
+    # Filter supported file types
     supported_files = [
         f for f in files if os.path.splitext(f)[-1][1:].lower() in FUNCTION_MAP
     ]
@@ -340,7 +340,7 @@ async def process_files_in_folder(
 
     logger.info(f"Processing {len(supported_files)} supported files")
 
-    # 创建并发处理器
+    # Create concurrent processor
     processor = ConcurrentProcessor(max_workers, use_process_pool)
 
     start_time = time.time()
@@ -390,8 +390,7 @@ def merge_json_files(root_folder: str, output_file: str, file_type: str) -> None
 
 
 async def main():
-    """改进的主函数，配置参数直接写死在函数中"""
-    # 基础配置参数 - 直接写死
+    """Main function with hardcoded configuration parameters."""
     folder_path = "./input_files"
     max_workers = 4
     batch_size = 10
@@ -399,19 +398,16 @@ async def main():
     merged_output_path = "./outputs/merged_output.jsonl"
     output_dir = "./outputs"
 
-    # Parser相关配置参数 - 直接写死
     parse_method = "auto"
     lang = "ch"
     save_parsed_content = True
     save_middle_content = False
     parse_backend = "pipeline"
 
-    # PDF特定参数 - 直接写死
     start_page = 0
     end_page = None
 
     try:
-        # 创建输出目录
         os.makedirs(output_dir, exist_ok=True)
 
         logger.info("Starting improved file processing...")

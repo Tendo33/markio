@@ -154,15 +154,13 @@ async def parse_file_endpoint(
     temp_file_path = None
     try:
         # Create temporary file with unique filename to avoid conflicts
-        temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
+        temp_dir = os.path.dirname(NamedTemporaryFile().name)
         original_filename = os.path.basename(file.filename)
 
-        # Use utility function to create unique temp file
         temp_file_path, unique_filename = create_unique_temp_file(
             original_filename, temp_dir
         )
 
-        # Write the uploaded file content to the temporary file
         with open(temp_file_path, "wb") as temp_file:
             temp_file.write(await file.read())
 
@@ -173,19 +171,16 @@ async def parse_file_endpoint(
 
         # Process file based on type
         if file_extension == ".pdf":
-            # For PDF files, choose parser based on environment variable
             pdf_parse_engine = settings.pdf_parse_engine
             logger.info(f"Using PDF parse engine: {pdf_parse_engine}")
 
             if pdf_parse_engine == "pipeline":
-                # Use pipeline parser
                 parsed_content = await pdf_parser.pdf_parse_main(
                     resource_path=temp_file_path,
                     save_parsed_content=config.save_parsed_content,
                     output_dir=output_dir,
                 )
             elif pdf_parse_engine == "vlm-sglang-engine":
-                # Use VLM parser
                 parsed_content = await pdf_parser_vlm.pdf_parse_vlm_main(
                     resource_path=temp_file_path,
                     save_parsed_content=config.save_parsed_content,
@@ -196,7 +191,6 @@ async def parse_file_endpoint(
                 logger.error(error_msg)
                 raise HTTPException(status_code=500, detail=error_msg)
         else:
-            # For other file types, use the standard parser
             parsed_content = await parser_func(
                 temp_file_path, config.save_parsed_content, config.output_dir
             )
