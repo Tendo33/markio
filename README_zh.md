@@ -3,10 +3,20 @@
 > **高性能文档转换API平台**  
 > 一行命令，解析、转换、结构化你的文档。
 
+<div align="center">
+
+### 🌍 Language / 语言
+
+[English](README.md) | **中文**
+
+---
+
+</div>
+
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MinerU](https://img.shields.io/badge/Based%20on-MinerU-orange.svg)](https://github.com/opendatalab/MinerU)
 [![docling](https://img.shields.io/badge/Based%20on-docling-purple.svg)](https://github.com/docling-project/docling)
 [![pandoc](https://img.shields.io/badge/Based%20on-pandoc-green.svg)](https://pandoc.org)
@@ -367,8 +377,6 @@ markio/
 - [FAQ](#)
 
 ### 文档链接
-- **主要文档**: [README.md](README.md)
-- **中文文档**: [README_zh.md](README_zh.md)
 - **CLI使用指南**: [docs/cli_usage.md](docs/cli_usage.md)
 - **中文CLI指南**: [docs/cli_usage_zh.md](docs/cli_usage_zh.md)
 - **SDK使用指南**: [docs/sdk_usage.md](docs/sdk_usage.md)

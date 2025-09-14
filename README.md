@@ -3,6 +3,16 @@
 > **High-Performance Document Conversion API Platform**  
 > Parse, convert, and structure your documents with one command.
 
+<div align="center">
+
+### 🌍 Language / 语言
+
+**English** | [中文](README_zh.md)
+
+---
+
+</div>
+
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com)
@@ -732,8 +742,6 @@ When reporting issues, please include:
 - [FAQ](#troubleshooting--faq)
 
 ### Documentation Links
-- **Main Documentation**: [README.md](README.md)
-- **Chinese Documentation**: [README_zh.md](README_zh.md)
 - **CLI Usage Guide**: [docs/cli_usage.md](docs/cli_usage.md)
 - **Chinese CLI Guide**: [docs/cli_usage_zh.md](docs/cli_usage_zh.md)
 - **SDK Usage Guide**: [docs/sdk_usage.md](docs/sdk_usage.md)
