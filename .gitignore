@@ -172,3 +172,5 @@ saves/
 output/
 json_output/
 wandb/
+
+project_document/
