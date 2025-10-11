@@ -45,7 +45,7 @@ class ModelManager:
             try:
                 if engine in ["pipeline", "pipeline-engine"]:
                     success = self._initialize_pipeline_model()
-                elif engine in ["vlm", "vlm-sglang-engine", "vlm-sglang-client"]:
+                elif engine in ["vlm", "vlm-vllm-engine", "vlm-vllm-client"]:
                     success = self._initialize_vlm_model(engine)
                 else:
                     logger.warning(
@@ -74,10 +74,10 @@ class ModelManager:
 
     def _validate_vlm_config(self, engine: str) -> bool:
         """Validate VLM configuration validity"""
-        if engine == "vlm-sglang-client":
+        if engine == "vlm-vllm-client":
             if not hasattr(settings, "vlm_server_url") or not settings.vlm_server_url:
                 logger.error(
-                    "vlm-sglang-client engine requires vlm_server_url configuration"
+                    f"{engine} engine requires vlm_server_url configuration"
                 )
                 return False
         return True
@@ -113,12 +113,19 @@ class ModelManager:
             from mineru.backend.vlm.vlm_analyze import ModelSingleton
 
             # Determine backend and server_url based on engine type
-            if engine == "vlm-sglang-client":
-                backend = "sglang-client"
+            if engine == "vlm-vllm-client":
+                backend = "vllm-client"
                 server_url = getattr(settings, "vlm_server_url", None)
-            else:
-                backend = "sglang-engine"
+                logger.info("Using vllm-client backend (MinerU 2.5.0+)")
+            elif engine == "vlm-vllm-engine":
+                backend = "vllm-engine"
                 server_url = None
+                logger.info("Using vllm-engine backend (MinerU 2.5.0+)")
+            else:
+                # Default to vllm-engine
+                backend = "vllm-engine"
+                server_url = None
+                logger.info("Using default vllm-engine backend")
 
             # Directly initialize VLM model
             model_singleton = ModelSingleton()

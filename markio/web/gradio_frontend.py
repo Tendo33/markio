@@ -27,8 +27,8 @@ SUPPORTED_FORMATS = [
 # Parser method configuration
 PIPELINE_METHODS = ["Auto", "OCR"]
 PIPELINE_METHOD_VALUES = ["auto", "ocr"]
-VLM_METHODS = ["VLM Engine"]
-VLM_METHODS_VALUES = ["vlm-sglang-engine"]
+VLM_METHODS = ["VLM Engine (vLLM)"]
+VLM_METHODS_VALUES = ["vlm-vllm-engine"]
 
 
 class MarkioFrontend:
@@ -51,7 +51,7 @@ class MarkioFrontend:
 
     def get_parse_methods(self):
         """Get currently available parsing methods"""
-        if self.pdf_engine == "vlm-sglang-engine":
+        if self.pdf_engine in ["vlm-vllm-engine", "vlm-vllm-client"]:
             return VLM_METHODS, VLM_METHODS_VALUES
         else:
             return PIPELINE_METHODS, PIPELINE_METHOD_VALUES
@@ -313,8 +313,8 @@ def create_simple_interface():
             - **Pipeline Engine** (PDF_PARSE_ENGINE=pipeline):
                 - **Auto Select**: Automatically choose the best parsing method.
                 - **OCR Engine**: Use Optical Character Recognition to process images or scanned documents.
-            - **VLM Engine** (PDF_PARSE_ENGINE=vlm-sglang-engine):
-                - **VLM Engine**: Use a Visual Language Model for parsing.
+            - **VLM Engine** (PDF_PARSE_ENGINE=vlm-vllm-engine):
+                - **VLM Engine**: Use a Visual Language Model (vLLM) for parsing.
             
             **Supported Formats**:
             - **Documents**: PDF, Word (.doc, .docx), PowerPoint (.ppt, .pptx), Excel (.xlsx), HTML, EPUB

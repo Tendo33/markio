@@ -30,14 +30,14 @@ class ApplicationConfig(BaseModel):
     # PDF parsing engine configuration
     pdf_parse_engine: str = Field(
         default="pipeline",
-        description="PDF parsing engine selection, options: 'pipeline' or 'vlm-sglang-engine'",
+        description="PDF parsing engine selection, options: 'pipeline', 'vlm-vllm-engine', 'vlm-vllm-client'",
         alias="PDF_PARSE_ENGINE",
     )
 
     # VLM related configuration
     vlm_server_url: Optional[str] = Field(
         default=None,
-        description="VLM server URL, required when using vlm-sglang-client engine",
+        description="VLM server URL, required when using vlm-vllm-client engine",
         alias="VLM_SERVER_URL",
     )
 

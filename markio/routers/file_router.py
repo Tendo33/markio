@@ -180,14 +180,14 @@ async def parse_file_endpoint(
                     save_parsed_content=config.save_parsed_content,
                     output_dir=output_dir,
                 )
-            elif pdf_parse_engine == "vlm-sglang-engine":
+            elif pdf_parse_engine in ["vlm-vllm-engine", "vlm-vllm-client"]:
                 parsed_content = await pdf_parser_vlm.pdf_parse_vlm_main(
                     resource_path=temp_file_path,
                     save_parsed_content=config.save_parsed_content,
                     output_dir=output_dir,
                 )
             else:
-                error_msg = f"Invalid PDF_PARSE_ENGINE value: {pdf_parse_engine}. Must be 'pipeline' or 'vlm-sglang-engine'"
+                error_msg = f"Invalid PDF_PARSE_ENGINE value: {pdf_parse_engine}. Must be 'pipeline', 'vlm-vllm-engine', or 'vlm-vllm-client'"
                 logger.error(error_msg)
                 raise HTTPException(status_code=500, detail=error_msg)
         else:

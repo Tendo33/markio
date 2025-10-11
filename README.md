@@ -331,7 +331,7 @@ For comprehensive SDK documentation, including all methods, examples, and advanc
 | `LOG_LEVEL` | INFO | Log verbosity level | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `LOG_DIR` | logs | Log file directory | `/var/log/markio` |
 | `OUTPUT_DIR` | outputs | Parsed content output directory | `/data/outputs` |
-| `PDF_PARSE_ENGINE` | pipeline | PDF parsing method | `pipeline`, `vlm-sglang-engine` |
+| `PDF_PARSE_ENGINE` | pipeline | PDF parsing method | `pipeline`, `vlm-vllm-engine`, `vlm-vllm-client` |
 | `MINERU_DEVICE_MODE` | cuda | MinerU device selection | `cuda`, `cpu`, `mps` |
 | `VLM_SERVER_URL` | - | VLM server endpoint | `http://localhost:30000` |
 | `ENABLE_MCP` | false | Enable MCP server | `true`, `false` |
@@ -371,10 +371,13 @@ PORT=8000
 PDF_PARSE_ENGINE=pipeline
 ```
 
-**VLM Engine**
+**VLM Engine (vLLM)**
 ```bash
-# Requires external VLM server
-PDF_PARSE_ENGINE=vlm-sglang-engine
+# Use vLLM engine (MinerU 2.5.0+)
+PDF_PARSE_ENGINE=vlm-vllm-engine
+
+# Or use vLLM client mode (requires external vLLM service)
+PDF_PARSE_ENGINE=vlm-vllm-client
 VLM_SERVER_URL=http://localhost:30000
 ```
 
@@ -392,7 +395,7 @@ VLM_SERVER_URL=http://localhost:30000
 ##### PDF Processing Configuration
 | Variable | Default | Description | Values |
 |----------|---------|-------------|--------|
-| `PDF_PARSE_ENGINE` | pipeline | PDF parsing method | `pipeline`, `vlm-sglang-engine` |
+| `PDF_PARSE_ENGINE` | pipeline | PDF parsing method | `pipeline`, `vlm-vllm-engine`, `vlm-vllm-client` |
 | `MINERU_DEVICE_MODE` | cuda | MinerU device selection | `cuda`, `cpu`, `mps` |
 | `MINERU_MIN_BATCH_INFERENCE_SIZE` | 256 | MinerU batch size | 1-1024 |
 | `MINERU_MODEL_SOURCE` | local | MinerU model source | `local`, `remote` |

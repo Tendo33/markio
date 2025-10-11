@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 pdf_parse_engine = settings.pdf_parse_engine
 if pdf_parse_engine == "pipeline":
     pdf_parser_func = pdf_parse_main
-elif pdf_parse_engine == "vlm-sglang-engine":
+elif pdf_parse_engine in ["vlm-vllm-engine", "vlm-vllm-client"]:
     pdf_parser_func = pdf_parse_vlm_main
 else:
     logger.warning(

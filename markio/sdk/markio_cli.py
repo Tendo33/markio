@@ -68,7 +68,7 @@ def pdf_vlm(
         None,
         "--server",
         "-sv",
-        help="Server URL for sglang-client backend. If provided, uses sglang-client backend; otherwise uses sglang-engine backend.",
+        help="Server URL for vllm-client backend (required when using vlm-vllm-client engine).",
     ),
     output: Optional[str] = typer.Option(
         None, "--output", "-o", help="Output file path"

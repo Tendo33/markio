@@ -287,7 +287,7 @@ result = asyncio.run(basic_sdk_example())
 | `LOG_LEVEL` | INFO | 日志级别 | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `LOG_DIR` | logs | 日志目录 | `/var/log/markio` |
 | `OUTPUT_DIR` | outputs | 解析输出目录 | `/data/outputs` |
-| `PDF_PARSE_ENGINE` | pipeline | PDF解析引擎 | `pipeline`, `vlm-sglang-engine` |
+| `PDF_PARSE_ENGINE` | pipeline | PDF解析引擎 | `pipeline`, `vlm-vllm-engine`, `vlm-vllm-client` |
 | `MINERU_DEVICE_MODE` | auto | MinerU设备选择 | `cuda`, `cpu`, `mps` |
 | `VLM_SERVER_URL` | - | VLM服务端点 | `http://localhost:30000` |
 | `ENABLE_MCP` | false | 启用MCP服务 | `true`, `false` |
@@ -322,10 +322,13 @@ PORT=8000
 PDF_PARSE_ENGINE=pipeline
 ```
 
-**VLM引擎**
+**VLM引擎（vLLM）**
 ```bash
-# 需外部VLM服务
-PDF_PARSE_ENGINE=vlm-sglang-engine
+# 使用vLLM引擎（MinerU 2.5.0+）
+PDF_PARSE_ENGINE=vlm-vllm-engine
+
+# 或使用vLLM客户端模式（需外部vLLM服务）
+PDF_PARSE_ENGINE=vlm-vllm-client
 VLM_SERVER_URL=http://localhost:30000
 ```
 

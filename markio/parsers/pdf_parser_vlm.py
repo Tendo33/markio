@@ -58,8 +58,7 @@ async def pdf_parse_vlm_main(
         output_dir: Directory where parsed content and images will be saved
         start_page: First page to parse (0-based indexing)
         end_page: Last page to parse (inclusive)
-        server_url: Server URL for sglang-client backend.
-            If provided, uses sglang-client backend; otherwise uses sglang-engine backend.
+        server_url: Server URL for vllm-client backend (required when using vlm-vllm-client engine).
     Returns:
         str: Parsed content in Markdown format
 
@@ -78,10 +77,15 @@ async def pdf_parse_vlm_main(
     from markio.settings import settings
 
     engine = settings.pdf_parse_engine.lower()
-    if engine == "vlm-sglang-client":
-        backend = "sglang-client"
+    
+    # Determine backend based on engine configuration
+    if engine == "vlm-vllm-client":
+        backend = "vllm-client"
+    elif engine == "vlm-vllm-engine":
+        backend = "vllm-engine" # vllm-async-engine
     else:
-        backend = "sglang-engine"
+        # Default to vllm-engine
+        backend = "vllm-engine"
 
     # Extract file name from the file path
     file_path = Path(local_pdf_path)
@@ -217,8 +221,7 @@ async def pdf_parse_vlm_batch(
         output_dir (str, optional): Directory for saving output files.
         start_page (int, optional): First page to parse (0-based indexing).
         end_page (int, optional): Last page to parse (inclusive).
-        server_url (str, optional): Server URL for sglang-client backend.
-            If provided, uses sglang-client backend; otherwise uses sglang-engine backend.
+        server_url (str, optional): Server URL for vllm-client backend (required when using vlm-vllm-client engine).
 
     Returns:
         list[str]: List of parsed markdown contents for each PDF file.

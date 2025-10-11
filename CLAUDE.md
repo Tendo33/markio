@@ -103,7 +103,7 @@ mypy markio/
 Environment variables control all aspects of the application:
 - `LOG_LEVEL`: Logging verbosity (DEBUG/INFO/WARNING/ERROR)
 - `OUTPUT_DIR`: Directory for parsed content outputs
-- `PDF_PARSE_ENGINE`: PDF parsing engine selection (`pipeline`/`vlm-sglang-engine`)
+- `PDF_PARSE_ENGINE`: PDF parsing engine selection (`pipeline`/`vlm-vllm-engine`/`vlm-vllm-client`)
 - `MINERU_DEVICE_MODE`: Device selection for MinerU models (`cuda`/`cpu`)
 - `VLM_SERVER_URL`: VLM server endpoint for remote processing
 
