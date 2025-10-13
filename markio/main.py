@@ -107,7 +107,13 @@ def mount_mcp_server(app: FastAPI):
 
 
 app = create_app()
-mount_mcp_server(app)
+
+# Only mount MCP server if enabled in settings
+if settings.enable_mcp:
+    mount_mcp_server(app)
+    logger.info("MCP server is enabled and mounted")
+else:
+    logger.info("MCP server is disabled")
 
 
 @app.get("/")
