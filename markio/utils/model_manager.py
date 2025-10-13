@@ -116,7 +116,7 @@ class ModelManager:
                 server_url = getattr(settings, "vlm_server_url", None)
                 logger.info("Using vllm-client backend (MinerU 2.5.0+)")
             elif engine == "vlm-vllm-engine":
-                backend = "vllm-engine"
+                backend = "vllm-async-engine"
                 server_url = None
                 logger.info("Using vllm-engine backend (MinerU 2.5.0+)")
             else:
