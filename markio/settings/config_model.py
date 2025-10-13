@@ -92,6 +92,61 @@ class ApplicationConfig(BaseModel):
         alias="ENABLE_MCP",
     )
 
+    # Redis configuration
+    redis_host: str = Field(
+        default="localhost",
+        description="Redis server host address",
+        alias="REDIS_HOST",
+    )
+
+    redis_port: int = Field(
+        default=6379,
+        description="Redis server port",
+        alias="REDIS_PORT",
+    )
+
+    redis_db: int = Field(
+        default=0,
+        description="Redis database index (0-15)",
+        alias="REDIS_DB",
+    )
+
+    redis_password: Optional[str] = Field(
+        default=None,
+        description="Redis password (optional)",
+        alias="REDIS_PASSWORD",
+    )
+
+    redis_enabled: bool = Field(
+        default=False,
+        description="Enable Redis caching and features",
+        alias="REDIS_ENABLED",
+    )
+
+    redis_max_connections: int = Field(
+        default=50,
+        description="Maximum number of Redis connections in the pool",
+        alias="REDIS_MAX_CONNECTIONS",
+    )
+
+    redis_socket_timeout: int = Field(
+        default=5,
+        description="Redis socket timeout in seconds",
+        alias="REDIS_SOCKET_TIMEOUT",
+    )
+
+    redis_socket_connect_timeout: int = Field(
+        default=5,
+        description="Redis socket connect timeout in seconds",
+        alias="REDIS_SOCKET_CONNECT_TIMEOUT",
+    )
+
+    redis_default_ttl: int = Field(
+        default=3600,
+        description="Default TTL (time to live) for cached items in seconds",
+        alias="REDIS_DEFAULT_TTL",
+    )
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
