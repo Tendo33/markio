@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 class RedisManager:
     """
     Redis连接管理器
-    
+
     采用单例模式,全局复用连接池。
     支持异步上下文管理器,自动处理连接生命周期。
     """
@@ -47,7 +47,7 @@ class RedisManager:
     async def initialize(self) -> None:
         """
         初始化Redis连接池
-        
+
         根据配置创建连接池和客户端实例。
         仅在首次调用时执行初始化。
         """
@@ -97,7 +97,7 @@ class RedisManager:
     async def close(self) -> None:
         """
         关闭Redis连接池
-        
+
         释放所有连接资源。
         应在应用关闭时调用。
         """
@@ -133,12 +133,12 @@ redis_manager = RedisManager()
 async def get_redis_client():
     """
     获取Redis客户端的上下文管理器
-    
+
     用法:
         async with get_redis_client() as redis:
             if redis:
                 await redis.set("key", "value")
-    
+
     Yields:
         Optional[Redis]: Redis客户端实例,如果未启用则返回None
     """
@@ -156,7 +156,7 @@ async def get_redis_client():
 class RedisCache:
     """
     Redis缓存操作类
-    
+
     提供高级缓存操作接口,自动处理序列化、TTL等。
     """
 
@@ -164,11 +164,11 @@ class RedisCache:
     def _serialize(value: Any, use_pickle: bool = False) -> bytes:
         """
         序列化值
-        
+
         Args:
             value: 要序列化的值
             use_pickle: 是否使用pickle序列化(默认使用JSON)
-        
+
         Returns:
             bytes: 序列化后的字节数据
         """
@@ -180,18 +180,20 @@ class RedisCache:
                 return json.dumps(value).encode("utf-8")
         except (TypeError, ValueError):
             # JSON序列化失败,回退到pickle
-            logger.debug(f"JSON serialization failed, using pickle for value: {type(value)}")
+            logger.debug(
+                f"JSON serialization failed, using pickle for value: {type(value)}"
+            )
             return pickle.dumps(value)
 
     @staticmethod
     def _deserialize(value: bytes, use_pickle: bool = False) -> Any:
         """
         反序列化值
-        
+
         Args:
             value: 序列化的字节数据
             use_pickle: 是否使用pickle反序列化
-        
+
         Returns:
             Any: 反序列化后的值
         """
@@ -221,13 +223,13 @@ class RedisCache:
     ) -> bool:
         """
         设置缓存值
-        
+
         Args:
             key: 缓存键
             value: 缓存值
             ttl: 过期时间(秒),None表示使用默认值
             use_pickle: 是否使用pickle序列化
-        
+
         Returns:
             bool: 是否设置成功
         """
@@ -251,11 +253,11 @@ class RedisCache:
     async def get(key: str, use_pickle: bool = False) -> Optional[Any]:
         """
         获取缓存值
-        
+
         Args:
             key: 缓存键
             use_pickle: 是否使用pickle反序列化
-        
+
         Returns:
             Optional[Any]: 缓存值,不存在或过期返回None
         """
@@ -280,10 +282,10 @@ class RedisCache:
     async def delete(key: str) -> bool:
         """
         删除缓存值
-        
+
         Args:
             key: 缓存键
-        
+
         Returns:
             bool: 是否删除成功
         """
@@ -306,10 +308,10 @@ class RedisCache:
     async def exists(key: str) -> bool:
         """
         检查缓存键是否存在
-        
+
         Args:
             key: 缓存键
-        
+
         Returns:
             bool: 是否存在
         """
@@ -329,11 +331,11 @@ class RedisCache:
     async def expire(key: str, ttl: int) -> bool:
         """
         设置缓存键的过期时间
-        
+
         Args:
             key: 缓存键
             ttl: 过期时间(秒)
-        
+
         Returns:
             bool: 是否设置成功
         """
@@ -355,10 +357,10 @@ class RedisCache:
     async def get_ttl(key: str) -> int:
         """
         获取缓存键的剩余过期时间
-        
+
         Args:
             key: 缓存键
-        
+
         Returns:
             int: 剩余秒数,-1表示永不过期,-2表示键不存在
         """
@@ -377,11 +379,11 @@ class RedisCache:
     async def mset(mapping: Dict[str, Any], use_pickle: bool = False) -> bool:
         """
         批量设置缓存值
-        
+
         Args:
             mapping: 键值对字典
             use_pickle: 是否使用pickle序列化
-        
+
         Returns:
             bool: 是否设置成功
         """
@@ -405,11 +407,11 @@ class RedisCache:
     async def mget(keys: List[str], use_pickle: bool = False) -> Dict[str, Any]:
         """
         批量获取缓存值
-        
+
         Args:
             keys: 缓存键列表
             use_pickle: 是否使用pickle反序列化
-        
+
         Returns:
             Dict[str, Any]: 键值对字典,不存在的键会被忽略
         """
@@ -436,11 +438,11 @@ class RedisCache:
     async def delete_pattern(pattern: str) -> int:
         """
         根据模式删除缓存键
-        
+
         Args:
             pattern: 键名模式 (支持通配符 *, ?)
                      例: "user:*", "cache:prefix:*"
-        
+
         Returns:
             int: 删除的键数量
         """
@@ -474,11 +476,11 @@ class RedisCache:
     async def keys_pattern(pattern: str, limit: int = 1000) -> List[str]:
         """
         根据模式获取缓存键列表
-        
+
         Args:
             pattern: 键名模式 (支持通配符 *, ?)
             limit: 最大返回数量
-        
+
         Returns:
             List[str]: 匹配的键列表
         """
@@ -494,7 +496,9 @@ class RedisCache:
                     cursor, keys = await redis.scan(cursor, match=pattern, count=100)
 
                     # 将字节转换为字符串
-                    decoded_keys = [k.decode("utf-8") if isinstance(k, bytes) else k for k in keys]
+                    decoded_keys = [
+                        k.decode("utf-8") if isinstance(k, bytes) else k for k in keys
+                    ]
                     keys_list.extend(decoded_keys)
 
                     if cursor == 0:
@@ -512,11 +516,11 @@ class RedisCache:
     async def increment(key: str, amount: int = 1) -> Optional[int]:
         """
         原子递增操作
-        
+
         Args:
             key: 缓存键
             amount: 递增量(默认1)
-        
+
         Returns:
             Optional[int]: 递增后的值,失败返回None
         """
@@ -537,11 +541,11 @@ class RedisCache:
     async def decrement(key: str, amount: int = 1) -> Optional[int]:
         """
         原子递减操作
-        
+
         Args:
             key: 缓存键
             amount: 递减量(默认1)
-        
+
         Returns:
             Optional[int]: 递减后的值,失败返回None
         """
@@ -562,9 +566,9 @@ class RedisCache:
     async def clear_all() -> bool:
         """
         清空当前数据库的所有缓存
-        
+
         ⚠️ 危险操作,谨慎使用!
-        
+
         Returns:
             bool: 是否清空成功
         """
@@ -603,4 +607,3 @@ async def cache_delete(key: str) -> bool:
 async def cache_exists(key: str) -> bool:
     """快捷检查缓存是否存在"""
     return await RedisCache.exists(key)
-

@@ -68,7 +68,9 @@ async def html_parse_main(
 
         conv_res = doc_converter.convert(local_html_path)
         conv_res.document.save_as_markdown(
-            output_path, image_mode=ImageRefMode.REFERENCED
+            filename=output_path,
+            artifacts_dir=Path(f"{file_name}_artifacts"),
+            image_mode=ImageRefMode.REFERENCED,
         )
         logger.info(f"HTML {file_name} saved to {output_path}")
     else:

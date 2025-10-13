@@ -320,7 +320,7 @@ def create_unique_temp_file(
 
     # Generate unique filename: original_name + UUID suffix + extension
     # This preserves the original name while ensuring uniqueness
-    unique_suffix = uuid.uuid4().hex[:8]  # Use first 8 chars of UUID for shorter names
+    unique_suffix = uuid.uuid4().hex[:6]  # Use first 6 chars of UUID for shorter names
     unique_filename = f"{base_name}_{unique_suffix}{file_extension}"
     temp_file_path = os.path.join(temp_dir, unique_filename)
 

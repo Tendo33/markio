@@ -54,6 +54,7 @@ async def docx_parse_main(
         save_parsed_dir.mkdir(parents=True, exist_ok=True)
         output_path = save_parsed_dir / f"{file_name}.md"
 
+        # Configure pipeline options for image generation
         pipeline_options = PdfPipelineOptions()
         pipeline_options.images_scale = 2.0
         pipeline_options.generate_page_images = True
@@ -68,9 +69,14 @@ async def docx_parse_main(
         )
 
         conv_res = doc_converter.convert(local_docx_path)
+
+        # Save markdown with externally referenced pictures
         conv_res.document.save_as_markdown(
-            output_path, image_mode=ImageRefMode.REFERENCED
+            filename=output_path,
+            artifacts_dir=Path(f"{file_name}_artifacts"),
+            image_mode=ImageRefMode.REFERENCED,
         )
+
         logger.info(f"DOCX {file_name} saved to {output_path}")
     else:
         converter = DocumentConverter()

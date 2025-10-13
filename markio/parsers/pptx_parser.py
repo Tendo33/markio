@@ -68,7 +68,9 @@ async def pptx_parse_main(
 
         conv_res = pptx_converter.convert(local_pptx_path)
         conv_res.document.save_as_markdown(
-            output_path, image_mode=ImageRefMode.REFERENCED
+            filename=output_path,
+            artifacts_dir=Path(f"{file_name}_artifacts"),
+            image_mode=ImageRefMode.REFERENCED,
         )
         logger.info(f"PPTX {file_name} saved to {output_path}")
     else:
