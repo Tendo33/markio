@@ -27,7 +27,7 @@
 ---
 
 ## 为什么选择 Markio？
-- **多格式支持**：PDF、Office、HTML、EPUB、图片等
+- **多格式支持**：PDF、DOCX、PPTX、DOC、PPT、XLSX、HTML、EPUB、图片等
 - **高性能**：异步处理、GPU加速、并发请求
 - **灵活集成**：CLI、Python SDK、REST API
 - **生产就绪**：Docker支持、健康检查、监控
@@ -63,17 +63,18 @@ docker compose up -d
 # 系统依赖（Ubuntu/Debian）
 sudo apt update && sudo apt install -y libreoffice pandoc
 
-# 安装Python包管理器
+# 安装uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source ~/.bashrc  # 或重启终端
 
 # 克隆并安装
  git clone https://github.com/Tendo33/markio.git
  cd markio
- uv venv && source .venv/bin/activate  # Windows下用 .venv\Scripts\activate
+ uv sync
  uv pip install -e .
 
 # 启动服务
+export CUDA_VISIBLE_DEVICES=0
 ./start_services.sh  # 或分别运行：
 # python markio/main.py          # API服务
 # python markio/web/gradio_frontend.py  # Web界面
@@ -290,6 +291,7 @@ result = asyncio.run(basic_sdk_example())
 | `PDF_PARSE_ENGINE` | pipeline | PDF解析引擎 | `pipeline`, `vlm-vllm-engine`, `vlm-vllm-client` |
 | `MINERU_DEVICE_MODE` | auto | MinerU设备选择 | `cuda`, `cpu`, `mps` |
 | `VLM_SERVER_URL` | - | VLM服务端点 | `http://localhost:30000` |
+| `VLM_GPU_MEMORY_UTILIZATION` | 0.9 | vLLM GPU显存利用率 | `0.0-1.0` |
 | `ENABLE_MCP` | false | 启用MCP服务 | `true`, `false` |
 | `HOST` | 0.0.0.0 | 服务监听地址 | `127.0.0.1` |
 | `PORT` | 8000 | 服务端口 | `8080` |

@@ -66,10 +66,30 @@ class ApplicationConfig(BaseModel):
         alias="MINERU_VIRTUAL_VRAM_SIZE",
     )
 
-    vlm_mem_fraction_static: float = Field(
-        default=0.5,
-        description="VLM memory fraction static, default 0.5",
-        alias="VLM_MEM_FRACTION_STATIC",
+    vlm_gpu_memory_utilization: float = Field(
+        default=0.9,
+        description="vLLM GPU memory utilization (0.0-1.0), default 0.9. Controls the fraction of GPU memory to use.",
+        alias="VLM_GPU_MEMORY_UTILIZATION",
+    )
+
+    # Server configuration
+    host: str = Field(
+        default="0.0.0.0",
+        description="Server host address",
+        alias="HOST",
+    )
+
+    port: int = Field(
+        default=8000,
+        description="Server port",
+        alias="PORT",
+    )
+
+    # MCP configuration
+    enable_mcp: bool = Field(
+        default=False,
+        description="Enable MCP server",
+        alias="ENABLE_MCP",
     )
 
     class Config:
@@ -77,3 +97,4 @@ class ApplicationConfig(BaseModel):
         env_file_encoding = "utf-8"
         case_sensitive = False
         populate_by_name = True
+        extra = "ignore"  # 忽略额外字段，提高兼容性

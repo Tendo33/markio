@@ -76,9 +76,7 @@ class ModelManager:
         """Validate VLM configuration validity"""
         if engine == "vlm-vllm-client":
             if not hasattr(settings, "vlm_server_url") or not settings.vlm_server_url:
-                logger.error(
-                    f"{engine} engine requires vlm_server_url configuration"
-                )
+                logger.error(f"{engine} engine requires vlm_server_url configuration")
                 return False
         return True
 
@@ -133,7 +131,7 @@ class ModelManager:
                 backend,
                 None,
                 server_url,
-                mem_fraction_static=settings.vlm_mem_fraction_static,
+                gpu_memory_utilization=settings.vlm_gpu_memory_utilization,
             )
 
             # Store model instance for subsequent management

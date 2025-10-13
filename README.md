@@ -334,13 +334,13 @@ For comprehensive SDK documentation, including all methods, examples, and advanc
 | `PDF_PARSE_ENGINE` | pipeline | PDF parsing method | `pipeline`, `vlm-vllm-engine`, `vlm-vllm-client` |
 | `MINERU_DEVICE_MODE` | cuda | MinerU device selection | `cuda`, `cpu`, `mps` |
 | `VLM_SERVER_URL` | - | VLM server endpoint | `http://localhost:30000` |
+| `VLM_GPU_MEMORY_UTILIZATION` | 0.9 | vLLM GPU memory utilization | `0.0-1.0` |
 | `ENABLE_MCP` | false | Enable MCP server | `true`, `false` |
 | `HOST` | 0.0.0.0 | Server bind address | `127.0.0.1` |
 | `PORT` | 8000 | Server port | `8080` |
 | `MINERU_MIN_BATCH_INFERENCE_SIZE` | 256 | MinerU minimum batch inference size | `128`, `256`, `512` |
 | `MINERU_MODEL_SOURCE` | local | MinerU model source | `local`, `remote` |
 | `MINERU_VIRTUAL_VRAM_SIZE` | 8192 | MinerU virtual VRAM size in MB | `8192`, `16384` |
-| `VLM_MEM_FRACTION_STATIC` | 0.5 | VLM memory fraction static | `0.3`, `0.5`, `0.7` |
 
 #### Configuration Files
 
@@ -405,7 +405,7 @@ VLM_SERVER_URL=http://localhost:30000
 | Variable | Default | Description | Values |
 |----------|---------|-------------|--------|
 | `VLM_SERVER_URL` | - | VLM server endpoint | Valid URL |
-| `VLM_MEM_FRACTION_STATIC` | 0.5 | VLM memory fraction | 0.1-0.9 |
+| `VLM_GPU_MEMORY_UTILIZATION` | 0.9 | vLLM GPU memory utilization | 0.1-1.0 |
 
 ##### Advanced Settings
 | Variable | Default | Description | Values |
@@ -420,7 +420,7 @@ VLM_SERVER_URL=http://localhost:30000
 MINERU_DEVICE_MODE=cuda
 MINERU_MIN_BATCH_INFERENCE_SIZE=512
 MINERU_VIRTUAL_VRAM_SIZE=16384
-VLM_MEM_FRACTION_STATIC=0.7
+VLM_GPU_MEMORY_UTILIZATION=0.9
 PDF_PARSE_ENGINE=pipeline
 ```
 
@@ -430,7 +430,7 @@ PDF_PARSE_ENGINE=pipeline
 MINERU_DEVICE_MODE=cuda
 MINERU_MIN_BATCH_INFERENCE_SIZE=256
 MINERU_VIRTUAL_VRAM_SIZE=8192
-VLM_MEM_FRACTION_STATIC=0.5
+VLM_GPU_MEMORY_UTILIZATION=0.9
 ```
 
 ##### Memory-Constrained (CPU)
@@ -439,7 +439,7 @@ VLM_MEM_FRACTION_STATIC=0.5
 MINERU_DEVICE_MODE=cpu
 MINERU_MIN_BATCH_INFERENCE_SIZE=128
 MINERU_VIRTUAL_VRAM_SIZE=4096
-VLM_MEM_FRACTION_STATIC=0.3
+VLM_GPU_MEMORY_UTILIZATION=0.7
 ```
 
 ##### Development/Debugging
@@ -620,7 +620,7 @@ export PDF_PARSE_ENGINE=pipeline
 **Issue**: High memory usage
 ```bash
 # Reduce memory allocation
-export VLM_MEM_FRACTION_STATIC=0.3
+export VLM_GPU_MEMORY_UTILIZATION=0.7
 export MINERU_VIRTUAL_VRAM_SIZE=4096
 
 # Process files sequentially instead of in parallel
@@ -681,8 +681,8 @@ python -c "from markio.settings import settings; print(settings.output_dir)"
 export MINERU_DEVICE_MODE=cuda
 export MINERU_VIRTUAL_VRAM_SIZE=16384  # 16GB
 
-# Optimize VLM memory usage
-export VLM_MEM_FRACTION_STATIC=0.7
+# Optimize vLLM memory usage
+export VLM_GPU_MEMORY_UTILIZATION=0.9
 ```
 
 #### Batch Processing
@@ -701,7 +701,7 @@ htop or glances
 
 # Adjust based on available memory
 export MINERU_VIRTUAL_VRAM_SIZE=8192  # 8GB for systems with 16GB RAM
-export VLM_MEM_FRACTION_STATIC=0.3   # Conservative memory usage
+export VLM_GPU_MEMORY_UTILIZATION=0.7   # Conservative memory usage
 ```
 
 ### Getting Help

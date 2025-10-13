@@ -135,7 +135,9 @@ async def parse_pdf_file_endpoint(
         logger.error(f"Runtime error: {e}")
         raise HTTPException(status_code=500, detail=f"Runtime error: {str(e)}")
     except Exception as e:
-        logger.error(f"Unexpected error occurred while parsing {file.filename}: {str(e)}")
+        logger.error(
+            f"Unexpected error occurred while parsing {file.filename}: {str(e)}"
+        )
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error occurred")
 

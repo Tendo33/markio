@@ -77,12 +77,12 @@ async def pdf_parse_vlm_main(
     from markio.settings import settings
 
     engine = settings.pdf_parse_engine.lower()
-    
+
     # Determine backend based on engine configuration
     if engine == "vlm-vllm-client":
         backend = "vllm-client"
     elif engine == "vlm-vllm-engine":
-        backend = "vllm-engine" # vllm-async-engine
+        backend = "vllm-engine"  # vllm-async-engine
     else:
         # Default to vllm-engine
         backend = "vllm-engine"

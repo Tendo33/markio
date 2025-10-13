@@ -163,7 +163,7 @@ markio image diagram.png -s -o ./ocr_results/
 | `VLM_SERVER_URL` | - | VLM server endpoint for remote processing |
 | `MINERU_MIN_BATCH_INFERENCE_SIZE` | 256 | MinerU batch size for inference |
 | `MINERU_VIRTUAL_VRAM_SIZE` | 8192 | Virtual VRAM size in MB |
-| `VLM_MEM_FRACTION_STATIC` | 0.5 | VLM memory allocation fraction |
+| `VLM_GPU_MEMORY_UTILIZATION` | 0.9 | vLLM GPU memory utilization (0.1-1.0) |
 
 ### Configuration Examples
 
@@ -187,10 +187,10 @@ export MINERU_DEVICE_MODE=cuda
 export MINERU_VIRTUAL_VRAM_SIZE=16384
 export MINERU_MIN_BATCH_INFERENCE_SIZE=512
 
-# VLM server configuration
-export PDF_PARSE_ENGINE=vlm-sglang-engine
+# vLLM client configuration
+export PDF_PARSE_ENGINE=vlm-vllm-client
 export VLM_SERVER_URL=http://localhost:30000
-export VLM_MEM_FRACTION_STATIC=0.7
+export VLM_GPU_MEMORY_UTILIZATION=0.9
 ```
 
 #### Memory-Constrained Systems
@@ -199,7 +199,7 @@ export VLM_MEM_FRACTION_STATIC=0.7
 export MINERU_DEVICE_MODE=cpu
 export MINERU_MIN_BATCH_INFERENCE_SIZE=128
 export MINERU_VIRTUAL_VRAM_SIZE=4096
-export VLM_MEM_FRACTION_STATIC=0.3
+export VLM_GPU_MEMORY_UTILIZATION=0.7
 ```
 
 ---
