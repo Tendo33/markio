@@ -82,7 +82,7 @@ async def pdf_parse_vlm_main(
     if engine == "vlm-vllm-client":
         backend = "vllm-client"
     elif engine == "vlm-vllm-engine":
-        backend = "vllm-engine"  # vllm-async-engine
+        backend = "vllm-async-engine"  # vllm-engine
     else:
         # Default to vllm-engine
         backend = "vllm-engine"

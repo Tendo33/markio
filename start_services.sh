@@ -19,7 +19,7 @@ mkdir -p logs
 echo "🔧 启动 Markio 后端API服务..."
 python3 markio/main.py &
 API_PID=$!
-echo "✅ 后端API服务已启动 (PID: $API_PID)"
+echo "✅ markio后端API服务已启动 (PID: $API_PID)"
 
 # 等待API服务启动
 sleep 3
