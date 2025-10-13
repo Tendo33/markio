@@ -306,7 +306,7 @@ def create_unique_temp_file(
 
     Example:
         temp_path, unique_name = create_unique_temp_file("document.docx")
-        # Returns: ("/tmp/abc123.docx", "abc123.docx")
+        # Returns: ("/tmp/document_abc123.docx", "document_abc123.docx")
     """
     import tempfile
     import uuid
@@ -314,11 +314,14 @@ def create_unique_temp_file(
     if temp_dir is None:
         temp_dir = tempfile.gettempdir()
 
-    # Extract file extension
+    # Extract base name and file extension
+    base_name = os.path.splitext(original_filename)[0]
     file_extension = os.path.splitext(original_filename)[1]
 
-    # Generate unique filename while preserving extension
-    unique_filename = f"{uuid.uuid4().hex}{file_extension}"
+    # Generate unique filename: original_name + UUID suffix + extension
+    # This preserves the original name while ensuring uniqueness
+    unique_suffix = uuid.uuid4().hex[:8]  # Use first 8 chars of UUID for shorter names
+    unique_filename = f"{base_name}_{unique_suffix}{file_extension}"
     temp_file_path = os.path.join(temp_dir, unique_filename)
 
     return temp_file_path, unique_filename
