@@ -20,11 +20,10 @@ Features:
 - Support multiple records in single file
 - Convert to structured Markdown format
 - Preserve biological annotations
-- Enhanced analysis with BioPython (optional, auto-detected)
+- Enhanced analysis with BioPython
 
 Dependencies:
-- BioPython (optional): Enhanced parsing and validation
-  Install: pip install biopython>=1.80
+- BioPython: Included in default installation for enhanced parsing
 """
 
 import re

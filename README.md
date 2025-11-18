@@ -25,12 +25,13 @@
 ---
 
 ## Why Markio?
-- **Multi-format support**: PDF, Office, HTML, EPUB, Images, and more
+- **Multi-format support**: PDF, Office, HTML, EPUB, Images, Biological Data (FASTA/GenBank), and more
 - **High performance**: Async processing, GPU acceleration, concurrent requests
 - **Flexible integration**: CLI, Python SDK, REST API for any workflow
 - **Production ready**: Docker support, health checks, monitoring
 - **Consistent output**: Markdown format with metadata preservation
 - **Developer friendly**: Clean APIs, comprehensive documentation, type hints
+- **BioPython integration**: Enhanced biological sequence analysis capabilities
 
 | Use Case        | Description                     | Best For                         |
 |------------------|----------------------------------|----------------------------------|

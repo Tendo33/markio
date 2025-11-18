@@ -4,16 +4,13 @@ Markio now supports parsing of biological sequence data formats commonly used in
 
 ## 🔬 BioPython Integration
 
-The biological data parsers support **optional BioPython integration** for enhanced analysis capabilities:
+Markio includes **BioPython by default** for enhanced biological sequence analysis capabilities:
 
-### Without BioPython (Basic Mode)
+### Features Included
 - ✅ Parse FASTA and GenBank files
-- ✅ Basic sequence statistics
-- ✅ GC content calculation (DNA)
-- ✅ Sequence type detection
-
-### With BioPython (Enhanced Mode)
-- ✅ **All basic features**
+- ✅ Advanced sequence statistics
+- ✅ Precise GC content calculation (DNA)
+- ✅ Intelligent sequence type detection
 - ✅ **Protein properties analysis:**
   - Molecular weight
   - Isoelectric point (pI)
@@ -25,19 +22,12 @@ The biological data parsers support **optional BioPython integration** for enhan
 
 ### Installation
 
-**Basic installation** (works out of the box):
+BioPython is included in the default installation:
 ```bash
 pip install markio
 ```
 
-**With BioPython support** (recommended for biological data):
-```bash
-pip install markio[bio]
-# or
-pip install biopython>=1.80
-```
-
-The parsers **automatically detect** BioPython and enable enhanced features when available. No configuration needed!
+All biological data analysis features are available immediately after installation. No additional setup required!
 
 ## Supported Formats
 
@@ -282,29 +272,31 @@ The parser generates structured Markdown with:
 
 **DNA Sequences:**
 - Contains only A, T, G, C, N characters
-- GC content is calculated automatically
+- GC content is calculated automatically using BioPython
 
 **Protein Sequences:**
 - Contains standard amino acid codes (ACDEFGHIKLMNPQRSTVWY)
-- No GC content calculation
+- Comprehensive properties analysis with BioPython
 
 **Unknown:**
 - Contains other characters or mixed types
 
 ### Performance
 
-- **FASTA**: Optimized for large multi-sequence files
+- **FASTA**: Optimized for large multi-sequence files with BioPython
 - **GenBank**: Handles complex annotations efficiently
 - **Memory**: Streaming approach for large files
-- **Speed**: Fast parsing with minimal overhead
+- **Speed**: Fast parsing with BioPython optimizations
+- **Accuracy**: BioPython ensures precise biological calculations
 
 ### Error Handling
 
-The parsers include comprehensive error handling:
+The parsers include comprehensive error handling with BioPython validation:
 - File format validation
 - Invalid sequence detection
 - Missing header handling
 - Corrupted file detection
+- Sequence integrity verification
 
 ## Examples
 
@@ -392,6 +384,10 @@ Biological data parsing integrates seamlessly with other Markio features:
 - Use supported extensions or rename file
 - Check file content type matches extension
 
+**Issue: BioPython import errors**
+- BioPython is included by default with Markio
+- If you see import errors, try reinstalling: `pip install --upgrade markio`
+
 ### Getting Help
 
 - Check API documentation: `http://localhost:8000/docs`
@@ -411,5 +407,5 @@ Planned improvements for biological data parsing:
 
 ---
 
-**Note:** This feature is designed to complement, not replace, specialized bioinformatics tools. For complex sequence analysis, use dedicated tools like BLAST, Clustal, or Biopython in conjunction with Markio's parsing capabilities.
+**Note:** Markio includes BioPython for enhanced biological data parsing capabilities. This feature is designed to provide professional-grade sequence analysis while maintaining ease of use. For specialized workflows, Markio's BioPython integration can be used alongside other bioinformatics tools like BLAST, Clustal, and more.
 

@@ -13,15 +13,13 @@ Features:
 - Parse single or multiple FASTA sequences
 - Extract sequence metadata (ID, description)
 - Calculate sequence statistics (length, GC content for DNA)
-- Advanced analysis with BioPython (optional, auto-detected)
+- Advanced analysis with BioPython
 - Protein properties analysis (molecular weight, isoelectric point, etc.)
-- ORF prediction for nucleotide sequences
 - Validate sequence format
 - Convert to Markdown format with metadata preservation
 
 Dependencies:
-- BioPython (optional): Enhanced analysis capabilities
-  Install: pip install biopython>=1.80
+- BioPython: Included in default installation for enhanced analysis
 """
 
 from pathlib import Path
