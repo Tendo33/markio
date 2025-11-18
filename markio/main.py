@@ -9,7 +9,9 @@ from markio.middlewares.handle import handle_middleware
 from markio.routers.doc_router import router as doc_router
 from markio.routers.docx_router import router as docx_router
 from markio.routers.epub_router import router as epub_router
+from markio.routers.fasta_router import router as fasta_router
 from markio.routers.file_router import router as file_router
+from markio.routers.genbank_router import router as genbank_router
 from markio.routers.html_router import router as html_router
 from markio.routers.image_router import router as image_router
 from markio.routers.pdf_router import router as pdf_router
@@ -93,6 +95,8 @@ def register_routers(app: FastAPI):
         (pptx_router, "PPTX"),
         (ppt_router, "PPT"),
         (image_router, "IMAGE"),
+        (fasta_router, "FASTA"),
+        (genbank_router, "GENBANK"),
     ]
     for router, name in routers:
         app.include_router(router, prefix=API_PREFIX)

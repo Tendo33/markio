@@ -73,3 +73,21 @@ class PPTXParserConfig(BaseParserConfig):
 
 class XLSXParserConfig(BaseParserConfig):
     pass
+
+
+class FASTAParserConfig(BaseParserConfig):
+    include_statistics: bool = Field(
+        default=True,
+        description="Include sequence statistics (length, GC content, type distribution)",
+    )
+
+
+class GenBankParserConfig(BaseParserConfig):
+    include_features: bool = Field(
+        default=True,
+        description="Include feature table in the output",
+    )
+    include_sequence: bool = Field(
+        default=True,
+        description="Include sequence data in the output",
+    )

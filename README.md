@@ -115,6 +115,8 @@ asyncio.run(parse_pdf())
 | XLSX | `/v1/parse_xlsx_file` | Excel spreadsheet parsing |
 | HTML/URL | `/v1/parse_html_file`, `/v1/parse_url_file` | Web content parsing |
 | Image | `/v1/parse_image_file` | OCR image recognition |
+| FASTA | `/v1/parse_fasta_file` | Biological sequence parsing (DNA/Protein) |
+| GenBank | `/v1/parse_genbank_file` | GenBank record parsing with annotations |
 
 ### ⌨️ CLI Command Line
 
@@ -170,6 +172,8 @@ asyncio.run(main())
 | URL      | jina              | ...                     |
 | EPUB     | pandoc            | ...                     |
 | Images   | MinerU            | OCR                     |
+| FASTA    | Custom Parser     | Sequence parsing, Statistics, GC content |
+| GenBank  | Custom Parser     | Metadata, Features, Annotations |
 
 </details>
 

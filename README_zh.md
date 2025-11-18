@@ -115,6 +115,8 @@ asyncio.run(parse_pdf())
 | XLSX | `/v1/parse_xlsx_file` | Excel表格解析 |
 | HTML/URL | `/v1/parse_html_file`, `/v1/parse_url_file` | 网页内容解析 |
 | 图片 | `/v1/parse_image_file` | OCR图片识别 |
+| FASTA | `/v1/parse_fasta_file` | 生物序列解析（DNA/蛋白质） |
+| GenBank | `/v1/parse_genbank_file` | GenBank记录解析（含注释） |
 
 ### ⌨️ CLI 命令行
 
@@ -170,6 +172,8 @@ asyncio.run(main())
 | URL    | jina             | ...                 |
 | EPUB   | pandoc           | ...                 |
 | 图片   | MinerU           | OCR                 |
+| FASTA  | 自定义解析器      | 序列解析、统计、GC含量 |
+| GenBank| 自定义解析器      | 元数据、特征、注释   |
 
 </details>
 

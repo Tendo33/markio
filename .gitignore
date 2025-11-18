@@ -174,3 +174,4 @@ json_output/
 wandb/
 
 project_document/
+.claude/
