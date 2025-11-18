@@ -41,6 +41,11 @@ dependencies = [
     "redis[hiredis]>=5.0.0",
 ]
 
+[project.optional-dependencies]
+bio = [
+    "biopython>=1.80",
+]
+
 [project.urls]
 Homepage = "https://github.com/Tendo33/markio"
 Repository = "https://github.com/Tendo33/markio"

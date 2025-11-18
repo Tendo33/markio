@@ -20,16 +20,32 @@ Features:
 - Support multiple records in single file
 - Convert to structured Markdown format
 - Preserve biological annotations
+- Enhanced analysis with BioPython (optional, auto-detected)
+
+Dependencies:
+- BioPython (optional): Enhanced parsing and validation
+  Install: pip install biopython>=1.80
 """
 
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
-import re
 
 from markio.utils.file_utils import func_processing_time, process_resource_path
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
+
+# Try to import BioPython for enhanced parsing
+try:
+    from Bio import SeqIO
+    from Bio.SeqUtils import gc_fraction
+
+    BIOPYTHON_AVAILABLE = True
+    logger.info("BioPython detected - Enhanced GenBank analysis enabled")
+except ImportError:
+    BIOPYTHON_AVAILABLE = False
+    logger.info("BioPython not found - Using basic GenBank parsing")
 
 
 class GenBankRecord:
@@ -203,12 +219,20 @@ async def genbank_parse_main(
     logger.info(f"Starting GenBank parsing for: {file_name}")
 
     try:
-        # Parse GenBank file
-        records = _parse_genbank_file(
-            file_path=local_genbank_path,
-            include_features=include_features,
-            include_sequence=include_sequence,
-        )
+        # Use BioPython if available for better parsing
+        if BIOPYTHON_AVAILABLE:
+            records = _parse_with_biopython(
+                file_path=local_genbank_path,
+                include_features=include_features,
+                include_sequence=include_sequence,
+            )
+        else:
+            # Fallback to basic parsing
+            records = _parse_genbank_file(
+                file_path=local_genbank_path,
+                include_features=include_features,
+                include_sequence=include_sequence,
+            )
 
         if not records:
             raise ValueError("No valid GenBank records found in file")
@@ -241,13 +265,93 @@ async def genbank_parse_main(
         raise
 
 
+def _parse_with_biopython(
+    file_path: str,
+    include_features: bool = True,
+    include_sequence: bool = True,
+) -> List[GenBankRecord]:
+    """
+    Parse GenBank file using BioPython for enhanced accuracy.
+
+    Args:
+        file_path: Path to GenBank file
+        include_features: Whether to parse feature table
+        include_sequence: Whether to parse sequence data
+
+    Returns:
+        List of GenBankRecord objects
+    """
+    records = []
+
+    try:
+        for bio_record in SeqIO.parse(file_path, "genbank"):
+            record = GenBankRecord()
+
+            # Extract LOCUS information
+            record.locus = {
+                "name": bio_record.name,
+                "length": len(bio_record.seq),
+                "molecule_type": bio_record.annotations.get("molecule_type", ""),
+                "topology": bio_record.annotations.get("topology", ""),
+                "division": bio_record.annotations.get("data_file_division", ""),
+                "date": bio_record.annotations.get("date", ""),
+            }
+
+            # Extract basic information
+            record.definition = bio_record.description
+            record.accession = bio_record.id
+            record.version = bio_record.annotations.get("accessions", [""])[0]
+            record.keywords = bio_record.annotations.get("keywords", [""])
+            if isinstance(record.keywords, list):
+                record.keywords = ", ".join(record.keywords)
+
+            # Extract source information
+            record.source = {
+                "source": bio_record.annotations.get("source", ""),
+                "organism": bio_record.annotations.get("organism", ""),
+                "taxonomy": ", ".join(bio_record.annotations.get("taxonomy", [])),
+            }
+
+            # Extract features if requested
+            if include_features:
+                for feature in bio_record.features:
+                    feature_dict = {
+                        "type": feature.type,
+                        "location": str(feature.location),
+                        "qualifiers": {},
+                    }
+                    # Extract key qualifiers
+                    for key, value in feature.qualifiers.items():
+                        # Join list values
+                        if isinstance(value, list):
+                            feature_dict["qualifiers"][key] = ", ".join(
+                                str(v) for v in value
+                            )
+                        else:
+                            feature_dict["qualifiers"][key] = str(value)
+                    record.features.append(feature_dict)
+
+            # Extract sequence if requested
+            if include_sequence:
+                record.sequence = str(bio_record.seq).lower()
+
+            records.append(record)
+
+    except Exception as e:
+        logger.error(f"BioPython parsing failed: {e}")
+        # Fallback to basic parsing
+        return _parse_genbank_file(file_path, include_features, include_sequence)
+
+    return records
+
+
 def _parse_genbank_file(
     file_path: str,
     include_features: bool = True,
     include_sequence: bool = True,
 ) -> List[GenBankRecord]:
     """
-    Parse GenBank file and extract records.
+    Parse GenBank file using basic text parsing (fallback method).
 
     Args:
         file_path: Path to GenBank file

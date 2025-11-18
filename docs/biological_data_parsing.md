@@ -2,6 +2,43 @@
 
 Markio now supports parsing of biological sequence data formats commonly used in bioinformatics and genomics research. This feature allows you to convert FASTA and GenBank format files into structured, readable Markdown documents.
 
+## 🔬 BioPython Integration
+
+The biological data parsers support **optional BioPython integration** for enhanced analysis capabilities:
+
+### Without BioPython (Basic Mode)
+- ✅ Parse FASTA and GenBank files
+- ✅ Basic sequence statistics
+- ✅ GC content calculation (DNA)
+- ✅ Sequence type detection
+
+### With BioPython (Enhanced Mode)
+- ✅ **All basic features**
+- ✅ **Protein properties analysis:**
+  - Molecular weight
+  - Isoelectric point (pI)
+  - Aromaticity
+  - Instability index
+  - GRAVY (hydropathy)
+- ✅ **Enhanced GenBank parsing** with accurate feature extraction
+- ✅ **Precise calculations** using BioPython's algorithms
+
+### Installation
+
+**Basic installation** (works out of the box):
+```bash
+pip install markio
+```
+
+**With BioPython support** (recommended for biological data):
+```bash
+pip install markio[bio]
+# or
+pip install biopython>=1.80
+```
+
+The parsers **automatically detect** BioPython and enable enhanced features when available. No configuration needed!
+
 ## Supported Formats
 
 ### 1. FASTA Format

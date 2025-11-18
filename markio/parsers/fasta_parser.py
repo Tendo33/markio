@@ -13,18 +13,43 @@ Features:
 - Parse single or multiple FASTA sequences
 - Extract sequence metadata (ID, description)
 - Calculate sequence statistics (length, GC content for DNA)
+- Advanced analysis with BioPython (optional, auto-detected)
+- Protein properties analysis (molecular weight, isoelectric point, etc.)
+- ORF prediction for nucleotide sequences
 - Validate sequence format
 - Convert to Markdown format with metadata preservation
+
+Dependencies:
+- BioPython (optional): Enhanced analysis capabilities
+  Install: pip install biopython>=1.80
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
-import re
+from typing import Dict, List
 
 from markio.utils.file_utils import func_processing_time, process_resource_path
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
+
+# Try to import BioPython for advanced analysis
+try:
+    from Bio.Seq import Seq  # type: ignore
+    from Bio.SeqUtils import gc_fraction, molecular_weight  # type: ignore
+
+    BIOPYTHON_AVAILABLE = True
+    logger.info("BioPython detected - Enhanced FASTA analysis enabled")
+except ImportError:
+    BIOPYTHON_AVAILABLE = False
+    logger.info("BioPython not found - Using basic FASTA analysis")
+
+# Try to import ProteinAnalysis for protein-specific analysis
+try:
+    from Bio.SeqUtils.ProtParam import ProteinAnalysis  # type: ignore
+
+    PROTEIN_ANALYSIS_AVAILABLE = True
+except ImportError:
+    PROTEIN_ANALYSIS_AVAILABLE = False
 
 
 class FASTASequence:
@@ -50,11 +75,54 @@ class FASTASequence:
         self.description = parts[1] if len(parts) > 1 else ""
 
     def _calculate_stats(self):
-        """Calculate sequence statistics"""
+        """Calculate sequence statistics with BioPython if available"""
         self.length = len(self.sequence)
         self.gc_content = None
+        self.molecular_weight_value = None
+        self.protein_properties = None
 
-        # Calculate GC content for DNA sequences
+        # Use BioPython for enhanced analysis if available
+        if BIOPYTHON_AVAILABLE:
+            try:
+                bio_seq = Seq(self.sequence)
+
+                # Calculate GC content for DNA sequences
+                if self._is_dna_sequence():
+                    self.gc_content = gc_fraction(bio_seq) * 100
+                    # Calculate molecular weight for DNA
+                    try:
+                        self.molecular_weight_value = molecular_weight(
+                            bio_seq, seq_type="DNA"
+                        )
+                    except Exception:
+                        pass
+
+                # Analyze protein properties
+                elif self._is_protein_sequence() and PROTEIN_ANALYSIS_AVAILABLE:
+                    try:
+                        prot_analysis = ProteinAnalysis(self.sequence)
+                        self.protein_properties = {
+                            "molecular_weight": prot_analysis.molecular_weight(),
+                            "aromaticity": prot_analysis.aromaticity(),
+                            "instability_index": prot_analysis.instability_index(),
+                            "isoelectric_point": prot_analysis.isoelectric_point(),
+                            "gravy": prot_analysis.gravy(),  # Hydropathy
+                        }
+                        self.molecular_weight_value = self.protein_properties[
+                            "molecular_weight"
+                        ]
+                    except Exception as e:
+                        logger.debug(f"Protein analysis failed: {e}")
+            except Exception as e:
+                logger.debug(f"BioPython analysis failed: {e}")
+                # Fallback to basic calculation
+                self._basic_gc_calculation()
+        else:
+            # Basic GC calculation without BioPython
+            self._basic_gc_calculation()
+
+    def _basic_gc_calculation(self):
+        """Basic GC content calculation without BioPython"""
         if self._is_dna_sequence():
             g_count = self.sequence.count("G")
             c_count = self.sequence.count("C")
@@ -92,20 +160,55 @@ class FASTASequence:
         }
         if self.gc_content is not None:
             result["gc_content"] = round(self.gc_content, 2)
+        if self.molecular_weight_value is not None:
+            result["molecular_weight"] = round(self.molecular_weight_value, 2)
+        if self.protein_properties:
+            result["protein_properties"] = {
+                k: round(v, 2) if isinstance(v, float) else v
+                for k, v in self.protein_properties.items()
+            }
         return result
 
     def to_markdown(self) -> str:
-        """Convert sequence to Markdown format"""
+        """Convert sequence to Markdown format with enhanced properties"""
         md = f"### Sequence: {self.id}\n\n"
 
         if self.description:
             md += f"**Description:** {self.description}\n\n"
 
-        md += f"**Type:** {self.get_sequence_type()}\n\n"
+        seq_type = self.get_sequence_type()
+        md += f"**Type:** {seq_type}\n\n"
         md += f"**Length:** {self.length} bp/aa\n\n"
 
+        # DNA/RNA properties
         if self.gc_content is not None:
             md += f"**GC Content:** {self.gc_content:.2f}%\n\n"
+
+        # Molecular weight
+        if self.molecular_weight_value is not None:
+            if seq_type == "DNA":
+                md += f"**Molecular Weight:** {self.molecular_weight_value:.2f} Da\n\n"
+            elif seq_type == "Protein":
+                md += f"**Molecular Weight:** {self.molecular_weight_value / 1000:.2f} kDa\n\n"
+
+        # Protein-specific properties
+        if self.protein_properties:
+            md += "**Protein Properties:**\n\n"
+            props = self.protein_properties
+            md += f"- **Isoelectric Point (pI):** {props['isoelectric_point']:.2f}\n"
+            md += f"- **Aromaticity:** {props['aromaticity']:.3f}\n"
+            md += f"- **Instability Index:** {props['instability_index']:.2f}"
+            # Classify stability
+            if props["instability_index"] < 40:
+                md += " (Stable)\n"
+            else:
+                md += " (Unstable)\n"
+            md += f"- **GRAVY (Hydropathy):** {props['gravy']:.3f}"
+            if props["gravy"] > 0:
+                md += " (Hydrophobic)\n"
+            else:
+                md += " (Hydrophilic)\n"
+            md += "\n"
 
         md += "**Sequence:**\n\n```\n"
         # Format sequence in blocks of 60 characters
