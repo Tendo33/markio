@@ -45,6 +45,9 @@ dependencies = [
 bio = [
     "biopython>=1.80",
 ]
+all = [
+    "biopython>=1.80",
+]
 
 [project.urls]
 Homepage = "https://github.com/Tendo33/markio"
