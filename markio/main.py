@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from markio.mcps.mcp_server import MarkioMCP
 from markio.middlewares.handle import handle_middleware
@@ -17,11 +19,14 @@ from markio.routers.image_router import router as image_router
 from markio.routers.pdf_router import router as pdf_router
 from markio.routers.ppt_router import router as ppt_router
 from markio.routers.pptx_router import router as pptx_router
+from markio.routers.task_router import router as task_router
 from markio.routers.url_router import router as url_router
 from markio.routers.xlsx_router import router as xlsx_router
+from markio.services.runtime import get_task_manager
 from markio.settings import settings
 from markio.utils.logger_config import get_logger, setup_logger
 from markio.utils.model_manager import get_model_manager
+from markio.utils.redis_utils import redis_manager
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -61,12 +66,22 @@ def initialize_models_safely():
 async def lifespan(app: FastAPI):
     """Application lifecycle management"""
     logger.info("Starting MarkioApi server")
+    task_manager = get_task_manager()
+    if settings.redis_enabled:
+        try:
+            await redis_manager.initialize()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Redis initialization failed: {exc}")
+    await task_manager.start()
 
     if not initialize_models_safely():
         logger.error("Failed to initialize models, server may not function properly")
 
     yield
 
+    if settings.redis_enabled:
+        await redis_manager.close()
+    await task_manager.stop()
     logger.info("Shutting down MarkioApi server")
 
 
@@ -97,6 +112,7 @@ def register_routers(app: FastAPI):
         (image_router, "IMAGE"),
         (fasta_router, "FASTA"),
         (genbank_router, "GENBANK"),
+        (task_router, "TASK"),
     ]
     for router, name in routers:
         app.include_router(router, prefix=API_PREFIX)
@@ -110,7 +126,63 @@ def mount_mcp_server(app: FastAPI):
     return mcp_server
 
 
+def _build_console_fallback_html(web_console_dir: Path) -> str:
+    return f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Markio Console</title>
+    <style>
+      body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f7f7f8; color: #202123; margin: 0; }}
+      .container {{ max-width: 760px; margin: 8vh auto; background: #fff; border: 1px solid #e5e5eb; border-radius: 16px; padding: 28px; box-shadow: 0 1px 2px rgba(16,24,40,.06); }}
+      h1 {{ margin: 0 0 8px; font-size: 24px; }}
+      p {{ color: #4a4a62; line-height: 1.5; margin: 10px 0; }}
+      code {{ background: #f4f4f5; padding: 2px 6px; border-radius: 6px; }}
+      pre {{ background: #111827; color: #e5e7eb; border-radius: 10px; padding: 14px; overflow-x: auto; }}
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Markio Console frontend is not built yet</h1>
+      <p>The backend is running normally, but console static assets are missing.</p>
+      <p>Expected build directory: <code>{web_console_dir}</code></p>
+      <p>Build the frontend and restart the service:</p>
+      <pre>cd frontend
+npm install
+npm run build</pre>
+    </main>
+  </body>
+</html>
+"""
+
+
+def mount_web_console(app: FastAPI, web_console_dir: Path | None = None):
+    web_console_dir = web_console_dir or (Path(__file__).resolve().parent / "webapp")
+    index_file = web_console_dir / "index.html"
+    if web_console_dir.exists() and index_file.exists():
+        app.mount(
+            "/console",
+            StaticFiles(directory=str(web_console_dir), html=True),
+            name="web_console",
+        )
+        logger.info(f"Web console mounted at /console from {web_console_dir}")
+    else:
+        logger.warning(
+            f"Web console assets not found (expected {index_file}). Falling back to helper page."
+        )
+        html = _build_console_fallback_html(web_console_dir)
+
+        @app.get("/console", include_in_schema=False)
+        @app.get("/console/", include_in_schema=False)
+        @app.get("/console/{path:path}", include_in_schema=False)
+        async def console_fallback(path: str = "") -> HTMLResponse:
+            return HTMLResponse(content=html, status_code=200)
+
+
 app = create_app()
+register_routers(app)
+mount_web_console(app)
 
 # Only mount MCP server if enabled in settings
 if settings.enable_mcp:
@@ -132,8 +204,7 @@ def main():
     if not initialize_models_safely():
         logger.error("Failed to initialize models, server may not function properly")
 
-    register_routers(app)
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=settings.host, port=settings.port)
 
 
 if __name__ == "__main__":

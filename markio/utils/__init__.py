@@ -12,16 +12,6 @@ from markio.utils.file_utils import (
     process_resource_path,
 )
 from markio.utils.logger_config import get_logger
-from markio.utils.redis_utils import (
-    RedisCache,
-    RedisManager,
-    cache_delete,
-    cache_exists,
-    cache_get,
-    cache_set,
-    get_redis_client,
-    redis_manager,
-)
 
 __all__ = [
     # File utilities
@@ -48,3 +38,22 @@ __all__ = [
     "cache_delete",
     "cache_exists",
 ]
+
+_REDIS_EXPORTS = {
+    "RedisManager",
+    "RedisCache",
+    "redis_manager",
+    "get_redis_client",
+    "cache_set",
+    "cache_get",
+    "cache_delete",
+    "cache_exists",
+}
+
+
+def __getattr__(name):
+    if name in _REDIS_EXPORTS:
+        from markio.utils import redis_utils
+
+        return getattr(redis_utils, name)
+    raise AttributeError(f"module 'markio.utils' has no attribute '{name}'")

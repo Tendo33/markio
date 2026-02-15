@@ -19,7 +19,6 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.pdf_parser import pdf_parse_main
-from markio.parsers.pdf_parser_vlm import pdf_parse_vlm_main
 from markio.schemas.parsers_schemas import PDFParserConfig
 from markio.settings import settings
 from markio.utils.file_utils import (
@@ -101,26 +100,18 @@ async def parse_pdf_file_endpoint(
         # Choose parser based on PDF_PARSE_ENGINE environment variable
         pdf_parse_engine = settings.pdf_parse_engine
         logger.info(f"Using PDF parse engine: {pdf_parse_engine}")
-
-        if pdf_parse_engine == "pipeline":
-            # Use pipeline parser
-            parsed_content = await pdf_parse_main(
-                resource_path=temp_pdf_path,
-                save_parsed_content=config.save_parsed_content,
-                output_dir=output_dir,
-                lang=config.lang,
-            )
-        elif pdf_parse_engine in ["vlm-vllm-engine", "vlm-vllm-client"]:
-            # Use VLM parser with vLLM backend
-            parsed_content = await pdf_parse_vlm_main(
-                resource_path=temp_pdf_path,
-                save_parsed_content=config.save_parsed_content,
-                output_dir=output_dir,
-            )
-        else:
-            error_msg = f"Invalid PDF_PARSE_ENGINE value: {pdf_parse_engine}. Must be 'pipeline', 'vlm-vllm-engine', or 'vlm-vllm-client'"
-            logger.error(error_msg)
-            raise HTTPException(status_code=500, detail=error_msg)
+        parsed_content = await pdf_parse_main(
+            resource_path=temp_pdf_path,
+            parse_method=config.parse_method,
+            lang=config.lang,
+            save_parsed_content=config.save_parsed_content,
+            save_middle_content=config.save_middle_content,
+            output_dir=output_dir,
+            start_page=config.start_page,
+            end_page=config.end_page,
+            backend=pdf_parse_engine,
+            server_url=settings.vlm_server_url,
+        )
 
         logger.info(
             f"PDF {file.filename} parsed successfully using {pdf_parse_engine} engine"

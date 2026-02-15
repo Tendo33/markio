@@ -1,0 +1,181 @@
+<template>
+  <div>
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">任务列表</h1>
+      <p class="mt-1 text-sm text-gray-600">分页查询、状态筛选、重试与取消</p>
+    </div>
+
+    <div class="card mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">状态</label>
+          <select v-model="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+            <option value="">全部</option>
+            <option value="pending">pending</option>
+            <option value="processing">processing</option>
+            <option value="completed">completed</option>
+            <option value="failed">failed</option>
+            <option value="canceled">canceled</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">每页数量</label>
+          <select v-model.number="pageSize" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+            <option :value="10">10</option>
+            <option :value="20">20</option>
+            <option :value="50">50</option>
+          </select>
+        </div>
+
+        <div class="md:col-span-2 flex items-end gap-2">
+          <button @click="applyFilters" :disabled="taskStore.loading" class="btn btn-secondary">应用过滤</button>
+          <button @click="refresh" :disabled="taskStore.loading" class="btn btn-secondary flex items-center">
+            <RefreshCw :class="{ 'animate-spin': taskStore.loading }" class="w-4 h-4 mr-1" />
+            刷新
+          </button>
+          <router-link to="/tasks/submit" class="btn btn-primary flex items-center">
+            <Plus class="w-4 h-4 mr-1" />
+            提交任务
+          </router-link>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div v-if="taskStore.loading && taskStore.tasks.length === 0" class="text-center py-12">
+        <LoadingSpinner text="加载中" />
+      </div>
+
+      <div v-else-if="taskStore.tasks.length === 0" class="text-center py-12 text-gray-500">
+        <FileQuestion class="w-16 h-16 mx-auto mb-4 text-gray-400" />
+        <p>暂无任务</p>
+      </div>
+
+      <div v-else class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">任务ID</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文件名</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">优先级</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">重试</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">创建时间</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <tr v-for="task in taskStore.tasks" :key="task.task_id" class="hover:bg-gray-50">
+              <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-600 font-mono">{{ task.task_id }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate">{{ task.filename }}</td>
+              <td class="px-6 py-4 whitespace-nowrap"><StatusBadge :status="task.status" /></td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ task.priority }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ task.retry_count }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatRelativeTime(task.created_at) }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <div class="flex items-center gap-2">
+                  <router-link :to="`/tasks/${task.task_id}`" class="text-primary-600 hover:text-primary-700" title="详情">
+                    <Eye class="w-4 h-4" />
+                  </router-link>
+                  <button
+                    v-if="task.status === 'pending'"
+                    @click="cancelTask(task.task_id)"
+                    class="text-red-600 hover:text-red-700"
+                    title="取消"
+                  >
+                    <X class="w-4 h-4" />
+                  </button>
+                  <button
+                    v-if="task.status === 'failed' || task.status === 'canceled'"
+                    @click="retryTask(task.task_id)"
+                    class="text-amber-600 hover:text-amber-700"
+                    title="重试"
+                  >
+                    <RotateCcw class="w-4 h-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-if="taskStore.tasks.length > 0" class="mt-4 flex items-center justify-between">
+        <div class="text-sm text-gray-600">共 {{ taskStore.total }} 条</div>
+        <div class="flex items-center gap-2">
+          <button
+            @click="prevPage"
+            :disabled="taskStore.page <= 1"
+            class="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft class="w-5 h-5" />
+          </button>
+          <span class="text-sm text-gray-600">第 {{ taskStore.page }} / {{ taskStore.maxPage }} 页</span>
+          <button
+            @click="nextPage"
+            :disabled="taskStore.page >= taskStore.maxPage"
+            class="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronRight class="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  FileQuestion,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  X,
+} from 'lucide-vue-next'
+
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import type { TaskStatus } from '@/api/types'
+import { useTaskStore } from '@/stores'
+import { formatRelativeTime } from '@/utils/format'
+
+const taskStore = useTaskStore()
+
+const status = ref(taskStore.statusFilter)
+const pageSize = ref(taskStore.pageSize)
+
+async function applyFilters() {
+  await taskStore.setFilters(status.value as TaskStatus | '', pageSize.value)
+}
+
+async function refresh() {
+  await taskStore.loadTasks(taskStore.page)
+}
+
+async function prevPage() {
+  if (taskStore.page <= 1) return
+  await taskStore.loadTasks(taskStore.page - 1)
+}
+
+async function nextPage() {
+  if (taskStore.page >= taskStore.maxPage) return
+  await taskStore.loadTasks(taskStore.page + 1)
+}
+
+async function cancelTask(taskId: string) {
+  await taskStore.cancel(taskId)
+}
+
+async function retryTask(taskId: string) {
+  await taskStore.retry(taskId)
+}
+
+onMounted(async () => {
+  await taskStore.loadTasks(1)
+})
+</script>

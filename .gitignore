@@ -176,3 +176,6 @@ wandb/
 project_document/
 .claude/
 /.worktrees/
+
+# Frontend build artifacts (Vite outDir)
+markio/webapp/

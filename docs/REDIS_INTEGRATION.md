@@ -25,7 +25,7 @@ Markio项目已成功集成Redis缓存功能，提供企业级的缓存解决方
 |---------|----------|
 | `pyproject.toml` | ✅ 添加 `redis[hiredis]>=5.0.0` 依赖 |
 | `markio/settings/config_model.py` | ✅ 新增9个Redis配置项 |
-| `env.example` | ✅ 添加Redis配置示例和详细说明 |
+| `.env.example` | ✅ 添加Redis配置示例和详细说明 |
 | `compose.yaml` | ✅ 新增Redis服务配置 |
 | `markio/utils/__init__.py` | ✅ 导出Redis工具类和便捷函数 |
 

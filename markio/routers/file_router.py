@@ -27,7 +27,6 @@ from markio.parsers import (
     html_parser,
     image_parser,
     pdf_parser,
-    pdf_parser_vlm,
     ppt_parser,
     pptx_parser,
     xlsx_parser,
@@ -174,22 +173,18 @@ async def parse_file_endpoint(
             pdf_parse_engine = settings.pdf_parse_engine
             logger.info(f"Using PDF parse engine: {pdf_parse_engine}")
 
-            if pdf_parse_engine == "pipeline":
-                parsed_content = await pdf_parser.pdf_parse_main(
-                    resource_path=temp_file_path,
-                    save_parsed_content=config.save_parsed_content,
-                    output_dir=output_dir,
-                )
-            elif pdf_parse_engine in ["vlm-vllm-engine", "vlm-vllm-client"]:
-                parsed_content = await pdf_parser_vlm.pdf_parse_vlm_main(
-                    resource_path=temp_file_path,
-                    save_parsed_content=config.save_parsed_content,
-                    output_dir=output_dir,
-                )
-            else:
-                error_msg = f"Invalid PDF_PARSE_ENGINE value: {pdf_parse_engine}. Must be 'pipeline', 'vlm-vllm-engine', or 'vlm-vllm-client'"
-                logger.error(error_msg)
-                raise HTTPException(status_code=500, detail=error_msg)
+            parsed_content = await pdf_parser.pdf_parse_main(
+                resource_path=temp_file_path,
+                parse_method=getattr(config, "parse_method", "auto"),
+                lang=getattr(config, "lang", "ch"),
+                save_parsed_content=config.save_parsed_content,
+                save_middle_content=getattr(config, "save_middle_content", False),
+                output_dir=output_dir,
+                start_page=getattr(config, "start_page", 0),
+                end_page=getattr(config, "end_page", None),
+                backend=pdf_parse_engine,
+                server_url=settings.vlm_server_url,
+            )
         else:
             parsed_content = await parser_func(
                 temp_file_path, config.save_parsed_content, config.output_dir

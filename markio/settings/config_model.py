@@ -147,6 +147,54 @@ class ApplicationConfig(BaseModel):
         alias="REDIS_DEFAULT_TTL",
     )
 
+    task_worker_count: int = Field(
+        default=2,
+        description="Number of async workers for background parsing tasks",
+        alias="TASK_WORKER_COUNT",
+    )
+
+    task_queue_backend: str = Field(
+        default="memory",
+        description="Task queue backend: 'memory' or 'redis'",
+        alias="TASK_QUEUE_BACKEND",
+    )
+
+    task_history_limit: int = Field(
+        default=500,
+        description="Maximum number of task records kept in memory",
+        alias="TASK_HISTORY_LIMIT",
+    )
+
+    task_state_file: str = Field(
+        default="data/task_state.json",
+        description="Path to persisted async task state file",
+        alias="TASK_STATE_FILE",
+    )
+
+    task_upload_dir: str = Field(
+        default="data/task_uploads",
+        description="Directory for uploaded async task source files",
+        alias="TASK_UPLOAD_DIR",
+    )
+
+    task_max_auto_retries: int = Field(
+        default=0,
+        description="Maximum automatic retries after task failures",
+        alias="TASK_MAX_AUTO_RETRIES",
+    )
+
+    task_retry_delay_seconds: float = Field(
+        default=0.0,
+        description="Delay in seconds before automatic task retry",
+        alias="TASK_RETRY_DELAY_SECONDS",
+    )
+
+    task_processing_timeout_seconds: float = Field(
+        default=0.0,
+        description="Processing timeout before requeue (seconds)",
+        alias="TASK_PROCESSING_TIMEOUT_SECONDS",
+    )
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
