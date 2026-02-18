@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import copy
-import hashlib
 import json
 import logging
 import os
@@ -10,7 +9,7 @@ import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Awaitable, Callable
+from time import perf_counter
 
 from markio.schemas.task_schemas import (
     QueueHealth,
@@ -20,12 +19,14 @@ from markio.schemas.task_schemas import (
     TaskStats,
     TaskStatus,
 )
+from markio.services.task_manager_base import (
+    BaseTaskManager,
+    CacheGetter,
+    CacheSetter,
+    ParserFunc,
+)
 
 logger = logging.getLogger(__name__)
-
-ParserFunc = Callable[[str, SubmitTaskRequest], Awaitable[str]]
-CacheGetter = Callable[[str], Awaitable[str | None]]
-CacheSetter = Callable[[str, str], Awaitable[bool]]
 
 
 @dataclass
@@ -34,7 +35,7 @@ class QueueItem:
     cache_key: str | None = None
 
 
-class AsyncTaskManager:
+class AsyncTaskManager(BaseTaskManager):
     def __init__(
         self,
         worker_count: int = 1,
@@ -46,16 +47,14 @@ class AsyncTaskManager:
         max_auto_retries: int = 0,
         retry_delay_seconds: float = 0.0,
     ) -> None:
-        if parser_func is None:
-            from markio.services.document_service import parse_local_file
-
-            parser_func = parse_local_file
+        super().__init__(
+            parser_func=parser_func,
+            cache_getter=cache_getter,
+            cache_setter=cache_setter,
+        )
 
         self.worker_count = max(1, worker_count)
         self.max_history = max(20, max_history)
-        self.parser_func = parser_func
-        self.cache_getter = cache_getter
-        self.cache_setter = cache_setter
         self.state_file_path = state_file_path
         self.max_auto_retries = max(0, max_auto_retries)
         self.retry_delay_seconds = max(0.0, retry_delay_seconds)
@@ -157,6 +156,7 @@ class AsyncTaskManager:
                     result=cached_value,
                     cache_hit=True,
                     priority=request.priority,
+                    processing_duration_ms=0,
                 )
                 async with self._lock:
                     self._records[task_id] = record
@@ -297,6 +297,7 @@ class AsyncTaskManager:
             record.started_at = None
             record.completed_at = None
             record.retry_count += 1
+            record.processing_duration_ms = None
 
             cache_key = self._build_cache_key(request)
             self._pending_items[task_id] = QueueItem(task_id=task_id, cache_key=cache_key)
@@ -331,13 +332,22 @@ class AsyncTaskManager:
 
                 record.status = TaskStatus.processing
                 record.started_at = datetime.utcnow()
+                record.processing_duration_ms = None
                 self._persist_state_locked()
 
+            started_at_perf = perf_counter()
             try:
                 result = await self.parser_func(request.file_path, request)
                 await self._mark_completed(task_id, result)
                 await self._safe_cache_set(queue_item.cache_key, result)
                 self._cleanup_temp_file(request.file_path)
+                elapsed_ms = max(0, int((perf_counter() - started_at_perf) * 1000))
+                logger.info(
+                    "Task %s completed in %d ms (filename=%s)",
+                    task_id,
+                    elapsed_ms,
+                    request.filename,
+                )
             except Exception as exc:  # noqa: BLE001
                 logger.exception(f"Task {task_id} failed: {exc}")
                 await self._handle_failure(task_id, str(exc))
@@ -367,6 +377,7 @@ class AsyncTaskManager:
                 record.result = None
                 record.started_at = None
                 record.completed_at = None
+                record.processing_duration_ms = None
                 cache_key = self._build_cache_key(request)
                 self._pending_items[task_id] = QueueItem(task_id=task_id, cache_key=cache_key)
                 should_retry = True
@@ -374,6 +385,10 @@ class AsyncTaskManager:
                 record.status = TaskStatus.failed
                 record.error_message = message
                 record.completed_at = datetime.utcnow()
+                record.processing_duration_ms = self._calculate_duration_ms(
+                    record.started_at,
+                    record.completed_at,
+                )
 
             self._persist_state_locked()
 
@@ -391,6 +406,10 @@ class AsyncTaskManager:
             record.result = result
             record.error_message = None
             record.completed_at = datetime.utcnow()
+            record.processing_duration_ms = self._calculate_duration_ms(
+                record.started_at,
+                record.completed_at,
+            )
             self._persist_state_locked()
 
     async def _enqueue_task(self, task_id: str) -> None:
@@ -433,46 +452,6 @@ class AsyncTaskManager:
                 self._records.pop(task_id, None)
                 self._requests.pop(task_id, None)
                 self._pending_items.pop(task_id, None)
-
-    def _build_cache_key(self, request: SubmitTaskRequest) -> str:
-        try:
-            hasher = hashlib.sha256()
-            with open(request.file_path, "rb") as source:
-                for chunk in iter(lambda: source.read(1024 * 1024), b""):
-                    hasher.update(chunk)
-        except FileNotFoundError:
-            return ""
-
-        options = {
-            "filename": request.filename,
-            "parse_method": request.parse_method,
-            "lang": request.lang,
-            "save_middle_content": request.save_middle_content,
-            "start_page": request.start_page,
-            "end_page": request.end_page,
-            "engine": os.getenv("PDF_PARSE_ENGINE", "pipeline"),
-        }
-        options_digest = hashlib.sha256(
-            json.dumps(options, sort_keys=True, ensure_ascii=True).encode("utf-8")
-        ).hexdigest()
-        return f"markio:result:{hasher.hexdigest()}:{options_digest}"
-
-    async def _safe_cache_get(self, cache_key: str) -> str | None:
-        try:
-            result = await self.cache_getter(cache_key)  # type: ignore[misc]
-            if isinstance(result, str) and result:
-                return result
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Cache get failed for {cache_key}: {exc}")
-        return None
-
-    async def _safe_cache_set(self, cache_key: str | None, value: str) -> None:
-        if not cache_key or not self.cache_setter:
-            return
-        try:
-            await self.cache_setter(cache_key, value)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Cache set failed for {cache_key}: {exc}")
 
     def _persist_state_locked(self) -> None:
         if not self.state_file_path:
@@ -582,22 +561,19 @@ class AsyncTaskManager:
             cache_hit=bool(payload.get("cache_hit", False)),
             priority=int(payload.get("priority", 0)),
             retry_count=int(payload.get("retry_count", 0)),
+            processing_duration_ms=(
+                int(payload["processing_duration_ms"])
+                if payload.get("processing_duration_ms") not in (None, "")
+                else None
+            ),
         )
 
     @staticmethod
-    def _normalize_status_filter(status: TaskStatus | str | None) -> TaskStatus | None:
-        if status is None:
+    def _calculate_duration_ms(
+        started_at: datetime | None,
+        completed_at: datetime | None,
+    ) -> int | None:
+        if started_at is None or completed_at is None:
             return None
-        if isinstance(status, TaskStatus):
-            return status
-        return TaskStatus(status)
-
-    @staticmethod
-    def _cleanup_temp_file(file_path: str) -> None:
-        if not file_path:
-            return
-        try:
-            if os.path.exists(file_path):
-                os.unlink(file_path)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Failed to clean up temp file {file_path}: {exc}")
+        duration = int((completed_at - started_at).total_seconds() * 1000)
+        return max(duration, 0)

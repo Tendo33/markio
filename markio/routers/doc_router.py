@@ -13,17 +13,20 @@ The main functionality includes:
 
 import os
 import traceback
-from tempfile import NamedTemporaryFile
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.doc_parser import doc_parse_main
 from markio.schemas.parsers_schemas import DOCXParserConfig
+from markio.services.sync_parse_service import (
+    build_parse_response,
+    run_uploaded_file_parser,
+)
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    create_unique_temp_file,
     ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
@@ -78,47 +81,32 @@ async def parse_doc_file_endpoint(
     logger.info(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
+    started_at = perf_counter()
 
     try:
-        # Create temporary file with unique filename to avoid conflicts
-        temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
-        original_filename = os.path.basename(file.filename)
-
-        # Use utility function to create unique temp file
-        temp_doc_path, unique_filename = create_unique_temp_file(
-            original_filename, temp_dir
-        )
-
-        # Write the uploaded file content to the temporary file
-        with open(temp_doc_path, "wb") as temp_doc:
-            temp_doc.write(await file.read())
-
-        logger.debug(f"Temporary DOC file created with unique name: {temp_doc_path}")
-
-        logger.debug(f"Processing DOC file: {file.filename}")
-
-        # Parse the DOC file
-        parsed_content = await doc_parse_main(
-            resource_path=temp_doc_path,
-            save_parsed_content=config.save_parsed_content,
-            output_dir=output_dir,
+        parsed_content = await run_uploaded_file_parser(
+            file=file,
+            parser=doc_parse_main,
+            parser_kwargs={
+                "save_parsed_content": config.save_parsed_content,
+                "output_dir": output_dir,
+            },
         )
 
         logger.info(f"DOC {file.filename} parsed successfully")
 
-        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
+        return build_parse_response(
+            parsed_content=parsed_content,
+            parser="doc",
+            source_type="file",
+            started_at=started_at,
+        )
 
     except Exception as e:
         error_msg = f"Error occurred while parsing {file.filename}: {str(e)}"
         logger.error(error_msg)
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=error_msg)
-
-    finally:
-        # Clean up the temporary DOC file
-        if temp_doc_path and os.path.exists(temp_doc_path):
-            os.unlink(temp_doc_path)
-            logger.debug(f"Temporary DOC file deleted: {temp_doc_path}")
 
 
 def _validate_doc_file(file: UploadFile) -> None:

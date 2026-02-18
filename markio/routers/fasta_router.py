@@ -16,17 +16,20 @@ The main functionality includes:
 
 import os
 import traceback
-from tempfile import NamedTemporaryFile
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.fasta_parser import fasta_parse_main
 from markio.schemas.parsers_schemas import FASTAParserConfig
+from markio.services.sync_parse_service import (
+    build_parse_response,
+    run_uploaded_file_parser,
+)
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    create_unique_temp_file,
     ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
@@ -93,36 +96,27 @@ async def parse_fasta_endpoint(
     logger.info(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
+    started_at = perf_counter()
 
     try:
-        # Create temporary file with original filename to preserve the name
-        temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
-        original_filename = os.path.basename(file.filename)
-        temp_fasta_path, unique_filename = create_unique_temp_file(
-            original_filename, temp_dir
-        )
-
-        # Write the uploaded file content to the temporary file
-        with open(temp_fasta_path, "wb") as temp_fasta:
-            temp_fasta.write(await file.read())
-
-        logger.debug(
-            f"Temporary FASTA file created with original name: {temp_fasta_path}"
-        )
-
-        logger.debug(f"Processing FASTA file: {file.filename}")
-
-        # Parse the FASTA file
-        parsed_content = await fasta_parse_main(
-            resource_path=temp_fasta_path,
-            save_parsed_content=config.save_parsed_content,
-            output_dir=output_dir,
-            include_statistics=config.include_statistics,
+        parsed_content = await run_uploaded_file_parser(
+            file=file,
+            parser=fasta_parse_main,
+            parser_kwargs={
+                "save_parsed_content": config.save_parsed_content,
+                "output_dir": output_dir,
+                "include_statistics": config.include_statistics,
+            },
         )
 
         logger.info(f"FASTA {file.filename} parsed successfully")
 
-        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
+        return build_parse_response(
+            parsed_content=parsed_content,
+            parser="fasta",
+            source_type="file",
+            started_at=started_at,
+        )
 
     except ValueError as e:
         # Handle format validation errors
@@ -135,12 +129,6 @@ async def parse_fasta_endpoint(
         logger.error(error_msg)
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=error_msg)
-
-    finally:
-        # Clean up the temporary FASTA file
-        if temp_fasta_path and os.path.exists(temp_fasta_path):
-            os.unlink(temp_fasta_path)
-            logger.debug(f"Temporary FASTA file deleted: {temp_fasta_path}")
 
 
 def _validate_fasta_file(file: UploadFile) -> None:

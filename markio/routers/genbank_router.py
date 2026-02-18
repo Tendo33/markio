@@ -17,17 +17,20 @@ The main functionality includes:
 
 import os
 import traceback
-from tempfile import NamedTemporaryFile
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.genbank_parser import genbank_parse_main
 from markio.schemas.parsers_schemas import GenBankParserConfig
+from markio.services.sync_parse_service import (
+    build_parse_response,
+    run_uploaded_file_parser,
+)
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    create_unique_temp_file,
     ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
@@ -95,37 +98,28 @@ async def parse_genbank_endpoint(
     logger.info(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
+    started_at = perf_counter()
 
     try:
-        # Create temporary file with original filename to preserve the name
-        temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
-        original_filename = os.path.basename(file.filename)
-        temp_genbank_path, unique_filename = create_unique_temp_file(
-            original_filename, temp_dir
-        )
-
-        # Write the uploaded file content to the temporary file
-        with open(temp_genbank_path, "wb") as temp_genbank:
-            temp_genbank.write(await file.read())
-
-        logger.debug(
-            f"Temporary GenBank file created with original name: {temp_genbank_path}"
-        )
-
-        logger.debug(f"Processing GenBank file: {file.filename}")
-
-        # Parse the GenBank file
-        parsed_content = await genbank_parse_main(
-            resource_path=temp_genbank_path,
-            save_parsed_content=config.save_parsed_content,
-            output_dir=output_dir,
-            include_features=config.include_features,
-            include_sequence=config.include_sequence,
+        parsed_content = await run_uploaded_file_parser(
+            file=file,
+            parser=genbank_parse_main,
+            parser_kwargs={
+                "save_parsed_content": config.save_parsed_content,
+                "output_dir": output_dir,
+                "include_features": config.include_features,
+                "include_sequence": config.include_sequence,
+            },
         )
 
         logger.info(f"GenBank {file.filename} parsed successfully")
 
-        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
+        return build_parse_response(
+            parsed_content=parsed_content,
+            parser="genbank",
+            source_type="file",
+            started_at=started_at,
+        )
 
     except ValueError as e:
         # Handle format validation errors
@@ -138,12 +132,6 @@ async def parse_genbank_endpoint(
         logger.error(error_msg)
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=error_msg)
-
-    finally:
-        # Clean up the temporary GenBank file
-        if temp_genbank_path and os.path.exists(temp_genbank_path):
-            os.unlink(temp_genbank_path)
-            logger.debug(f"Temporary GenBank file deleted: {temp_genbank_path}")
 
 
 def _validate_genbank_file(file: UploadFile) -> None:

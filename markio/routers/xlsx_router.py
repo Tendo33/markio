@@ -13,17 +13,20 @@ The main functionality includes:
 
 import os
 import traceback
-from tempfile import NamedTemporaryFile
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.xlsx_parser import xlsx_parse_main
 from markio.schemas.parsers_schemas import XLSXParserConfig
+from markio.services.sync_parse_service import (
+    build_parse_response,
+    run_uploaded_file_parser,
+)
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    create_unique_temp_file,
     ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
@@ -72,31 +75,26 @@ async def parse_xlsx_file_endpoint(
     logger.info(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
-
-    temp_dir = os.path.dirname(NamedTemporaryFile().name)
-    original_filename = os.path.basename(file.filename)
-
-    # Use utility function to create unique temp file
-    temp_xlsx_path, unique_filename = create_unique_temp_file(
-        original_filename, temp_dir
-    )
-
-    with open(temp_xlsx_path, "wb") as temp_xlsx:
-        temp_xlsx.write(await file.read())
-
-    logger.debug(f"Temporary XLSX file created with unique name: {temp_xlsx_path}")
-    logger.debug(f"Processing XLSX file: {file.filename}")
+    started_at = perf_counter()
 
     try:
-        parsed_content = await xlsx_parse_main(
-            resource_path=temp_xlsx_path,
-            save_parsed_content=config.save_parsed_content,
-            output_dir=output_dir,
+        parsed_content = await run_uploaded_file_parser(
+            file=file,
+            parser=xlsx_parse_main,
+            parser_kwargs={
+                "save_parsed_content": config.save_parsed_content,
+                "output_dir": output_dir,
+            },
         )
 
         logger.info(f"XLSX file {file.filename} parsed successfully")
 
-        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
+        return build_parse_response(
+            parsed_content=parsed_content,
+            parser="xlsx",
+            source_type="file",
+            started_at=started_at,
+        )
 
     except Exception as e:
         # Log detailed error with traceback
@@ -104,12 +102,6 @@ async def parse_xlsx_file_endpoint(
             f"Error occurred while parsing {file.filename}: {traceback.format_exc()}"
         )
         raise HTTPException(status_code=500, detail=f"XLSX parsing error: {e}")
-
-    finally:
-        # Clean up the temporary XLSX file
-        if temp_xlsx_path and os.path.exists(temp_xlsx_path):
-            os.unlink(temp_xlsx_path)
-            logger.debug(f"Temporary XLSX file deleted: {temp_xlsx_path}")
 
 
 def _validate_xlsx_file(file: UploadFile) -> None:

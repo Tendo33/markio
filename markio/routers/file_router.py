@@ -14,30 +14,23 @@ The main functionality includes:
 
 import os
 import traceback
-from tempfile import NamedTemporaryFile
-from typing import Callable, Dict
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from markio.parsers import (
-    doc_parser,
-    docx_parser,
-    epub_parser,
-    html_parser,
-    image_parser,
-    pdf_parser,
-    ppt_parser,
-    pptx_parser,
-    xlsx_parser,
-)
+import markio.services.parser_registry as parser_registry
+from markio.parsers import pdf_parser
 from markio.schemas.parsers_schemas import (
     BaseParserConfig,
+)
+from markio.services.sync_parse_service import (
+    build_parse_response,
+    run_uploaded_file_parser,
 )
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    create_unique_temp_file,
     ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
@@ -47,38 +40,6 @@ router = APIRouter()
 
 # Default output directory for parsed files
 DEFAULT_OUTPUT_DIR = settings.output_dir
-
-# File extension to parser mapping
-FILE_PARSERS: Dict[str, Callable] = {
-    ".doc": (doc_parser.doc_parse_main),
-    ".docx": (docx_parser.docx_parse_main),
-    ".pdf": (pdf_parser.pdf_parse_main),
-    ".ppt": (ppt_parser.ppt_parse_main),
-    ".pptx": (pptx_parser.pptx_parse_main),
-    ".xlsx": (xlsx_parser.xlsx_parse_main),
-    ".html": (html_parser.html_parse_main),
-    ".epub": (epub_parser.epub_parse_main),
-    # Image formats
-    ".png": (image_parser.image_parse_main),
-    ".jpg": (image_parser.image_parse_main),
-    ".jpeg": (image_parser.image_parse_main),
-}
-
-# Supported MIME types mapping
-MIME_TYPES = {
-    ".doc": "application/msword",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".pdf": "application/pdf",
-    ".ppt": "application/vnd.ms-powerpoint",
-    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ".html": "text/html",
-    ".htm": "text/html",
-    # Image MIME types
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-}
 
 
 @router.post(
@@ -117,23 +78,25 @@ async def parse_file_endpoint(
     logger.info(
         f"Received file parsing request for file: {file.filename},config: {config}"
     )
+    started_at = perf_counter()
 
     # Get file extension
     file_extension = os.path.splitext(file.filename)[1].lower()
 
     # Check if file type is supported
-    if file_extension not in FILE_PARSERS:
-        supported_types = ", ".join(FILE_PARSERS.keys())
+    if not parser_registry.get_parser_for_extension(file_extension):
+        supported_types = ", ".join(parser_registry.get_supported_extensions())
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported file type. Supported types are: {supported_types}",
         )
 
     # Validate file type
-    if file.content_type != MIME_TYPES.get(file_extension):
+    if not parser_registry.is_expected_mime_type(file_extension, file.content_type):
+        expected = ", ".join(parser_registry.get_expected_mime_types(file_extension)) or "unknown"
         logger.warning(
             f"File content type ({file.content_type}) doesn't match expected type "
-            f"({MIME_TYPES.get(file_extension)}) for extension {file_extension}"
+            f"({expected}) for extension {file_extension}"
         )
 
     # Ensure output directory exists
@@ -150,58 +113,54 @@ async def parse_file_endpoint(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
 
-    temp_file_path = None
     try:
-        # Create temporary file with unique filename to avoid conflicts
-        temp_dir = os.path.dirname(NamedTemporaryFile().name)
-        original_filename = os.path.basename(file.filename)
-
-        temp_file_path, unique_filename = create_unique_temp_file(
-            original_filename, temp_dir
-        )
-
-        with open(temp_file_path, "wb") as temp_file:
-            temp_file.write(await file.read())
-
-        logger.debug(f"Temporary file created with unique name: {temp_file_path}")
-
         # Get parser function
-        parser_func = FILE_PARSERS[file_extension]
+        parser_func = parser_registry.get_parser_for_extension(file_extension)
 
         # Process file based on type
         if file_extension == ".pdf":
             pdf_parse_engine = settings.pdf_parse_engine
             logger.info(f"Using PDF parse engine: {pdf_parse_engine}")
 
-            parsed_content = await pdf_parser.pdf_parse_main(
-                resource_path=temp_file_path,
-                parse_method=getattr(config, "parse_method", "auto"),
-                lang=getattr(config, "lang", "ch"),
-                save_parsed_content=config.save_parsed_content,
-                save_middle_content=getattr(config, "save_middle_content", False),
-                output_dir=output_dir,
-                start_page=getattr(config, "start_page", 0),
-                end_page=getattr(config, "end_page", None),
-                backend=pdf_parse_engine,
-                server_url=settings.vlm_server_url,
+            async def parse_pdf(temp_path: str) -> str:
+                return await pdf_parser.pdf_parse_main(
+                    resource_path=temp_path,
+                    parse_method=getattr(config, "parse_method", "auto"),
+                    lang=getattr(config, "lang", "ch"),
+                    save_parsed_content=config.save_parsed_content,
+                    save_middle_content=getattr(config, "save_middle_content", False),
+                    output_dir=output_dir,
+                    start_page=getattr(config, "start_page", 0),
+                    end_page=getattr(config, "end_page", None),
+                    backend=pdf_parse_engine,
+                    server_url=settings.vlm_server_url,
+                )
+
+            parsed_content = await run_uploaded_file_parser(file=file, parser=parse_pdf)
+        elif parser_func is not None:
+            parsed_content = await run_uploaded_file_parser(
+                file=file,
+                parser=parser_func,
+                parser_args=(config.save_parsed_content, config.output_dir),
             )
         else:
-            parsed_content = await parser_func(
-                temp_file_path, config.save_parsed_content, config.output_dir
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type: {file_extension}",
             )
 
         logger.info(f"File {file.filename} parsed successfully")
 
-        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
+        parser_name = "pdf" if file_extension == ".pdf" else file_extension.lstrip(".")
+        return build_parse_response(
+            parsed_content=parsed_content,
+            parser=parser_name,
+            source_type="file",
+            started_at=started_at,
+        )
 
     except Exception as e:
         error_msg = f"Error occurred while parsing {file.filename}: {str(e)}"
         logger.error(error_msg)
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=error_msg)
-
-    finally:
-        # Clean up the temporary file
-        if temp_file_path and os.path.exists(temp_file_path):
-            os.unlink(temp_file_path)
-            logger.debug(f"Temporary file deleted: {temp_file_path}")

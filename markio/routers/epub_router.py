@@ -13,16 +13,19 @@ The main functionality includes:
 
 import os
 import traceback
-from tempfile import NamedTemporaryFile
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.epub_parser import epub_parse_main
 from markio.schemas.parsers_schemas import EPUBParserConfig
+from markio.services.sync_parse_service import (
+    build_parse_response,
+    run_uploaded_file_parser,
+)
 from markio.settings import settings
 from markio.utils.file_utils import (
-    create_unique_temp_file,
     ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
@@ -72,46 +75,33 @@ async def parse_epub_file_endpoint(
     output_dir = ensure_output_directory(config.output_dir or DEFAULT_OUTPUT_DIR)
 
     logger.info(f"Starting to parse file: {file.filename}")
-
-    # Create temporary file with unique filename to avoid conflicts
-    temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
-    original_filename = os.path.basename(file.filename)
-
-    # Use utility function to create unique temp file
-    temp_epub_path, unique_filename = create_unique_temp_file(
-        original_filename, temp_dir
-    )
-
-    # Write the uploaded file content to the temporary file
-    with open(temp_epub_path, "wb") as temp_epub:
-        temp_epub.write(await file.read())
-
-    logger.debug(f"Temporary EPUB file created with unique name: {temp_epub_path}")
-
-    logger.debug(f"Processing EPUB file: {file.filename}")
+    started_at = perf_counter()
 
     # Parse the EPUB file
     try:
-        parsed_content = await epub_parse_main(
-            resource_path=temp_epub_path,
-            save_parsed_content=config.save_parsed_content,
-            output_dir=output_dir,
+        parsed_content = await run_uploaded_file_parser(
+            file=file,
+            parser=epub_parse_main,
+            parser_kwargs={
+                "save_parsed_content": config.save_parsed_content,
+                "output_dir": output_dir,
+            },
         )
 
         logger.info(f"EPUB file {file.filename} parsed successfully")
 
-        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
+        return build_parse_response(
+            parsed_content=parsed_content,
+            parser="epub",
+            source_type="file",
+            started_at=started_at,
+        )
 
     except Exception as e:
         logger.error(
             f"Error occurred while parsing {file.filename}: {traceback.format_exc()}"
         )
         raise HTTPException(status_code=500, detail=f"EPUB parsing error: {str(e)}")
-
-    finally:
-        if temp_epub_path and os.path.exists(temp_epub_path):
-            os.unlink(temp_epub_path)
-            logger.debug(f"Temporary EPUB file deleted: {temp_epub_path}")
 
 
 def _validate_epub_file(file: UploadFile) -> None:

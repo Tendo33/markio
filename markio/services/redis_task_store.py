@@ -59,6 +59,7 @@ class RedisTaskStore:
             retry_count=0,
             error_message=None,
             cache_key=cache_key,
+            processing_duration_ms=0 if status == TaskStatus.completed else None,
         )
 
         await redis.hset(self._task_key(task_id), mapping=payload)
@@ -98,12 +99,17 @@ class RedisTaskStore:
             return
 
         created_score = self._created_score_from_payload(payload)
+        started_at = self._parse_datetime(self._decode(payload.get("started_at")))
+        duration_ms = self._duration_ms(started_at, now)
         await redis.hset(
             task_key,
             mapping={
                 "status": TaskStatus.completed.value,
                 "completed_at": now.isoformat(),
                 "error_message": "",
+                "processing_duration_ms": (
+                    "" if duration_ms is None else str(duration_ms)
+                ),
             },
         )
         await redis.set(self._result_key(task_id), result)
@@ -119,12 +125,17 @@ class RedisTaskStore:
             return
 
         created_score = self._created_score_from_payload(payload)
+        started_at = self._parse_datetime(self._decode(payload.get("started_at")))
+        duration_ms = self._duration_ms(started_at, now)
         await redis.hset(
             task_key,
             mapping={
                 "status": TaskStatus.failed.value,
                 "completed_at": now.isoformat(),
                 "error_message": message,
+                "processing_duration_ms": (
+                    "" if duration_ms is None else str(duration_ms)
+                ),
             },
         )
         await redis.delete(self._result_key(task_id))
@@ -152,6 +163,7 @@ class RedisTaskStore:
                 "retry_count": str(retry_count),
                 "started_at": "",
                 "completed_at": "",
+                "processing_duration_ms": "",
             },
         )
         await redis.delete(self._result_key(task_id))
@@ -179,6 +191,7 @@ class RedisTaskStore:
                 "status": TaskStatus.canceled.value,
                 "completed_at": now.isoformat(),
                 "error_message": "Canceled by user",
+                "processing_duration_ms": "",
             },
         )
         await redis.zrem(self._queue_pending_key(), task_id)
@@ -287,6 +300,7 @@ class RedisTaskStore:
                         "retry_count": str(retry_count + 1),
                         "started_at": "",
                         "completed_at": "",
+                        "processing_duration_ms": "",
                     },
                 )
                 await redis.zrem(self._queue_processing_key(), task_id)
@@ -376,6 +390,7 @@ class RedisTaskStore:
         retry_count: int,
         error_message: Optional[str],
         cache_key: str | None,
+        processing_duration_ms: Optional[int],
     ) -> dict[str, str]:
         return {
             "task_id": task_id,
@@ -398,6 +413,9 @@ class RedisTaskStore:
             "retry_count": str(retry_count),
             "error_message": error_message or "",
             "cache_key": cache_key or "",
+            "processing_duration_ms": (
+                "" if processing_duration_ms is None else str(processing_duration_ms)
+            ),
         }
 
     def _build_task_record(self, payload: dict[str, str], result: Optional[str]) -> TaskRecord:
@@ -416,6 +434,11 @@ class RedisTaskStore:
             cache_hit=self._parse_bool(payload.get("cache_hit")),
             priority=int(payload.get("priority", "0")),
             retry_count=int(payload.get("retry_count", "0")),
+            processing_duration_ms=(
+                int(payload["processing_duration_ms"])
+                if payload.get("processing_duration_ms")
+                else None
+            ),
         )
 
     @staticmethod
@@ -536,6 +559,16 @@ class RedisTaskStore:
         if value is None:
             return False
         return str(value) == "1"
+
+    @staticmethod
+    def _duration_ms(
+        started_at: Optional[datetime],
+        completed_at: Optional[datetime],
+    ) -> Optional[int]:
+        if started_at is None or completed_at is None:
+            return None
+        duration = int((completed_at - started_at).total_seconds() * 1000)
+        return max(duration, 0)
 
     def _created_score_from_payload(self, payload: dict[str, Any]) -> float:
         created_at = self._parse_datetime(self._decode(payload.get("created_at")))

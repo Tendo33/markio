@@ -13,17 +13,20 @@ The main functionality includes:
 
 import os
 import traceback
-from tempfile import NamedTemporaryFile
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.docx_parser import docx_parse_main
 from markio.schemas.parsers_schemas import DOCXParserConfig
+from markio.services.sync_parse_service import (
+    build_parse_response,
+    run_uploaded_file_parser,
+)
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    create_unique_temp_file,
     ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
@@ -78,47 +81,32 @@ async def parse_docx_endpoint(
     logger.info(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
+    started_at = perf_counter()
 
     try:
-        # Create temporary file with original filename to preserve the name
-        temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
-        original_filename = os.path.basename(file.filename)
-        temp_docx_path, unique_filename = create_unique_temp_file(
-            original_filename, temp_dir
-        )
-
-        # Write the uploaded file content to the temporary file
-        with open(temp_docx_path, "wb") as temp_docx:
-            temp_docx.write(await file.read())
-
-        logger.debug(
-            f"Temporary DOCX file created with original name: {temp_docx_path}"
-        )
-
-        logger.debug(f"Processing DOCX file: {file.filename}")
-
-        # Parse the DOCX file
-        parsed_content = await docx_parse_main(
-            resource_path=temp_docx_path,
-            save_parsed_content=config.save_parsed_content,
-            output_dir=output_dir,
+        parsed_content = await run_uploaded_file_parser(
+            file=file,
+            parser=docx_parse_main,
+            parser_kwargs={
+                "save_parsed_content": config.save_parsed_content,
+                "output_dir": output_dir,
+            },
         )
 
         logger.info(f"DOCX {file.filename} parsed successfully")
 
-        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
+        return build_parse_response(
+            parsed_content=parsed_content,
+            parser="docx",
+            source_type="file",
+            started_at=started_at,
+        )
 
     except Exception as e:
         error_msg = f"Error occurred while parsing {file.filename}: {str(e)}"
         logger.error(error_msg)
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=error_msg)
-
-    finally:
-        # Clean up the temporary DOCX file
-        if temp_docx_path and os.path.exists(temp_docx_path):
-            os.unlink(temp_docx_path)
-            logger.debug(f"Temporary DOCX file deleted: {temp_docx_path}")
 
 
 def _validate_docx_file(file: UploadFile) -> None:

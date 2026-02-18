@@ -63,6 +63,63 @@ Then open the same URLs as above.
 
 ---
 
+## Sync Parse API (2 Request Patterns)
+
+Base path: `/v1`
+
+### 1) Format-specific endpoints
+
+Use this mode when you want explicit endpoint-to-format mapping.
+
+| Endpoint | Method | Input |
+|---|---|---|
+| `/parse_pdf_file` | POST | Upload file (`file`) |
+| `/parse_docx_file` | POST | Upload file (`file`) |
+| `/parse_doc_file` | POST | Upload file (`file`) |
+| `/parse_pptx_file` | POST | Upload file (`file`) |
+| `/parse_ppt_file` | POST | Upload file (`file`) |
+| `/parse_xlsx_file` | POST | Upload file (`file`) |
+| `/parse_html_file` | POST | Upload file (`file`) |
+| `/parse_epub_file` | POST | Upload file (`file`) |
+| `/parse_image_file` | POST | Upload file (`file`) |
+| `/parse_url` | POST | URL query param (`url`) |
+| `/parse_fasta_file` | POST | Upload file (`file`) |
+| `/parse_genbank_file` | POST | Upload file (`file`) |
+
+### 2) Unified file endpoint (auto-dispatch by extension)
+
+Use `POST /parse_file` when you do not want to pick a format-specific endpoint manually.
+
+The server dispatches parser logic based on uploaded file extension.
+
+Supported extensions for `/parse_file`:
+`.doc`, `.docx`, `.pdf`, `.ppt`, `.pptx`, `.xlsx`, `.html`, `.epub`, `.png`, `.jpg`, `.jpeg`
+
+Notes:
+- `/parse_file` is for uploaded local files only.
+- `URL`, `FASTA`, and `GenBank` are not dispatched through `/parse_file`; use their dedicated endpoints.
+
+Examples:
+
+```bash
+# Format-specific endpoint
+curl -X POST "http://localhost:8000/v1/parse_pdf_file" \
+  -F "file=@./sample.pdf"
+
+# Unified endpoint (server dispatches by extension)
+curl -X POST "http://localhost:8000/v1/parse_file" \
+  -F "file=@./sample.docx"
+```
+
+Sync parse response fields (all `/v1/parse_*` and `/v1/parse_file`):
+- `parsed_content`: parsed markdown/text output
+- `parser`: parser identifier (for example `pdf`, `docx`, `html`, `url`)
+- `source_type`: `file` or `url`
+- `request_id`: request correlation id
+- `duration_ms`: server-side parse duration
+
+---
+
 ## Async Task API
 
 Base path: `/v1/tasks`
@@ -78,6 +135,8 @@ Base path: `/v1/tasks`
 | `/queue/resume` | POST | Resume queue |
 | `/{task_id}/cancel` | POST | Cancel pending task |
 | `/{task_id}/retry` | POST | Retry failed/canceled task |
+
+Task detail records include `processing_duration_ms` for observability.
 
 Example:
 

@@ -42,6 +42,7 @@ class TaskRecord:
     cache_hit: bool = False
     priority: int = 0
     retry_count: int = 0
+    processing_duration_ms: int | None = None
 
 
 @dataclass

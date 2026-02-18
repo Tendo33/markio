@@ -13,16 +13,19 @@ The main functionality includes:
 
 import os
 import traceback
-from tempfile import NamedTemporaryFile
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.ppt_parser import ppt_parse_main
 from markio.schemas.parsers_schemas import PPTParserConfig
+from markio.services.sync_parse_service import (
+    build_parse_response,
+    run_uploaded_file_parser,
+)
 from markio.settings import settings
 from markio.utils.file_utils import (
-    create_unique_temp_file,
     ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
@@ -75,47 +78,33 @@ async def parse_ppt_file_endpoint(
     logger.info(
         f"Starting to parse file: {file.filename}, File size: {file.size} bytes"
     )
-
-    # Create temporary file with unique filename to avoid conflicts
-    temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
-    original_filename = os.path.basename(file.filename)
-
-    # Use utility function to create unique temp file
-    temp_ppt_path, unique_filename = create_unique_temp_file(
-        original_filename, temp_dir
-    )
-
-    # Write the uploaded file content to the temporary file
-    with open(temp_ppt_path, "wb") as temp_ppt:
-        temp_ppt.write(await file.read())
-
-    logger.debug(f"Temporary PPT file created with unique name: {temp_ppt_path}")
-
-    logger.debug(f"Processing PPT file: {file.filename}")
+    started_at = perf_counter()
 
     # Parse the PPT file
     try:
-        parsed_content = await ppt_parse_main(
-            resource_path=temp_ppt_path,
-            save_parsed_content=config.save_parsed_content,
-            output_dir=output_dir,
+        parsed_content = await run_uploaded_file_parser(
+            file=file,
+            parser=ppt_parse_main,
+            parser_kwargs={
+                "save_parsed_content": config.save_parsed_content,
+                "output_dir": output_dir,
+            },
         )
 
         logger.info(f"PPT {file.filename} parsed successfully")
 
-        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
+        return build_parse_response(
+            parsed_content=parsed_content,
+            parser="ppt",
+            source_type="file",
+            started_at=started_at,
+        )
 
     except Exception as e:
         logger.error(
             f"Error occurred while parsing {file.filename}: {traceback.format_exc()}"
         )
         raise HTTPException(status_code=500, detail=f"PPT parsing error: {str(e)}")
-
-    finally:
-        # Clean up temporary PPT file
-        if temp_ppt_path and os.path.exists(temp_ppt_path):
-            os.unlink(temp_ppt_path)
-            logger.debug(f"Temporary PPT file deleted: {temp_ppt_path}")
 
 
 def _validate_ppt_file(file: UploadFile) -> None:

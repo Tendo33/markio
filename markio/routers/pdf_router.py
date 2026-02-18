@@ -13,17 +13,20 @@ The main functionality includes:
 
 import os
 import traceback
-from tempfile import NamedTemporaryFile
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.pdf_parser import pdf_parse_main
 from markio.schemas.parsers_schemas import PDFParserConfig
+from markio.services.sync_parse_service import (
+    build_parse_response,
+    run_uploaded_file_parser,
+)
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    create_unique_temp_file,
     ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
@@ -78,46 +81,38 @@ async def parse_pdf_file_endpoint(
     logger.info(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
+    started_at = perf_counter()
 
     try:
-        # Create temporary file with unique filename to avoid conflicts
-        temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
-        original_filename = os.path.basename(file.filename)
-
-        # Use utility function to create unique temp file
-        temp_pdf_path, unique_filename = create_unique_temp_file(
-            original_filename, temp_dir
-        )
-
-        # Write the uploaded file content to the temporary file
-        with open(temp_pdf_path, "wb") as temp_pdf:
-            temp_pdf.write(await file.read())
-
-        logger.debug(f"Temporary PDF file created with unique name: {temp_pdf_path}")
-
-        logger.debug(f"Processing PDF file: {file.filename}")
-
-        # Choose parser based on PDF_PARSE_ENGINE environment variable
         pdf_parse_engine = settings.pdf_parse_engine
         logger.info(f"Using PDF parse engine: {pdf_parse_engine}")
-        parsed_content = await pdf_parse_main(
-            resource_path=temp_pdf_path,
-            parse_method=config.parse_method,
-            lang=config.lang,
-            save_parsed_content=config.save_parsed_content,
-            save_middle_content=config.save_middle_content,
-            output_dir=output_dir,
-            start_page=config.start_page,
-            end_page=config.end_page,
-            backend=pdf_parse_engine,
-            server_url=settings.vlm_server_url,
-        )
+
+        async def parse_pdf(temp_path: str) -> str:
+            return await pdf_parse_main(
+                resource_path=temp_path,
+                parse_method=config.parse_method,
+                lang=config.lang,
+                save_parsed_content=config.save_parsed_content,
+                save_middle_content=config.save_middle_content,
+                output_dir=output_dir,
+                start_page=config.start_page,
+                end_page=config.end_page,
+                backend=pdf_parse_engine,
+                server_url=settings.vlm_server_url,
+            )
+
+        parsed_content = await run_uploaded_file_parser(file=file, parser=parse_pdf)
 
         logger.info(
             f"PDF {file.filename} parsed successfully using {pdf_parse_engine} engine"
         )
 
-        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
+        return build_parse_response(
+            parsed_content=parsed_content,
+            parser="pdf",
+            source_type="file",
+            started_at=started_at,
+        )
 
     except ValueError as e:
         logger.error(f"Configuration error: {e}")
@@ -131,12 +126,6 @@ async def parse_pdf_file_endpoint(
         )
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error occurred")
-
-    finally:
-        # Clean up the temporary PDF file
-        if temp_pdf_path and os.path.exists(temp_pdf_path):
-            os.unlink(temp_pdf_path)
-            logger.debug(f"Temporary PDF file deleted: {temp_pdf_path}")
 
 
 def _validate_pdf_file(file: UploadFile) -> None:

@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import json
 import os
 from datetime import datetime, timezone
-from typing import Awaitable, Callable
+from time import perf_counter
 
 from markio.schemas.task_schemas import (
     QueueHealth,
@@ -16,16 +14,18 @@ from markio.schemas.task_schemas import (
     TaskStatus,
 )
 from markio.services.redis_task_store import RedisTaskStore
+from markio.services.task_manager_base import (
+    BaseTaskManager,
+    CacheGetter,
+    CacheSetter,
+    ParserFunc,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
 
-ParserFunc = Callable[[str, SubmitTaskRequest], Awaitable[str]]
-CacheGetter = Callable[[str], Awaitable[str | None]]
-CacheSetter = Callable[[str, str], Awaitable[bool]]
 
-
-class RedisTaskManager:
+class RedisTaskManager(BaseTaskManager):
     def __init__(
         self,
         *,
@@ -38,15 +38,13 @@ class RedisTaskManager:
         retry_delay_seconds: float = 0.0,
         processing_timeout_seconds: float = 0.0,
     ) -> None:
-        if parser_func is None:
-            from markio.services.document_service import parse_local_file
-
-            parser_func = parse_local_file
+        super().__init__(
+            parser_func=parser_func,
+            cache_getter=cache_getter,
+            cache_setter=cache_setter,
+        )
 
         self.worker_count = max(1, worker_count)
-        self.parser_func = parser_func
-        self.cache_getter = cache_getter
-        self.cache_setter = cache_setter
         self.store = store or RedisTaskStore()
         self.max_auto_retries = max(0, max_auto_retries)
         self.retry_delay_seconds = max(0.0, retry_delay_seconds)
@@ -194,11 +192,19 @@ class RedisTaskManager:
                     continue
 
                 cache_key = await self.store.get_cache_key(task.task_id)
+                started_at_perf = perf_counter()
                 try:
                     result = await self.parser_func(request.file_path, request)
                     await self.store.mark_completed(task.task_id, result)
                     await self._safe_cache_set(cache_key, result)
                     self._cleanup_temp_file(request.file_path)
+                    elapsed_ms = max(0, int((perf_counter() - started_at_perf) * 1000))
+                    logger.info(
+                        "Task %s completed in %d ms (filename=%s)",
+                        task.task_id,
+                        elapsed_ms,
+                        request.filename,
+                    )
                 except Exception as exc:  # noqa: BLE001
                     logger.exception("Task %s failed: %s", task.task_id, exc)
                     await self._handle_failure(task.task_id, str(exc), request)
@@ -261,62 +267,5 @@ class RedisTaskManager:
             "cache_hit": record.cache_hit,
             "priority": record.priority,
             "retry_count": record.retry_count,
+            "processing_duration_ms": record.processing_duration_ms,
         }
-
-    @staticmethod
-    def _normalize_status_filter(status: TaskStatus | str | None) -> TaskStatus | None:
-        if status is None:
-            return None
-        if isinstance(status, TaskStatus):
-            return status
-        return TaskStatus(status)
-
-    @staticmethod
-    def _cleanup_temp_file(file_path: str) -> None:
-        if not file_path:
-            return
-        try:
-            if os.path.exists(file_path):
-                os.unlink(file_path)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to clean up temp file %s: %s", file_path, exc)
-
-    def _build_cache_key(self, request: SubmitTaskRequest) -> str:
-        try:
-            hasher = hashlib.sha256()
-            with open(request.file_path, "rb") as source:
-                for chunk in iter(lambda: source.read(1024 * 1024), b""):
-                    hasher.update(chunk)
-        except FileNotFoundError:
-            return ""
-
-        options = {
-            "filename": request.filename,
-            "parse_method": request.parse_method,
-            "lang": request.lang,
-            "save_middle_content": request.save_middle_content,
-            "start_page": request.start_page,
-            "end_page": request.end_page,
-            "engine": os.getenv("PDF_PARSE_ENGINE", "pipeline"),
-        }
-        options_digest = hashlib.sha256(
-            json.dumps(options, sort_keys=True, ensure_ascii=True).encode("utf-8")
-        ).hexdigest()
-        return f"markio:result:{hasher.hexdigest()}:{options_digest}"
-
-    async def _safe_cache_get(self, cache_key: str) -> str | None:
-        try:
-            result = await self.cache_getter(cache_key)  # type: ignore[misc]
-            if isinstance(result, str) and result:
-                return result
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Cache get failed for %s: %s", cache_key, exc)
-        return None
-
-    async def _safe_cache_set(self, cache_key: str | None, value: str) -> None:
-        if not cache_key or not self.cache_setter:
-            return
-        try:
-            await self.cache_setter(cache_key, value)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Cache set failed for %s: %s", cache_key, exc)

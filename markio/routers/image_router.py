@@ -14,17 +14,20 @@ The main functionality includes:
 
 import os
 import traceback
-from tempfile import NamedTemporaryFile
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.image_parser import image_parse_main
 from markio.schemas.parsers_schemas import ImageParserConfig
+from markio.services.sync_parse_service import (
+    build_parse_response,
+    run_uploaded_file_parser,
+)
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    create_unique_temp_file,
     ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
@@ -73,43 +76,35 @@ async def parse_image_file_endpoint(
     logger.info(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
+    started_at = perf_counter()
 
     # Ensure the output directory exists
     output_dir = ensure_output_directory(config.output_dir or DEFAULT_OUTPUT_DIR)
 
     try:
-        # Create temporary file with unique filename to avoid conflicts
-        temp_dir = os.path.dirname(NamedTemporaryFile().name)  # Get temp directory
-        original_filename = os.path.basename(file.filename)
-
-        # Use utility function to create unique temp file
-        temp_img_path, unique_filename = create_unique_temp_file(
-            original_filename, temp_dir
-        )
-
-        # Write the uploaded file content to the temporary file
-        with open(temp_img_path, "wb") as temp_img:
-            temp_img.write(await file.read())
-
-        logger.debug(f"Temporary image file created with unique name: {temp_img_path}")
-
-        logger.debug(f"Processing image file: {file.filename}")
-
         parse_backend = settings.pdf_parse_engine
         logger.info(f"Using image parse engine: {parse_backend}")
 
         # Parse the image file
-        parsed_content = await image_parse_main(
-            resource_path=temp_img_path,
-            save_parsed_content=config.save_parsed_content,
-            output_dir=output_dir,
-            parse_backend=parse_backend,
+        parsed_content = await run_uploaded_file_parser(
+            file=file,
+            parser=image_parse_main,
+            parser_kwargs={
+                "save_parsed_content": config.save_parsed_content,
+                "output_dir": output_dir,
+                "parse_backend": parse_backend,
+            },
         )
 
         # Log success
         logger.info(f"Image parsed successfully: {file.filename}")
 
-        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
+        return build_parse_response(
+            parsed_content=parsed_content,
+            parser="image",
+            source_type="file",
+            started_at=started_at,
+        )
 
     except Exception as e:
         # Log detailed error with traceback
@@ -117,12 +112,6 @@ async def parse_image_file_endpoint(
             f"Error occurred while parsing {file.filename}: {traceback.format_exc()}"
         )
         raise HTTPException(status_code=500, detail=f"Image parsing error: {e}")
-
-    finally:
-        # Clean up the temporary image file
-        if temp_img_path and os.path.exists(temp_img_path):
-            os.unlink(temp_img_path)
-            logger.debug(f"Temporary image file deleted: {temp_img_path}")
 
 
 def _validate_img_file(file: UploadFile) -> None:

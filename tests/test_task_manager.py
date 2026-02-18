@@ -65,6 +65,31 @@ class TaskManagerTests(unittest.IsolatedAsyncioTestCase):
 
         await manager.stop()
 
+    async def test_completed_task_tracks_processing_duration(self):
+        file_path = self.tmp_dir / "duration.pdf"
+        file_path.write_text("demo", encoding="utf-8")
+
+        async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+            await asyncio.sleep(0.01)
+            return "# parsed"
+
+        manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+        await manager.start()
+
+        task = await manager.submit(
+            SubmitTaskRequest(
+                filename="duration.pdf",
+                file_path=str(file_path),
+            )
+        )
+
+        await self._wait_status(manager, task.task_id, TaskStatus.completed)
+        completed = await manager.get_task(task.task_id)
+        self.assertIsNotNone(completed)
+        self.assertIsNotNone(completed.processing_duration_ms)
+        self.assertGreaterEqual(completed.processing_duration_ms, 0)
+        await manager.stop()
+
     async def test_marks_failure(self):
         file_path = self.tmp_dir / "bad.pdf"
         file_path.write_text("demo", encoding="utf-8")

@@ -63,6 +63,63 @@ docker compose up -d
 
 ---
 
+## 同步解析 API（2 种请求方式）
+
+基础路径：`/v1`
+
+### 1）按格式分别调用接口
+
+当你希望“某种格式对应某个固定接口”时使用这一种。
+
+| 接口 | 方法 | 输入 |
+|---|---|---|
+| `/parse_pdf_file` | POST | 上传文件（`file`） |
+| `/parse_docx_file` | POST | 上传文件（`file`） |
+| `/parse_doc_file` | POST | 上传文件（`file`） |
+| `/parse_pptx_file` | POST | 上传文件（`file`） |
+| `/parse_ppt_file` | POST | 上传文件（`file`） |
+| `/parse_xlsx_file` | POST | 上传文件（`file`） |
+| `/parse_html_file` | POST | 上传文件（`file`） |
+| `/parse_epub_file` | POST | 上传文件（`file`） |
+| `/parse_image_file` | POST | 上传文件（`file`） |
+| `/parse_url` | POST | URL 查询参数（`url`） |
+| `/parse_fasta_file` | POST | 上传文件（`file`） |
+| `/parse_genbank_file` | POST | 上传文件（`file`） |
+
+### 2）统一文件接口（按扩展名自动分发）
+
+当你不想手动挑选格式接口时，使用 `POST /parse_file`。
+
+服务端会根据上传文件的扩展名自动路由到对应 parser。
+
+`/parse_file` 支持扩展名：
+`.doc`、`.docx`、`.pdf`、`.ppt`、`.pptx`、`.xlsx`、`.html`、`.epub`、`.png`、`.jpg`、`.jpeg`
+
+说明：
+- `/parse_file` 只处理本地上传文件。
+- `URL`、`FASTA`、`GenBank` 不走 `/parse_file` 自动分发，需走各自专用接口。
+
+示例：
+
+```bash
+# 按格式接口调用
+curl -X POST "http://localhost:8000/v1/parse_pdf_file" \
+  -F "file=@./sample.pdf"
+
+# 统一接口调用（由服务端按扩展名分发）
+curl -X POST "http://localhost:8000/v1/parse_file" \
+  -F "file=@./sample.docx"
+```
+
+同步解析响应字段（所有 `/v1/parse_*` 与 `/v1/parse_file`）：
+- `parsed_content`：解析后的 Markdown/文本
+- `parser`：解析器标识（如 `pdf`、`docx`、`html`、`url`）
+- `source_type`：`file` 或 `url`
+- `request_id`：请求链路标识
+- `duration_ms`：服务端解析耗时（毫秒）
+
+---
+
 ## 异步任务 API
 
 基础路径：`/v1/tasks`
@@ -78,6 +135,8 @@ docker compose up -d
 | `/queue/resume` | POST | 恢复队列 |
 | `/{task_id}/cancel` | POST | 取消等待中的任务 |
 | `/{task_id}/retry` | POST | 重试失败或已取消任务 |
+
+任务详情记录包含 `processing_duration_ms`（处理耗时）用于可观测性。
 
 示例：
 

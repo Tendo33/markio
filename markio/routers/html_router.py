@@ -13,17 +13,20 @@ The main functionality includes:
 
 import os
 import traceback
-from tempfile import NamedTemporaryFile
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.html_parser import html_parse_main
 from markio.schemas.parsers_schemas import HTMLParserConfig
+from markio.services.sync_parse_service import (
+    build_parse_response,
+    run_uploaded_file_parser,
+)
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    create_unique_temp_file,
     ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
@@ -71,31 +74,26 @@ async def parse_html_file_endpoint(
     logger.info(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
-
-    temp_dir = os.path.dirname(NamedTemporaryFile().name)
-    original_filename = os.path.basename(file.filename)
-
-    # Use utility function to create unique temp file
-    temp_html_path, unique_filename = create_unique_temp_file(
-        original_filename, temp_dir
-    )
-
-    with open(temp_html_path, "wb") as temp_html:
-        temp_html.write(await file.read())
-
-    logger.debug(f"Temporary HTML file created with unique name: {temp_html_path}")
-    logger.debug(f"Processing HTML file: {file.filename}")
+    started_at = perf_counter()
 
     try:
-        parsed_content = await html_parse_main(
-            resource_path=temp_html_path,
-            save_parsed_content=config.save_parsed_content,
-            output_dir=output_dir,
+        parsed_content = await run_uploaded_file_parser(
+            file=file,
+            parser=html_parse_main,
+            parser_kwargs={
+                "save_parsed_content": config.save_parsed_content,
+                "output_dir": output_dir,
+            },
         )
 
         logger.info(f"HTML file {file.filename} parsed successfully")
 
-        return JSONResponse({"parsed_content": parsed_content}, status_code=200)
+        return build_parse_response(
+            parsed_content=parsed_content,
+            parser="html",
+            source_type="file",
+            started_at=started_at,
+        )
 
     except Exception as e:
         # Log detailed error with traceback
@@ -103,12 +101,6 @@ async def parse_html_file_endpoint(
             f"Error occurred while parsing {file.filename}: {traceback.format_exc()}"
         )
         raise HTTPException(status_code=500, detail=f"HTML parsing error: {e}")
-
-    finally:
-        # Clean up the temporary HTML file
-        if temp_html_path and os.path.exists(temp_html_path):
-            os.unlink(temp_html_path)
-            logger.debug(f"Temporary HTML file deleted: {temp_html_path}")
 
 
 def _validate_html_file(file: UploadFile) -> None:
