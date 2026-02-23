@@ -62,7 +62,8 @@ async def epub_parse_main(
             verify_format=True,
         )
         await md_dump_io(
-            md_content=markdown_content, output_path=output_path, file_name=file_name
+            md_content=markdown_content,
+            output_path=output_path,
         )
         logger.info(f"EPUB {file_name} saved to {output_path}")
     else:

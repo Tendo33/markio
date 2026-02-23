@@ -33,20 +33,17 @@ def ensure_output_directory(output_dir: str) -> str:
 
 async def md_dump_io(
     md_content: str,
-    output_path: str,
-    file_name: str,
+    output_path: str | Path,
 ) -> None:
     """
     Asynchronously save Markdown content to specified file.
 
     Args:
-        output_path: Path to save the file
+        output_path: Final markdown file path
         md_content: Markdown content to save
-        file_name: File name for the markdown file
     """
-    os.makedirs(output_path, exist_ok=True)
-
-    final_path = os.path.join(output_path, f"{file_name}.md")
+    final_path = Path(output_path)
+    final_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         async with aiofiles.open(final_path, mode="w", encoding="utf-8") as f:

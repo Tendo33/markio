@@ -1,4 +1,3 @@
-import asyncio
 import unittest
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone

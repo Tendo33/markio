@@ -36,6 +36,7 @@ async def test_parse_file_response_contract(monkeypatch, tmp_path: Path):
 
     assert response.status_code == 200
     payload = response.json()
+    assert payload["api_version"] == "v1"
     assert payload["parsed_content"] == "# parsed"
     assert payload["parser"] == "html"
     assert payload["source_type"] == "file"
@@ -66,6 +67,7 @@ async def test_parse_url_response_contract(monkeypatch):
 
     assert response.status_code == 200
     payload = response.json()
+    assert payload["api_version"] == "v1"
     assert payload["parsed_content"] == "# from url"
     assert payload["parser"] == "url"
     assert payload["source_type"] == "url"

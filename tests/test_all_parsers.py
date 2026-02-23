@@ -5,6 +5,10 @@ Test all parser API endpoints for markio service
 import json
 import time
 
+import pytest
+
+pytestmark = pytest.mark.live
+
 
 class TestAllParsers:
     """Test class for all parser endpoints"""

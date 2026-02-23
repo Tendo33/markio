@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import httpx
 import pytest
 
+pytestmark = pytest.mark.live
+
 
 class TestConcurrentPerformance:
     """Test class for concurrent performance testing"""

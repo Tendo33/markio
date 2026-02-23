@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import aiohttp
-from fastapi.responses import JSONResponse
 
 from markio.utils.file_utils import func_processing_time, md_dump_io
 from markio.utils.logger_config import get_logger
@@ -14,7 +13,7 @@ async def url_parse_main(
     url: str,
     save_parsed_content: bool = False,
     output_dir: str = "",
-) -> JSONResponse:
+) -> str:
     """
     Fetch and parse content from a URL, converting it to Markdown format.
 
@@ -31,7 +30,7 @@ async def url_parse_main(
         output_dir: Directory where parsed content and images will be saved
 
     Returns:
-        JSONResponse: Parsed content in Markdown format or error message
+        str: Parsed content in Markdown format
 
     Raises:
         aiohttp.ClientError: For network-related errors during fetch
@@ -63,7 +62,6 @@ async def url_parse_main(
             await md_dump_io(
                 md_content=markdown_content,
                 output_path=output_path,
-                file_name=file_name,
             )
             logger.info(f"URL {file_name} saved to {output_path}")
 
@@ -71,11 +69,7 @@ async def url_parse_main(
 
     except aiohttp.ClientError as e:
         logger.error(f"Failed to fetch content from {full_url}. Error: {e}")
-        return JSONResponse(
-            {"error": "Failed to fetch URL content", "detail": str(e)}, status_code=500
-        )
+        raise RuntimeError(f"Failed to fetch URL content: {e}") from e
     except Exception as e:
         logger.error(f"Unexpected error occurred: {e}")
-        return JSONResponse(
-            {"error": "Unexpected error", "detail": str(e)}, status_code=500
-        )
+        raise RuntimeError(f"Unexpected URL parsing error: {e}") from e

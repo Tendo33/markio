@@ -15,7 +15,6 @@ import traceback
 from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse
 
 from markio.parsers.url_parser import url_parse_main
 from markio.services.sync_parse_service import build_parse_response

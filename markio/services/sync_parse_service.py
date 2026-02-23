@@ -13,6 +13,8 @@ from markio.middlewares.trace_middleware.ctx import TraceCtx
 from markio.schemas.api_schemas import ParseResponse
 from markio.utils.file_utils import create_unique_temp_file
 
+_UPLOAD_CHUNK_SIZE = 1024 * 1024
+
 
 async def run_uploaded_file_parser(
     *,
@@ -30,7 +32,11 @@ async def run_uploaded_file_parser(
         temp_file_path, _ = create_unique_temp_file(original_filename, temp_dir)
 
         with open(temp_file_path, "wb") as temp_file:
-            temp_file.write(await file.read())
+            while True:
+                chunk = await file.read(_UPLOAD_CHUNK_SIZE)
+                if not chunk:
+                    break
+                temp_file.write(chunk)
 
         return await parser(temp_file_path, *parser_args, **parser_kwargs)
     finally:

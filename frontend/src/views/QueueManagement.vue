@@ -70,6 +70,7 @@ import {
 import StatCard from '@/components/StatCard.vue'
 import { useQueueStore } from '@/stores'
 import { formatDateTime } from '@/utils/format'
+import { toast } from '@/utils/toast'
 
 const queueStore = useQueueStore()
 
@@ -87,8 +88,14 @@ function addLog(message: string, type: 'info' | 'error' = 'info') {
 }
 
 async function refresh() {
-  await queueStore.fetchHealth()
-  addLog('刷新队列状态')
+  try {
+    await queueStore.fetchHealth()
+    addLog('刷新队列状态')
+  } catch (error: any) {
+    const message = error?.message || '刷新队列状态失败'
+    addLog(message, 'error')
+    toast.error(message)
+  }
 }
 
 async function pause() {
@@ -96,8 +103,11 @@ async function pause() {
     await queueStore.pause()
     await queueStore.fetchHealth()
     addLog('队列已暂停')
+    toast.success('队列已暂停')
   } catch (error: any) {
-    addLog(error?.message || '暂停失败', 'error')
+    const message = error?.message || '暂停失败'
+    addLog(message, 'error')
+    toast.error(message)
   }
 }
 
@@ -106,8 +116,11 @@ async function resume() {
     await queueStore.resume()
     await queueStore.fetchHealth()
     addLog('队列已恢复')
+    toast.success('队列已恢复')
   } catch (error: any) {
-    addLog(error?.message || '恢复失败', 'error')
+    const message = error?.message || '恢复失败'
+    addLog(message, 'error')
+    toast.error(message)
   }
 }
 

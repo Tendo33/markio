@@ -1,7 +1,7 @@
 from typing import Optional
 
 import dotenv
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from markio.utils.logger_config import get_logger
 
@@ -21,11 +21,12 @@ class Settings(ApplicationConfig, BaseSettings):
     pydantic-settings for configuration management and validation.
     """
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        populate_by_name = True
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        populate_by_name=True,
+    )
 
     _instance: Optional["Settings"] = None
 

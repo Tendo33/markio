@@ -73,15 +73,6 @@ export function showToast(options: ToastOptions) {
   // 添加到页面
   document.body.appendChild(toast)
 
-  // 添加调试信息
-  console.log('Toast created:', {
-    message,
-    type,
-    messageElement: messageEl,
-    textContent: messageEl.innerText,
-    computedStyle: window.getComputedStyle(messageEl).color
-  })
-
   // 自动移除
   setTimeout(() => {
     toast.style.opacity = '0'

@@ -8,6 +8,7 @@ import asyncio
 from datetime import datetime
 
 import pytest
+import pytest_asyncio
 
 from markio.utils import (
     RedisCache,
@@ -20,7 +21,7 @@ from markio.utils import (
 )
 
 
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(scope="module")
 async def setup_redis():
     """初始化Redis连接"""
     await redis_manager.initialize()

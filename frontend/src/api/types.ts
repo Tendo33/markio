@@ -29,6 +29,7 @@ export interface TaskRecord {
   cache_hit: boolean
   priority: number
   retry_count: number
+  processing_duration_ms: number | null
 }
 
 export interface TaskListPage {
@@ -56,6 +57,12 @@ export interface DashboardPayload {
   stats: TaskStats
   queue: QueueHealth
   success_rate: number
+  sla?: {
+    count: number
+    avg_ms: number
+    p95_ms: number
+    max_ms: number
+  }
   recent_tasks: TaskRecord[]
   updated_at: string
 }

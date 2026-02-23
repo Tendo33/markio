@@ -66,7 +66,11 @@
           </div>
           <div>
             <dt class="text-gray-500">处理时长</dt>
-            <dd class="mt-1 text-gray-900">{{ formatDuration(task.started_at, task.completed_at) }}</dd>
+            <dd class="mt-1 text-gray-900">
+              {{ task.processing_duration_ms !== null && task.processing_duration_ms !== undefined
+                ? `${task.processing_duration_ms} ms`
+                : formatDuration(task.started_at, task.completed_at) }}
+            </dd>
           </div>
         </dl>
 
@@ -106,18 +110,28 @@
         <div v-else class="text-sm text-gray-500">暂无结果输出</div>
       </div>
     </div>
+
+    <ConfirmDialog
+      v-model="confirmState.visible"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :type="confirmState.type"
+      @confirm="executeConfirmedAction"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, RefreshCw, RotateCcw, X } from 'lucide-vue-next'
 
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { useTaskStore } from '@/stores'
 import { formatDateTime, formatDuration } from '@/utils/format'
+import { toast } from '@/utils/toast'
 
 const route = useRoute()
 const taskStore = useTaskStore()
@@ -126,19 +140,60 @@ let timerId: number | null = null
 
 const taskId = computed(() => String(route.params.id))
 const task = computed(() => taskStore.currentTask)
+const confirmState = ref({
+  visible: false,
+  title: '',
+  message: '',
+  type: 'warning' as 'danger' | 'warning' | 'info',
+  action: null as null | (() => Promise<void>),
+})
 
 async function refresh() {
-  await taskStore.loadTask(taskId.value)
+  try {
+    await taskStore.loadTask(taskId.value)
+  } catch (error: any) {
+    toast.error(error?.message || '加载任务详情失败')
+  }
 }
 
 async function cancel() {
-  await taskStore.cancel(taskId.value)
-  await refresh()
+  confirmState.value = {
+    visible: true,
+    title: '取消任务',
+    message: `确认取消任务 ${taskId.value} 吗？`,
+    type: 'warning',
+    action: async () => {
+      await taskStore.cancel(taskId.value)
+      toast.success('任务已取消')
+      await refresh()
+    },
+  }
 }
 
 async function retry() {
-  await taskStore.retry(taskId.value)
-  await refresh()
+  confirmState.value = {
+    visible: true,
+    title: '重试任务',
+    message: `确认重试任务 ${taskId.value} 吗？`,
+    type: 'info',
+    action: async () => {
+      await taskStore.retry(taskId.value)
+      toast.success('任务已重新提交')
+      await refresh()
+    },
+  }
+}
+
+async function executeConfirmedAction() {
+  const action = confirmState.value.action
+  if (!action) return
+  try {
+    await action()
+  } catch (error: any) {
+    toast.error(error?.message || '操作失败')
+  } finally {
+    confirmState.value.action = null
+  }
 }
 
 onMounted(async () => {

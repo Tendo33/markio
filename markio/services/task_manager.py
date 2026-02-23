@@ -251,16 +251,25 @@ class AsyncTaskManager(BaseTaskManager):
         stats = await self.get_stats()
         queue_health = await self.get_queue_health()
         recent = await self.list_tasks(page=1, page_size=max(1, recent_limit))
+        async with self._lock:
+            records = list(self._records.values())
 
         finished = stats.completed + stats.failed
         success_rate = 0.0
         if finished > 0:
             success_rate = round(stats.completed / finished, 4)
+        duration_values = [
+            item.processing_duration_ms
+            for item in records
+            if item.processing_duration_ms is not None
+            and item.status in {TaskStatus.completed, TaskStatus.failed}
+        ]
 
         return {
             "stats": asdict(stats),
             "queue": asdict(queue_health),
             "success_rate": success_rate,
+            "sla": self._duration_metrics(duration_values),
             "recent_tasks": [self._record_to_dict(item) for item in recent.items],
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -577,3 +586,22 @@ class AsyncTaskManager(BaseTaskManager):
             return None
         duration = int((completed_at - started_at).total_seconds() * 1000)
         return max(duration, 0)
+
+    @staticmethod
+    def _duration_metrics(values: list[int]) -> dict[str, int | float]:
+        if not values:
+            return {
+                "count": 0,
+                "avg_ms": 0,
+                "p95_ms": 0,
+                "max_ms": 0,
+            }
+        sorted_values = sorted(values)
+        p95_index = max(int(len(sorted_values) * 0.95) - 1, 0)
+        avg_ms = int(sum(sorted_values) / len(sorted_values))
+        return {
+            "count": len(sorted_values),
+            "avg_ms": avg_ms,
+            "p95_ms": sorted_values[p95_index],
+            "max_ms": sorted_values[-1],
+        }

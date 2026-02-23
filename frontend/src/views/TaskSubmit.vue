@@ -80,6 +80,7 @@
             />
           </div>
         </div>
+        <p v-if="pageRangeError" class="mt-3 text-sm text-red-600">{{ pageRangeError }}</p>
 
         <div class="mt-4 space-y-2">
           <label class="flex items-center">
@@ -95,7 +96,7 @@
         <div class="mt-6 flex gap-3">
           <button
             @click="submit"
-            :disabled="taskStore.submitting || files.length === 0"
+            :disabled="taskStore.submitting || !canSubmit"
             class="btn btn-primary flex items-center"
           >
             <Upload class="w-4 h-4 mr-2" />
@@ -114,11 +115,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { Upload } from 'lucide-vue-next'
 
 import FileUploader from '@/components/FileUploader.vue'
 import { useTaskStore } from '@/stores'
+import { toast } from '@/utils/toast'
 
 const taskStore = useTaskStore()
 const fileUploader = ref<InstanceType<typeof FileUploader> | null>(null)
@@ -137,6 +139,19 @@ const form = reactive({
   end_page: '' as '' | number,
 })
 
+const pageRangeError = computed(() => {
+  if (form.end_page === '') {
+    return ''
+  }
+  return Number(form.end_page) < form.start_page
+    ? 'end_page 不能小于 start_page'
+    : ''
+})
+
+const canSubmit = computed(() => {
+  return files.value.length > 0 && !pageRangeError.value
+})
+
 function onFilesChange(nextFiles: File[]) {
   files.value = nextFiles
 }
@@ -144,6 +159,12 @@ function onFilesChange(nextFiles: File[]) {
 async function submit() {
   if (files.value.length === 0) {
     resultText.value = '请先选择文件'
+    toast.warning('请先选择文件')
+    return
+  }
+  if (pageRangeError.value) {
+    resultText.value = pageRangeError.value
+    toast.warning(pageRangeError.value)
     return
   }
 
@@ -162,11 +183,14 @@ async function submit() {
       end_page: form.end_page === '' ? null : form.end_page,
     })
     resultText.value = JSON.stringify(result, null, 2)
+    toast.success('任务提交成功')
     fileUploader.value?.clearFiles()
     files.value = []
     await taskStore.loadDashboard(8)
   } catch (error: any) {
-    resultText.value = error?.message || '提交失败'
+    const message = error?.message || '提交失败'
+    resultText.value = message
+    toast.error(message)
   }
 }
 </script>

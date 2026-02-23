@@ -19,15 +19,20 @@ async def submit_task(
     file: UploadFile = File(...),
     parse_method: str = Form("auto"),
     lang: str = Form("ch"),
-    priority: int = Form(0),
+    priority: int = Form(0, ge=-10, le=100),
     save_parsed_content: bool = Form(False),
     save_middle_content: bool = Form(False),
     output_dir: str = Form(settings.output_dir),
-    start_page: int = Form(0),
-    end_page: int | None = Form(None),
+    start_page: int = Form(0, ge=0),
+    end_page: int | None = Form(None, ge=0),
 ):
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
+    if end_page is not None and end_page < start_page:
+        raise HTTPException(
+            status_code=400,
+            detail="end_page must be greater than or equal to start_page",
+        )
 
     temp_dir = ensure_output_directory(settings.task_upload_dir)
     Path(temp_dir).mkdir(parents=True, exist_ok=True)

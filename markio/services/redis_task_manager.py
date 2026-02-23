@@ -139,11 +139,18 @@ class RedisTaskManager(BaseTaskManager):
         stats = await self.get_stats()
         queue_health = await self.get_queue_health()
         recent = await self.list_tasks(page=1, page_size=max(1, recent_limit))
+        samples = await self.list_tasks(page=1, page_size=5000)
 
         finished = stats.completed + stats.failed
         success_rate = 0.0
         if finished > 0:
             success_rate = round(stats.completed / finished, 4)
+        duration_values = [
+            item.processing_duration_ms
+            for item in samples.items
+            if item.processing_duration_ms is not None
+            and item.status in {TaskStatus.completed, TaskStatus.failed}
+        ]
 
         return {
             "stats": {
@@ -159,6 +166,7 @@ class RedisTaskManager(BaseTaskManager):
                 "paused": queue_health.paused,
             },
             "success_rate": success_rate,
+            "sla": self._duration_metrics(duration_values),
             "recent_tasks": [self._record_to_dict(item) for item in recent.items],
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -200,16 +208,13 @@ class RedisTaskManager(BaseTaskManager):
                     self._cleanup_temp_file(request.file_path)
                     elapsed_ms = max(0, int((perf_counter() - started_at_perf) * 1000))
                     logger.info(
-                        "Task %s completed in %d ms (filename=%s)",
-                        task.task_id,
-                        elapsed_ms,
-                        request.filename,
+                        f"Task {task.task_id} completed in {elapsed_ms} ms (filename={request.filename})"
                     )
                 except Exception as exc:  # noqa: BLE001
-                    logger.exception("Task %s failed: %s", task.task_id, exc)
+                    logger.exception(f"Task {task.task_id} failed: {exc}")
                     await self._handle_failure(task.task_id, str(exc), request)
         except asyncio.CancelledError:
-            logger.info("Redis task worker %s cancelled", worker_index)
+            logger.info(f"Redis task worker {worker_index} cancelled")
 
     async def _handle_failure(
         self,
@@ -268,4 +273,23 @@ class RedisTaskManager(BaseTaskManager):
             "priority": record.priority,
             "retry_count": record.retry_count,
             "processing_duration_ms": record.processing_duration_ms,
+        }
+
+    @staticmethod
+    def _duration_metrics(values: list[int]) -> dict[str, int | float]:
+        if not values:
+            return {
+                "count": 0,
+                "avg_ms": 0,
+                "p95_ms": 0,
+                "max_ms": 0,
+            }
+        sorted_values = sorted(values)
+        p95_index = max(int(len(sorted_values) * 0.95) - 1, 0)
+        avg_ms = int(sum(sorted_values) / len(sorted_values))
+        return {
+            "count": len(sorted_values),
+            "avg_ms": avg_ms,
+            "p95_ms": sorted_values[p95_index],
+            "max_ms": sorted_values[-1],
         }

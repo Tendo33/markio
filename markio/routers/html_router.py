@@ -118,7 +118,7 @@ def _validate_html_file(file: UploadFile) -> None:
     file_extension = os.path.splitext(file.filename)[1].lower()
 
     # Validate file content type and extension
-    if file.content_type != "text/html" and file_extension != ".html":
+    if file.content_type != "text/html" and file_extension not in {".html", ".htm"}:
         logger.error(f"Invalid file format: {file.filename}")
         raise HTTPException(
             status_code=400, detail="Invalid file type, please upload an HTML file"

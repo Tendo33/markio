@@ -38,7 +38,6 @@ logger = get_logger(__name__)
 # Try to import BioPython for enhanced parsing
 try:
     from Bio import SeqIO
-    from Bio.SeqUtils import gc_fraction
 
     BIOPYTHON_AVAILABLE = True
     logger.info("BioPython detected - Enhanced GenBank analysis enabled")
@@ -363,7 +362,6 @@ def _parse_genbank_file(
     records = []
     current_record = None
     current_section = None
-    feature_buffer = []
 
     with open(file_path, "r", encoding="utf-8") as f:
         for line in f:

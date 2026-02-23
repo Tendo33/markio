@@ -9,10 +9,10 @@
         <div class="flex min-h-screen items-center justify-center p-4">
           <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all">
             <!-- 标题 -->
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ title || t('common.confirm') }}</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ resolvedTitle }}</h3>
 
             <!-- 内容 -->
-            <p class="text-sm text-gray-600 mb-6">{{ message || t('common.confirm') }}</p>
+            <p class="text-sm text-gray-600 mb-6">{{ resolvedMessage }}</p>
 
             <!-- 按钮 -->
             <div class="flex justify-end gap-3">
@@ -20,14 +20,14 @@
                 @click="onCancel"
                 class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                {{ cancelText || t('common.cancel') }}
+                {{ cancelText }}
               </button>
               <button
                 @click="onConfirm"
                 :class="confirmButtonClass"
                 class="px-4 py-2 text-sm font-medium text-white rounded-lg"
               >
-                {{ confirmText || t('common.confirm') }}
+                {{ confirmText }}
               </button>
             </div>
           </div>
@@ -39,9 +39,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-
-const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   modelValue: boolean
@@ -53,8 +50,8 @@ const props = withDefaults(defineProps<{
 }>(), {
   title: '',
   message: '',
-  confirmText: '',
-  cancelText: '',
+  confirmText: '确认',
+  cancelText: '取消',
   type: 'danger'
 })
 
@@ -72,6 +69,9 @@ const confirmButtonClass = computed(() => {
   }
   return classMap[props.type]
 })
+
+const resolvedTitle = computed(() => props.title || '确认操作')
+const resolvedMessage = computed(() => props.message || '你确定要继续吗？')
 
 function onConfirm() {
   emit('confirm')

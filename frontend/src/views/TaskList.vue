@@ -122,6 +122,14 @@
         </div>
       </div>
     </div>
+
+    <ConfirmDialog
+      v-model="confirmState.visible"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :type="confirmState.type"
+      @confirm="executeConfirmedAction"
+    />
   </div>
 </template>
 
@@ -139,15 +147,24 @@ import {
 } from 'lucide-vue-next'
 
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import type { TaskStatus } from '@/api/types'
 import { useTaskStore } from '@/stores'
 import { formatRelativeTime } from '@/utils/format'
+import { toast } from '@/utils/toast'
 
 const taskStore = useTaskStore()
 
 const status = ref(taskStore.statusFilter)
 const pageSize = ref(taskStore.pageSize)
+const confirmState = ref({
+  visible: false,
+  title: '',
+  message: '',
+  type: 'warning' as 'danger' | 'warning' | 'info',
+  action: null as null | (() => Promise<void>),
+})
 
 async function applyFilters() {
   await taskStore.setFilters(status.value as TaskStatus | '', pageSize.value)
@@ -168,11 +185,41 @@ async function nextPage() {
 }
 
 async function cancelTask(taskId: string) {
-  await taskStore.cancel(taskId)
+  confirmState.value = {
+    visible: true,
+    title: '取消任务',
+    message: `确认取消任务 ${taskId} 吗？`,
+    type: 'warning',
+    action: async () => {
+      await taskStore.cancel(taskId)
+      toast.success('任务已取消')
+    },
+  }
 }
 
 async function retryTask(taskId: string) {
-  await taskStore.retry(taskId)
+  confirmState.value = {
+    visible: true,
+    title: '重试任务',
+    message: `确认重试任务 ${taskId} 吗？`,
+    type: 'info',
+    action: async () => {
+      await taskStore.retry(taskId)
+      toast.success('任务已重新提交')
+    },
+  }
+}
+
+async function executeConfirmedAction() {
+  const action = confirmState.value.action
+  if (!action) return
+  try {
+    await action()
+  } catch (error: any) {
+    toast.error(error?.message || '操作失败')
+  } finally {
+    confirmState.value.action = null
+  }
 }
 
 onMounted(async () => {

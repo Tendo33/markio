@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from markio.mcps.mcp_server import MarkioMCP
+from markio.middlewares.error_handlers import add_error_handlers
 from markio.middlewares.handle import handle_middleware
 from markio.routers.doc_router import router as doc_router
 from markio.routers.docx_router import router as docx_router
@@ -93,6 +95,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     handle_middleware(app)
+    add_error_handlers(app)
     return app
 
 
@@ -197,6 +200,42 @@ async def welcome():
     """Welcome endpoint that redirects to API documentation"""
     logger.info("Welcome endpoint accessed")
     return RedirectResponse(url="/docs")
+
+
+@app.get("/healthz", include_in_schema=False)
+async def healthz() -> JSONResponse:
+    return JSONResponse(
+        {
+            "status": "ok",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+        status_code=200,
+    )
+
+
+@app.get("/readyz", include_in_schema=False)
+async def readyz() -> JSONResponse:
+    task_manager = get_task_manager()
+    model_manager = get_model_manager()
+
+    checks = {
+        "task_manager_started": getattr(task_manager, "_started", False),
+        "models_initialized": model_manager.is_initialized(),
+    }
+
+    if settings.redis_enabled:
+        checks["redis_available"] = redis_manager.is_available
+
+    ready = all(checks.values())
+    status_code = 200 if ready else 503
+    return JSONResponse(
+        {
+            "status": "ready" if ready else "not_ready",
+            "checks": checks,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+        status_code=status_code,
+    )
 
 
 def main():

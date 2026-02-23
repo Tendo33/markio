@@ -12,6 +12,12 @@
       <StatCard title="失败" :value="stats.failed" subtitle="需要重试" :icon="XCircle" color="red" />
     </div>
 
+    <div v-if="sla" class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
+      <StatCard title="平均耗时" :value="`${sla.avg_ms} ms`" subtitle="已完成/失败任务" :icon="Clock3" color="blue" />
+      <StatCard title="P95 耗时" :value="`${sla.p95_ms} ms`" subtitle="SLA 观测" :icon="Gauge" color="blue" />
+      <StatCard title="最大耗时" :value="`${sla.max_ms} ms`" subtitle="高水位" :icon="Timer" color="blue" />
+    </div>
+
     <div class="mb-6 lg:mb-8">
       <div class="card">
         <h2 class="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">快捷操作</h2>
@@ -88,12 +94,15 @@ import { computed, onMounted } from 'vue'
 import {
   CheckCircle,
   Clock,
+  Clock3,
   Eye,
   FileQuestion,
+  Gauge,
   ListTodo,
   Loader,
   RefreshCw,
   Settings,
+  Timer,
   Upload,
   XCircle,
 } from 'lucide-vue-next'
@@ -118,6 +127,7 @@ const stats = computed(() => {
 })
 
 const recentTasks = computed(() => taskStore.dashboard?.recent_tasks ?? [])
+const sla = computed(() => taskStore.dashboard?.sla ?? null)
 
 async function refresh() {
   await taskStore.loadDashboard(10)

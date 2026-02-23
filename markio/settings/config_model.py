@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ApplicationConfig(BaseModel):
@@ -195,9 +195,10 @@ class ApplicationConfig(BaseModel):
         alias="TASK_PROCESSING_TIMEOUT_SECONDS",
     )
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        populate_by_name = True
-        extra = "ignore"  # 忽略额外字段，提高兼容性
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        populate_by_name=True,
+        extra="ignore",
+    )
