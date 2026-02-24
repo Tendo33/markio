@@ -177,6 +177,12 @@ class ApplicationConfig(BaseModel):
         alias="TASK_UPLOAD_DIR",
     )
 
+    task_max_upload_size_bytes: int = Field(
+        default=50 * 1024 * 1024,
+        description="Maximum file size (bytes) for async task uploads",
+        alias="TASK_MAX_UPLOAD_SIZE_BYTES",
+    )
+
     task_max_auto_retries: int = Field(
         default=0,
         description="Maximum automatic retries after task failures",

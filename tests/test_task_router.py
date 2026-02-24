@@ -5,6 +5,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from markio import routers
 from markio.routers.task_router import router as task_router
 from markio.schemas.task_schemas import SubmitTaskRequest
 from markio.services import runtime
@@ -218,5 +219,279 @@ async def test_submit_task_rejects_unsupported_extension(monkeypatch, tmp_path: 
         )
         assert response.status_code == 400
         assert "Unsupported file type" in response.text
+
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_submit_task_rejects_invalid_parse_method_for_pdf(
+    monkeypatch,
+    tmp_path: Path,
+):
+    file_path = tmp_path / "invalid-method.pdf"
+    file_path.write_bytes(b"demo")
+
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return "# done"
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+
+    app = FastAPI()
+    app.include_router(task_router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/tasks/submit",
+            files={
+                "file": (
+                    "invalid-method.pdf",
+                    file_path.read_bytes(),
+                    "application/pdf",
+                )
+            },
+            data={"parse_method": "invalid"},
+        )
+        assert response.status_code == 400
+        assert "parse_method" in response.text
+
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_submit_task_rejects_invalid_lang_for_pdf(monkeypatch, tmp_path: Path):
+    file_path = tmp_path / "invalid-lang.pdf"
+    file_path.write_bytes(b"demo")
+
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return "# done"
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+
+    app = FastAPI()
+    app.include_router(task_router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/tasks/submit",
+            files={
+                "file": (
+                    "invalid-lang.pdf",
+                    file_path.read_bytes(),
+                    "application/pdf",
+                )
+            },
+            data={"lang": "invalid-lang"},
+        )
+        assert response.status_code == 400
+        assert "lang" in response.text
+
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_submit_task_rejects_output_dir_outside_default_root(
+    monkeypatch,
+    tmp_path: Path,
+):
+    file_path = tmp_path / "outside-output.pdf"
+    file_path.write_bytes(b"demo")
+
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return "# done"
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+
+    app = FastAPI()
+    app.include_router(task_router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/tasks/submit",
+            files={
+                "file": (
+                    "outside-output.pdf",
+                    file_path.read_bytes(),
+                    "application/pdf",
+                )
+            },
+            data={"output_dir": "/tmp/markio-outside"},
+        )
+        assert response.status_code == 400
+        assert "output_dir" in response.text
+
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_submit_task_rejects_too_large_file(monkeypatch, tmp_path: Path):
+    file_path = tmp_path / "large.pdf"
+    file_path.write_bytes(b"abcdef")
+
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return "# done"
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+    monkeypatch.setattr(
+        routers.task_router.settings,
+        "task_max_upload_size_bytes",
+        4,
+        raising=False,
+    )
+
+    app = FastAPI()
+    app.include_router(task_router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/tasks/submit",
+            files={"file": ("large.pdf", file_path.read_bytes(), "application/pdf")},
+        )
+        assert response.status_code == 413
+        assert "too large" in response.text
+
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_task_routes_reject_invalid_task_id(monkeypatch):
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return "# done"
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+
+    app = FastAPI()
+    app.include_router(task_router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        for endpoint in (
+            "/v1/tasks/invalid-id",
+            "/v1/tasks/invalid-id/cancel",
+            "/v1/tasks/invalid-id/retry",
+        ):
+            response = await client.post(endpoint) if endpoint.endswith(
+                ("/cancel", "/retry")
+            ) else await client.get(endpoint)
+            assert response.status_code == 400
+            assert "task_id" in response.text
+
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_cancel_retry_return_semantic_status(monkeypatch, tmp_path: Path):
+    file_path = tmp_path / "semantic.pdf"
+    file_path.write_bytes(b"demo")
+
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return "# done"
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+
+    app = FastAPI()
+    app.include_router(task_router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        missing_task_id = "f" * 32
+        cancel_missing = await client.post(f"/v1/tasks/{missing_task_id}/cancel")
+        assert cancel_missing.status_code == 404
+
+        retry_missing = await client.post(f"/v1/tasks/{missing_task_id}/retry")
+        assert retry_missing.status_code == 404
+
+        response = await client.post(
+            "/v1/tasks/submit",
+            files={"file": ("semantic.pdf", file_path.read_bytes(), "application/pdf")},
+        )
+        assert response.status_code == 200
+        task_id = response.json()["task_id"]
+
+        for _ in range(40):
+            detail = await client.get(f"/v1/tasks/{task_id}")
+            assert detail.status_code == 200
+            if detail.json()["status"] == "completed":
+                break
+            await asyncio.sleep(0.05)
+
+        cancel_completed = await client.post(f"/v1/tasks/{task_id}/cancel")
+        assert cancel_completed.status_code == 409
+
+        retry_completed = await client.post(f"/v1/tasks/{task_id}/retry")
+        assert retry_completed.status_code == 409
+
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_list_and_dashboard_hide_large_result_field(monkeypatch, tmp_path: Path):
+    file_path = tmp_path / "result.pdf"
+    file_path.write_bytes(b"demo")
+
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return "# done"
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+
+    app = FastAPI()
+    app.include_router(task_router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/tasks/submit",
+            files={"file": ("result.pdf", file_path.read_bytes(), "application/pdf")},
+        )
+        assert response.status_code == 200
+        task_id = response.json()["task_id"]
+
+        for _ in range(40):
+            detail = await client.get(f"/v1/tasks/{task_id}")
+            assert detail.status_code == 200
+            if detail.json()["status"] == "completed":
+                break
+            await asyncio.sleep(0.05)
+
+        task_list = await client.get("/v1/tasks?page=1&page_size=10")
+        assert task_list.status_code == 200
+        list_item = task_list.json()["items"][0]
+        assert "result" not in list_item
+
+        dashboard = await client.get("/v1/tasks/dashboard?recent_limit=10")
+        assert dashboard.status_code == 200
+        recent_item = dashboard.json()["recent_tasks"][0]
+        assert "result" not in recent_item
 
     await manager.stop()

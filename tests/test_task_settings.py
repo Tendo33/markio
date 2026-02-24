@@ -8,6 +8,7 @@ def test_task_settings_defaults():
     assert config.task_history_limit == 500
     assert config.task_state_file == "data/task_state.json"
     assert config.task_upload_dir == "data/task_uploads"
+    assert config.task_max_upload_size_bytes == 50 * 1024 * 1024
     assert config.task_max_auto_retries == 0
     assert config.task_retry_delay_seconds == 0.0
     assert config.task_processing_timeout_seconds == 0.0
