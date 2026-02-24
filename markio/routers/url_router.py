@@ -17,9 +17,9 @@ from time import perf_counter
 from fastapi import APIRouter, HTTPException, Query
 
 from markio.parsers.url_parser import url_parse_main
+from markio.routers._request_guards import resolve_parser_output_dir
 from markio.services.sync_parse_service import build_parse_response
 from markio.settings import settings
-from markio.utils.file_utils import ensure_output_directory
 from markio.utils.logger_config import get_logger
 
 router = APIRouter()
@@ -67,7 +67,11 @@ async def parse_html_url_endpoint(
     Endpoint for parsing HTML content from URLs to Markdown format.
     """
     _validate_url(url)
-    output_dir = ensure_output_directory(output_dir or DEFAULT_OUTPUT_DIR)
+    output_dir = resolve_parser_output_dir(
+        requested_output_dir=output_dir or DEFAULT_OUTPUT_DIR,
+        base_output_dir=DEFAULT_OUTPUT_DIR,
+        save_parsed_content=save_parsed_content,
+    )
     started_at = perf_counter()
 
     try:
@@ -82,6 +86,8 @@ async def parse_html_url_endpoint(
             started_at=started_at,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error during URL parsing: {url} - {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"HTML parsing failed: {str(e)}")

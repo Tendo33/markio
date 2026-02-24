@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
 
+from markio.routers._request_guards import (
+    cleanup_file_safely,
+    enforce_upload_size,
+    resolve_strict_output_dir,
+    validate_upload_file,
+)
 from markio.schemas.parsers_schemas import PDF_PARSE_LANG, PDF_PARSE_TYPE
 from markio.schemas.task_schemas import SubmitTaskRequest, TaskStatus
-from markio.services import parser_registry
 from markio.services.runtime import get_task_manager
 from markio.settings import settings
 from markio.utils.file_utils import create_unique_temp_file, ensure_output_directory
@@ -23,42 +27,12 @@ PDF_PARSE_METHODS = {item.value for item in PDF_PARSE_TYPE}
 PDF_LANGS = {item.value for item in PDF_PARSE_LANG}
 
 
-def _cleanup_temp_upload(file_path: str) -> None:
-    try:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-    except OSError:
-        logger.warning("Failed to clean temporary upload file: %s", file_path)
-
-
 def _validate_task_id(task_id: str) -> None:
     if not TASK_ID_PATTERN.fullmatch(task_id):
         raise HTTPException(
             status_code=400,
             detail="Invalid task_id format: expected 32 lowercase hex chars",
         )
-
-
-def _resolve_task_output_dir(output_dir: str) -> str:
-    base_dir = Path(settings.output_dir).resolve()
-    base_dir.mkdir(parents=True, exist_ok=True)
-
-    requested = Path(output_dir or settings.output_dir).expanduser()
-    if requested.is_absolute():
-        resolved = requested.resolve()
-    else:
-        resolved = (Path.cwd() / requested).resolve()
-
-    try:
-        resolved.relative_to(base_dir)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid output_dir: must be within {base_dir}",
-        ) from exc
-
-    resolved.mkdir(parents=True, exist_ok=True)
-    return str(resolved)
 
 
 def _sanitize_task_list_payload(items: list[dict]) -> list[dict]:
@@ -79,29 +53,7 @@ async def submit_task(
     start_page: int = Form(0, ge=0),
     end_page: int | None = Form(None, ge=0),
 ):
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Filename is required")
-
-    file_extension = Path(file.filename).suffix.lower()
-    if not parser_registry.get_parser_for_extension(file_extension):
-        supported_types = ", ".join(parser_registry.get_supported_extensions())
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type. Supported types are: {supported_types}",
-        )
-
-    if not parser_registry.is_expected_mime_type(file_extension, file.content_type):
-        expected = (
-            ", ".join(parser_registry.get_expected_mime_types(file_extension))
-            or "unknown"
-        )
-        logger.warning(
-            "Task upload MIME mismatch: filename=%s extension=%s content_type=%s expected=%s",
-            file.filename,
-            file_extension,
-            file.content_type,
-            expected,
-        )
+    file_extension = validate_upload_file(file, logger=logger)
 
     if file_extension == ".pdf":
         if parse_method not in PDF_PARSE_METHODS:
@@ -123,13 +75,13 @@ async def submit_task(
             detail="end_page must be greater than or equal to start_page",
         )
 
-    safe_output_dir = _resolve_task_output_dir(output_dir)
+    safe_output_dir = resolve_strict_output_dir(output_dir, settings.output_dir)
     max_upload_size = int(settings.task_max_upload_size_bytes)
 
     temp_dir = ensure_output_directory(settings.task_upload_dir)
     Path(temp_dir).mkdir(parents=True, exist_ok=True)
     temp_file_path, _ = create_unique_temp_file(
-        original_filename=os.path.basename(file.filename),
+        original_filename=file.filename,
         temp_dir=temp_dir,
     )
 
@@ -141,17 +93,13 @@ async def submit_task(
                 if not chunk:
                     break
                 bytes_written += len(chunk)
-                if bytes_written > max_upload_size:
-                    raise HTTPException(
-                        status_code=413,
-                        detail=(
-                            "Uploaded file is too large. "
-                            f"Maximum allowed size is {max_upload_size} bytes."
-                        ),
-                    )
+                enforce_upload_size(
+                    bytes_written=bytes_written,
+                    max_bytes=max_upload_size,
+                )
                 target.write(chunk)
     except Exception:
-        _cleanup_temp_upload(temp_file_path)
+        cleanup_file_safely(temp_file_path, logger=logger)
         raise
 
     request = SubmitTaskRequest(
@@ -170,7 +118,7 @@ async def submit_task(
     try:
         task = await get_task_manager().submit(request)
     except Exception:
-        _cleanup_temp_upload(temp_file_path)
+        cleanup_file_safely(temp_file_path, logger=logger)
         raise
 
     return jsonable_encoder(task)
@@ -229,12 +177,30 @@ async def resume_queue():
 
 
 @router.get("/tasks/{task_id}", tags=["Async Tasks"])
-async def get_task(task_id: str):
+async def get_task(
+    task_id: str,
+    include_result: bool = Query(True),
+    max_result_chars: int | None = Query(None, ge=1),
+):
     _validate_task_id(task_id)
     task = await get_task_manager().get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return jsonable_encoder(task)
+    payload = jsonable_encoder(task)
+
+    result_truncated = False
+    if not include_result:
+        payload.pop("result", None)
+    elif (
+        max_result_chars is not None
+        and isinstance(payload.get("result"), str)
+        and len(payload["result"]) > max_result_chars
+    ):
+        payload["result"] = payload["result"][:max_result_chars]
+        result_truncated = True
+
+    payload["result_truncated"] = result_truncated
+    return payload
 
 
 @router.post("/tasks/{task_id}/cancel", tags=["Async Tasks"])

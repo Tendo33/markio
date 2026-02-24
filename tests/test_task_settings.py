@@ -12,3 +12,6 @@ def test_task_settings_defaults():
     assert config.task_max_auto_retries == 0
     assert config.task_retry_delay_seconds == 0.0
     assert config.task_processing_timeout_seconds == 0.0
+    assert config.rate_limit_enabled is True
+    assert config.rate_limit_requests == 120
+    assert config.rate_limit_window_seconds == 60

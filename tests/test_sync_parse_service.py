@@ -2,8 +2,9 @@ from io import BytesIO
 from pathlib import Path
 
 import pytest
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 
+from markio.services import sync_parse_service
 from markio.services.sync_parse_service import run_uploaded_file_parser
 
 
@@ -75,3 +76,35 @@ async def test_run_uploaded_file_parser_streams_in_chunks():
     assert len(result) == len(fake_file._payload)
     assert 1024 * 1024 in fake_file.calls
     assert len(fake_file.calls) >= 3
+
+
+@pytest.mark.asyncio
+async def test_run_uploaded_file_parser_rejects_oversized_upload(monkeypatch, tmp_path: Path):
+    upload = UploadFile(filename="large.docx", file=BytesIO(b"abcdef"))
+    forced_temp_path = tmp_path / "forced-temp-large.docx"
+
+    monkeypatch.setattr(
+        sync_parse_service.settings,
+        "task_max_upload_size_bytes",
+        4,
+        raising=False,
+    )
+
+    def fake_create_unique_temp_file(original_filename: str, temp_dir: str):
+        return str(forced_temp_path), forced_temp_path.name
+
+    monkeypatch.setattr(
+        sync_parse_service,
+        "create_unique_temp_file",
+        fake_create_unique_temp_file,
+    )
+
+    async def fake_parser(resource_path: str) -> str:
+        return Path(resource_path).read_text(encoding="utf-8")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await run_uploaded_file_parser(file=upload, parser=fake_parser)
+
+    assert exc_info.value.status_code == 413
+    assert "Maximum allowed size" in str(exc_info.value.detail)
+    assert not forced_temp_path.exists()

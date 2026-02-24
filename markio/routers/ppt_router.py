@@ -11,7 +11,6 @@ The main functionality includes:
 - Temporary file management and cleanup
 """
 
-import os
 import traceback
 from time import perf_counter
 
@@ -19,15 +18,16 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.ppt_parser import ppt_parse_main
+from markio.routers._request_guards import (
+    resolve_parser_output_dir,
+    validate_upload_file,
+)
 from markio.schemas.parsers_schemas import PPTParserConfig
 from markio.services.sync_parse_service import (
     build_parse_response,
     run_uploaded_file_parser,
 )
 from markio.settings import settings
-from markio.utils.file_utils import (
-    ensure_output_directory,
-)
 from markio.utils.logger_config import get_logger
 
 router = APIRouter()
@@ -72,8 +72,12 @@ async def parse_ppt_file_endpoint(
     # Validate file type
     _validate_ppt_file(file=file)
 
-    # Ensure output directory exists
-    output_dir = ensure_output_directory(config.output_dir or DEFAULT_OUTPUT_DIR)
+    # Ensure output directory exists and is constrained
+    output_dir = resolve_parser_output_dir(
+        requested_output_dir=config.output_dir or DEFAULT_OUTPUT_DIR,
+        base_output_dir=DEFAULT_OUTPUT_DIR,
+        save_parsed_content=config.save_parsed_content,
+    )
 
     logger.info(
         f"Starting to parse file: {file.filename}, File size: {file.size} bytes"
@@ -100,6 +104,8 @@ async def parse_ppt_file_endpoint(
             started_at=started_at,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             f"Error occurred while parsing {file.filename}: {traceback.format_exc()}"
@@ -125,17 +131,8 @@ def _validate_ppt_file(file: UploadFile) -> None:
             - Invalid content type
             - Invalid file extension
     """
-    file_extension = os.path.splitext(file.filename)[1].lower()
-
-    if (
-        file.content_type
-        not in [
-            "application/vnd.ms-powerpoint",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        ]
-        and file_extension != ".ppt"
-    ):
-        logger.error(f"Invalid file format: {file.filename}")
-        raise HTTPException(
-            status_code=400, detail="Invalid file type, please upload a PPT file"
-        )
+    validate_upload_file(
+        file,
+        logger=logger,
+        allowed_extensions={".ppt"},
+    )

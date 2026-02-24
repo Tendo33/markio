@@ -21,6 +21,10 @@ from fastapi.responses import JSONResponse
 
 import markio.services.parser_registry as parser_registry
 from markio.parsers import pdf_parser
+from markio.routers._request_guards import (
+    resolve_parser_output_dir,
+    validate_upload_file,
+)
 from markio.schemas.parsers_schemas import (
     BaseParserConfig,
 )
@@ -31,7 +35,6 @@ from markio.services.sync_parse_service import (
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
 
@@ -80,30 +83,15 @@ async def parse_file_endpoint(
     )
     started_at = perf_counter()
 
-    # Get file extension
-    file_extension = os.path.splitext(file.filename)[1].lower()
+    # Validate file extension/mime using shared registry-driven guard
+    file_extension = validate_upload_file(file, logger=logger)
 
-    # Check if file type is supported
-    if not parser_registry.get_parser_for_extension(file_extension):
-        supported_types = ", ".join(parser_registry.get_supported_extensions())
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type. Supported types are: {supported_types}",
-        )
-
-    # Validate file type
-    if not parser_registry.is_expected_mime_type(file_extension, file.content_type):
-        expected = ", ".join(parser_registry.get_expected_mime_types(file_extension)) or "unknown"
-        logger.warning(
-            f"File content type ({file.content_type}) doesn't match expected type "
-            f"({expected}) for extension {file_extension}"
-        )
-
-    # Ensure output directory exists
-    if config.save_parsed_content:
-        output_dir = ensure_output_directory(config.output_dir or DEFAULT_OUTPUT_DIR)
-    else:
-        output_dir = DEFAULT_OUTPUT_DIR
+    # Resolve strict output directory within configured base
+    output_dir = resolve_parser_output_dir(
+        requested_output_dir=config.output_dir or DEFAULT_OUTPUT_DIR,
+        base_output_dir=DEFAULT_OUTPUT_DIR,
+        save_parsed_content=config.save_parsed_content,
+    )
     logger.debug(f"Output directory ensured: {output_dir}")
 
     # Update config with the correct output_dir for parser functions
@@ -159,6 +147,8 @@ async def parse_file_endpoint(
             started_at=started_at,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         error_msg = f"Error occurred while parsing {file.filename}: {str(e)}"
         logger.error(error_msg)

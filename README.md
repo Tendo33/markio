@@ -183,9 +183,13 @@ More details:
 | `TASK_HISTORY_LIMIT` | `500` | In-memory task history size |
 | `TASK_STATE_FILE` | `data/task_state.json` | Persisted task state path |
 | `TASK_UPLOAD_DIR` | `data/task_uploads` | Uploaded file temp dir |
+| `TASK_MAX_UPLOAD_SIZE_BYTES` | `52428800` | Max upload size in bytes (`413` when exceeded) |
 | `TASK_MAX_AUTO_RETRIES` | `0` | Max auto retries |
 | `TASK_RETRY_DELAY_SECONDS` | `0` | Retry delay |
 | `TASK_PROCESSING_TIMEOUT_SECONDS` | `0` | Processing timeout before requeue |
+| `RATE_LIMIT_ENABLED` | `true` | Enable lightweight per-IP+route rate limiting |
+| `RATE_LIMIT_REQUESTS` | `120` | Allowed requests per limit window |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | Rate-limit window size in seconds |
 
 See `.env.example` for full config template.
 

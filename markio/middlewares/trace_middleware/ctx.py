@@ -8,8 +8,8 @@ CTX_REQUEST_ID: contextvars.ContextVar[str] = contextvars.ContextVar(
 
 class TraceCtx:
     @staticmethod
-    def set_id():
-        _id = uuid4().hex
+    def set_id(request_id: str | None = None):
+        _id = (request_id or "").strip() or uuid4().hex
         CTX_REQUEST_ID.set(_id)
         return _id
 

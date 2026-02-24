@@ -15,7 +15,6 @@ The main functionality includes:
 - Temporary file management and cleanup
 """
 
-import os
 import traceback
 from time import perf_counter
 
@@ -23,6 +22,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.genbank_parser import genbank_parse_main
+from markio.routers._request_guards import (
+    resolve_parser_output_dir,
+    validate_upload_file,
+)
 from markio.schemas.parsers_schemas import GenBankParserConfig
 from markio.services.sync_parse_service import (
     build_parse_response,
@@ -31,7 +34,6 @@ from markio.services.sync_parse_service import (
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
 
@@ -91,8 +93,12 @@ async def parse_genbank_endpoint(
     # Validate file type
     _validate_genbank_file(file=file)
 
-    # Ensure output directory exists
-    output_dir = ensure_output_directory(config.output_dir or DEFAULT_OUTPUT_DIR)
+    # Ensure output directory exists and is constrained
+    output_dir = resolve_parser_output_dir(
+        requested_output_dir=config.output_dir or DEFAULT_OUTPUT_DIR,
+        base_output_dir=DEFAULT_OUTPUT_DIR,
+        save_parsed_content=config.save_parsed_content,
+    )
     logger.debug(f"Output directory ensured: {output_dir}")
 
     logger.info(
@@ -121,6 +127,8 @@ async def parse_genbank_endpoint(
             started_at=started_at,
         )
 
+    except HTTPException:
+        raise
     except ValueError as e:
         # Handle format validation errors
         error_msg = f"Invalid GenBank format in {file.filename}: {str(e)}"
@@ -151,25 +159,8 @@ def _validate_genbank_file(file: UploadFile) -> None:
         HTTPException (400): If the file is not a valid GenBank file
             - Invalid file extension
     """
-    file_extension = os.path.splitext(file.filename)[1].lower()
-
-    # Common GenBank file extensions
-    valid_extensions = {
-        ".gb",  # Standard GenBank
-        ".gbk",  # GenBank
-        ".genbank",  # Full name
-        ".gbff",  # GenBank flat file
-        ".txt",  # Plain text (common for GenBank)
-    }
-
-    if file_extension not in valid_extensions:
-        error_msg = (
-            f"Invalid file format: {file.filename}. "
-            f"Expected GenBank file with extensions: {', '.join(valid_extensions)}"
-        )
-        logger.error(error_msg)
-        raise HTTPException(
-            status_code=400, detail="Invalid file type, please upload a GenBank file"
-        )
-
-    logger.debug(f"File validation passed for: {file.filename}")
+    validate_upload_file(
+        file,
+        logger=logger,
+        allowed_extensions={".gb", ".gbk", ".genbank", ".gbff", ".txt"},
+    )

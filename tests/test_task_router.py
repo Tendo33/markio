@@ -495,3 +495,61 @@ async def test_list_and_dashboard_hide_large_result_field(monkeypatch, tmp_path:
         assert "result" not in recent_item
 
     await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_task_detail_supports_result_projection_and_truncation(
+    monkeypatch,
+    tmp_path: Path,
+):
+    file_path = tmp_path / "detail.pdf"
+    file_path.write_bytes(b"demo")
+    full_result = "x" * 32
+
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return full_result
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+
+    app = FastAPI()
+    app.include_router(task_router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/tasks/submit",
+            files={"file": ("detail.pdf", file_path.read_bytes(), "application/pdf")},
+        )
+        assert response.status_code == 200
+        task_id = response.json()["task_id"]
+
+        for _ in range(40):
+            detail = await client.get(f"/v1/tasks/{task_id}")
+            assert detail.status_code == 200
+            if detail.json()["status"] == "completed":
+                break
+            await asyncio.sleep(0.05)
+
+        hidden_result = await client.get(
+            f"/v1/tasks/{task_id}",
+            params={"include_result": "false"},
+        )
+        assert hidden_result.status_code == 200
+        hidden_payload = hidden_result.json()
+        assert "result" not in hidden_payload
+        assert hidden_payload["result_truncated"] is False
+
+        truncated = await client.get(
+            f"/v1/tasks/{task_id}",
+            params={"max_result_chars": 5},
+        )
+        assert truncated.status_code == 200
+        truncated_payload = truncated.json()
+        assert truncated_payload["result"] == full_result[:5]
+        assert truncated_payload["result_truncated"] is True
+
+    await manager.stop()

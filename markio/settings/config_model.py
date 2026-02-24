@@ -201,6 +201,24 @@ class ApplicationConfig(BaseModel):
         alias="TASK_PROCESSING_TIMEOUT_SECONDS",
     )
 
+    rate_limit_enabled: bool = Field(
+        default=True,
+        description="Enable lightweight per-IP, per-route rate limiting",
+        alias="RATE_LIMIT_ENABLED",
+    )
+
+    rate_limit_requests: int = Field(
+        default=120,
+        description="Allowed requests in each rate-limit window",
+        alias="RATE_LIMIT_REQUESTS",
+    )
+
+    rate_limit_window_seconds: int = Field(
+        default=60,
+        description="Rate-limit window size in seconds",
+        alias="RATE_LIMIT_WINDOW_SECONDS",
+    )
+
     model_config = ConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

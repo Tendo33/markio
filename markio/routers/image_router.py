@@ -12,7 +12,6 @@ The main functionality includes:
 - Temporary file management and cleanup
 """
 
-import os
 import traceback
 from time import perf_counter
 
@@ -20,6 +19,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.image_parser import image_parse_main
+from markio.routers._request_guards import (
+    resolve_parser_output_dir,
+    validate_upload_file,
+)
 from markio.schemas.parsers_schemas import ImageParserConfig
 from markio.services.sync_parse_service import (
     build_parse_response,
@@ -28,7 +31,6 @@ from markio.services.sync_parse_service import (
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
 
@@ -78,8 +80,12 @@ async def parse_image_file_endpoint(
     )
     started_at = perf_counter()
 
-    # Ensure the output directory exists
-    output_dir = ensure_output_directory(config.output_dir or DEFAULT_OUTPUT_DIR)
+    # Ensure the output directory exists and is constrained
+    output_dir = resolve_parser_output_dir(
+        requested_output_dir=config.output_dir or DEFAULT_OUTPUT_DIR,
+        base_output_dir=DEFAULT_OUTPUT_DIR,
+        save_parsed_content=config.save_parsed_content,
+    )
 
     try:
         parse_backend = settings.pdf_parse_engine
@@ -106,6 +112,8 @@ async def parse_image_file_endpoint(
             started_at=started_at,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         # Log detailed error with traceback
         logger.error(
@@ -131,17 +139,8 @@ def _validate_img_file(file: UploadFile) -> None:
             - Invalid file extension
             - Unsupported image format
     """
-    file_extension = os.path.splitext(file.filename)[1].lower()
-    valid_extensions = [
-        ".png",
-        ".jpg",
-        ".jpeg",
-    ]
-
-    if file_extension not in valid_extensions:
-        supported_formats = ", ".join(valid_extensions)
-        logger.error(f"Invalid file format: {file.filename}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Only image files are allowed. Supported formats: {supported_formats}",
-        )
+    validate_upload_file(
+        file,
+        logger=logger,
+        allowed_extensions={".png", ".jpg", ".jpeg"},
+    )

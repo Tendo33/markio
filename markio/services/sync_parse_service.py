@@ -10,7 +10,9 @@ from fastapi import UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.middlewares.trace_middleware.ctx import TraceCtx
+from markio.routers._request_guards import enforce_upload_size
 from markio.schemas.api_schemas import ParseResponse
+from markio.settings import settings
 from markio.utils.file_utils import create_unique_temp_file
 
 _UPLOAD_CHUNK_SIZE = 1024 * 1024
@@ -30,12 +32,19 @@ async def run_uploaded_file_parser(
         temp_dir = os.path.dirname(NamedTemporaryFile().name)
         original_filename = os.path.basename(file.filename)
         temp_file_path, _ = create_unique_temp_file(original_filename, temp_dir)
+        max_upload_size = int(settings.task_max_upload_size_bytes)
+        bytes_written = 0
 
         with open(temp_file_path, "wb") as temp_file:
             while True:
                 chunk = await file.read(_UPLOAD_CHUNK_SIZE)
                 if not chunk:
                     break
+                bytes_written += len(chunk)
+                enforce_upload_size(
+                    bytes_written=bytes_written,
+                    max_bytes=max_upload_size,
+                )
                 temp_file.write(chunk)
 
         return await parser(temp_file_path, *parser_args, **parser_kwargs)

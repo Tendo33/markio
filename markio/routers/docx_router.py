@@ -11,7 +11,6 @@ The main functionality includes:
 - Temporary file management and cleanup
 """
 
-import os
 import traceback
 from time import perf_counter
 
@@ -19,6 +18,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.docx_parser import docx_parse_main
+from markio.routers._request_guards import (
+    resolve_parser_output_dir,
+    validate_upload_file,
+)
 from markio.schemas.parsers_schemas import DOCXParserConfig
 from markio.services.sync_parse_service import (
     build_parse_response,
@@ -27,7 +30,6 @@ from markio.services.sync_parse_service import (
 from markio.settings import settings
 from markio.utils.file_utils import (
     calculate_file_size,
-    ensure_output_directory,
 )
 from markio.utils.logger_config import get_logger
 
@@ -74,8 +76,12 @@ async def parse_docx_endpoint(
     # Validate file type
     _validate_docx_file(file=file)
 
-    # Ensure output directory exists
-    output_dir = ensure_output_directory(config.output_dir or DEFAULT_OUTPUT_DIR)
+    # Ensure output directory is strict and controlled
+    output_dir = resolve_parser_output_dir(
+        requested_output_dir=config.output_dir or DEFAULT_OUTPUT_DIR,
+        base_output_dir=DEFAULT_OUTPUT_DIR,
+        save_parsed_content=config.save_parsed_content,
+    )
     logger.debug(f"Output directory ensured: {output_dir}")
 
     logger.info(
@@ -102,6 +108,8 @@ async def parse_docx_endpoint(
             started_at=started_at,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         error_msg = f"Error occurred while parsing {file.filename}: {str(e)}"
         logger.error(error_msg)
@@ -125,15 +133,8 @@ def _validate_docx_file(file: UploadFile) -> None:
             - Invalid content type
             - Invalid file extension
     """
-    file_extension = os.path.splitext(file.filename)[1].lower()
-
-    if (
-        file.content_type
-        != "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        and file_extension != ".docx"
-    ):
-        error_msg = f"Invalid file format: {file.filename}"
-        logger.error(error_msg)
-        raise HTTPException(
-            status_code=400, detail="Invalid file type, please upload a DOCX file"
-        )
+    validate_upload_file(
+        file,
+        logger=logger,
+        allowed_extensions={".docx"},
+    )

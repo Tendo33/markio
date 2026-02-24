@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from markio.middlewares.cors_middleware import add_cors_middleware
 from markio.middlewares.gzip_middleware import add_gzip_middleware
+from markio.middlewares.rate_limit_middleware import add_rate_limit_middleware
 from markio.middlewares.trace_middleware import add_trace_middleware
 from markio.utils.logger_config import get_logger
 
@@ -20,5 +21,8 @@ def handle_middleware(app: FastAPI):
 
     add_trace_middleware(app)
     logger.debug("Trace middleware added")
+
+    add_rate_limit_middleware(app)
+    logger.debug("Rate-limit middleware added")
 
     logger.info("All middleware initialized successfully")

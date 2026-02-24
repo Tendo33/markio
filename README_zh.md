@@ -183,9 +183,13 @@ npm run build
 | `TASK_HISTORY_LIMIT` | `500` | 内存任务历史上限 |
 | `TASK_STATE_FILE` | `data/task_state.json` | 任务状态持久化路径 |
 | `TASK_UPLOAD_DIR` | `data/task_uploads` | 上传临时目录 |
+| `TASK_MAX_UPLOAD_SIZE_BYTES` | `52428800` | 上传大小上限（超限返回 `413`） |
 | `TASK_MAX_AUTO_RETRIES` | `0` | 自动重试次数上限 |
 | `TASK_RETRY_DELAY_SECONDS` | `0` | 自动重试延迟（秒） |
 | `TASK_PROCESSING_TIMEOUT_SECONDS` | `0` | 处理超时回收阈值（秒） |
+| `RATE_LIMIT_ENABLED` | `true` | 启用按 IP+路由的轻量限流 |
+| `RATE_LIMIT_REQUESTS` | `120` | 限流窗口内允许请求数 |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | 限流窗口时长（秒） |
 
 完整配置请参考 `.env.example`。
 

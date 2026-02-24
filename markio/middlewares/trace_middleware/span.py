@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 
+from starlette.datastructures import MutableHeaders
 from starlette.types import Message, Scope
 
 from .ctx import TraceCtx
@@ -18,7 +19,13 @@ class Span:
         """
         request_before: Handle header information, such as recording request body information
         """
-        TraceCtx.set_id()
+        incoming_request_id = ""
+        for key, value in self.scope.get("headers", []):
+            if key in {b"x-request-id", b"request-id"}:
+                incoming_request_id = value.decode("utf-8", errors="ignore").strip()
+                if incoming_request_id:
+                    break
+        TraceCtx.set_id(incoming_request_id)
 
     async def request_after(self, message: Message):
         """
@@ -35,7 +42,12 @@ class Span:
             pass
         """
         if message["type"] == "http.response.start":
-            message["headers"].append((b"request-id", TraceCtx.get_id().encode()))
+            headers = MutableHeaders(raw=message["headers"])
+            request_id = TraceCtx.get_id().encode()
+            if "x-request-id" not in headers:
+                headers.append("X-Request-ID", request_id.decode())
+            if "request-id" not in headers:
+                headers.append("request-id", request_id.decode())
         return message
 
 

@@ -2,11 +2,14 @@ from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from markio.main import app
 from markio.middlewares.error_handlers import add_error_handlers
+from markio.middlewares.rate_limit_middleware import add_rate_limit_middleware
+from markio.middlewares.trace_middleware import add_trace_middleware
 from markio.routers import html_router, url_router
 
 
@@ -76,3 +79,61 @@ async def test_html_router_accepts_htm_extension(monkeypatch, tmp_path: Path):
 
     assert response.status_code == 200
     assert response.json()["parsed_content"] == "# demo"
+
+
+def test_trace_middleware_emits_x_request_id_header():
+    test_app = FastAPI()
+    add_trace_middleware(test_app)
+
+    @test_app.get("/ping")
+    async def ping():
+        return JSONResponse({"ok": True})
+
+    client = TestClient(test_app)
+    response = client.get("/ping")
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"]
+    assert response.headers["request-id"]
+
+
+def test_trace_middleware_preserves_incoming_request_id():
+    test_app = FastAPI()
+    add_trace_middleware(test_app)
+
+    @test_app.get("/ping")
+    async def ping():
+        return JSONResponse({"ok": True})
+
+    client = TestClient(test_app)
+    incoming = "external-request-id-123"
+    response = client.get("/ping", headers={"X-Request-ID": incoming})
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == incoming
+    assert response.headers["request-id"] == incoming
+
+
+def test_rate_limit_middleware_returns_429_when_exceeded():
+    test_app = FastAPI()
+    add_trace_middleware(test_app)
+    add_rate_limit_middleware(
+        test_app,
+        enabled=True,
+        max_requests=2,
+        window_seconds=60,
+    )
+    add_error_handlers(test_app)
+
+    @test_app.get("/limited")
+    async def limited():
+        return {"ok": True}
+
+    client = TestClient(test_app)
+    assert client.get("/limited").status_code == 200
+    assert client.get("/limited").status_code == 200
+
+    limited = client.get("/limited")
+    assert limited.status_code == 429
+    payload = limited.json()
+    assert payload["error"]["code"] == "http_429"
+    assert payload["request_id"]
+    assert limited.headers["X-Request-ID"] == payload["request_id"]
