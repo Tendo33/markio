@@ -7,23 +7,33 @@
 
         <!-- 对话框 -->
         <div class="flex min-h-screen items-center justify-center p-4">
-          <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all">
+          <div
+            ref="dialogRef"
+            class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all"
+            role="dialog"
+            aria-modal="true"
+            :aria-labelledby="titleId"
+            :aria-describedby="messageId"
+            tabindex="-1"
+          >
             <!-- 标题 -->
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ resolvedTitle }}</h3>
+            <h3 :id="titleId" class="text-lg font-semibold text-gray-900 mb-4">{{ resolvedTitle }}</h3>
 
             <!-- 内容 -->
-            <p class="text-sm text-gray-600 mb-6">{{ resolvedMessage }}</p>
+            <p :id="messageId" class="text-sm text-gray-600 mb-6">{{ resolvedMessage }}</p>
 
             <!-- 按钮 -->
             <div class="flex justify-end gap-3">
               <button
                 @click="onCancel"
+                type="button"
                 class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 {{ cancelText }}
               </button>
               <button
                 @click="onConfirm"
+                type="button"
                 :class="confirmButtonClass"
                 class="px-4 py-2 text-sm font-medium text-white rounded-lg"
               >
@@ -38,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
   modelValue: boolean
@@ -60,6 +70,9 @@ const emit = defineEmits<{
   'confirm': []
   'cancel': []
 }>()
+const dialogRef = ref<HTMLDivElement | null>(null)
+const titleId = 'confirm-dialog-title'
+const messageId = 'confirm-dialog-message'
 
 const confirmButtonClass = computed(() => {
   const classMap = {
@@ -82,6 +95,30 @@ function onCancel() {
   emit('cancel')
   emit('update:modelValue', false)
 }
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && props.modelValue) {
+    event.preventDefault()
+    onCancel()
+  }
+}
+
+watch(
+  () => props.modelValue,
+  async (visible) => {
+    if (visible) {
+      document.addEventListener('keydown', onKeydown)
+      await nextTick()
+      dialogRef.value?.focus()
+      return
+    }
+    document.removeEventListener('keydown', onKeydown)
+  },
+)
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKeydown)
+})
 </script>
 
 <style scoped>

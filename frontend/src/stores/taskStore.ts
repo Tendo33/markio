@@ -21,6 +21,7 @@ export const useTaskStore = defineStore('task', () => {
   const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
   async function loadDashboard(recentLimit: number = 8) {
+    error.value = ''
     try {
       dashboard.value = await taskApi.getDashboard(recentLimit)
       return dashboard.value

@@ -45,11 +45,12 @@
 
             <button
               @click="refreshAll"
-              :disabled="refreshing"
+              :disabled="refreshing || autoRefreshing"
+              aria-label="刷新仪表盘和队列状态"
               class="p-2 text-[#6e6e80] hover:text-primary-600 hover:bg-[#f4f4f5] rounded-lg transition-all duration-200"
               title="刷新"
             >
-              <RefreshCw :class="{ 'animate-spin': refreshing }" class="w-5 h-5" />
+              <RefreshCw :class="{ 'animate-spin': refreshing || autoRefreshing }" class="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -74,6 +75,7 @@ const taskStore = useTaskStore()
 const queueStore = useQueueStore()
 
 const refreshing = ref(false)
+const autoRefreshing = ref(false)
 let timerId: number | null = null
 
 const navItems = [
@@ -104,12 +106,38 @@ function isActive(path: string) {
   return route.path.startsWith(path)
 }
 
-async function refreshAll() {
-  refreshing.value = true
+function shouldAutoRefresh() {
+  return document.visibilityState === 'visible' && route.name !== 'task-detail'
+}
+
+async function refreshAll(options: { silent?: boolean } = {}) {
+  const isSilent = options.silent ?? false
+  if ((refreshing.value || autoRefreshing.value) || (isSilent && !shouldAutoRefresh())) {
+    return
+  }
+  if (isSilent) {
+    autoRefreshing.value = true
+  } else {
+    refreshing.value = true
+  }
   try {
     await Promise.all([taskStore.loadDashboard(8), queueStore.fetchHealth()])
+  } catch {
+    // Errors are stored in Pinia stores and surfaced by pages.
   } finally {
-    refreshing.value = false
+    if (isSilent) {
+      autoRefreshing.value = false
+    } else {
+      refreshing.value = false
+    }
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    refreshAll({ silent: true }).catch(() => {
+      // ignore visibility refresh error
+    })
   }
 }
 
@@ -119,14 +147,16 @@ onMounted(async () => {
   } catch {
     // ignore initial refresh error
   }
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   timerId = window.setInterval(() => {
-    refreshAll().catch(() => {
+    refreshAll({ silent: true }).catch(() => {
       // ignore auto refresh error
     })
   }, 10000)
 })
 
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   if (timerId) {
     clearInterval(timerId)
     timerId = null

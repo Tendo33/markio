@@ -137,6 +137,7 @@ const route = useRoute()
 const taskStore = useTaskStore()
 
 let timerId: number | null = null
+let refreshing = false
 
 const taskId = computed(() => String(route.params.id))
 const task = computed(() => taskStore.currentTask)
@@ -148,11 +149,29 @@ const confirmState = ref({
   action: null as null | (() => Promise<void>),
 })
 
-async function refresh() {
+function shouldPollCurrentTask() {
+  if (document.visibilityState !== 'visible') {
+    return false
+  }
+  if (!task.value) {
+    return false
+  }
+  return task.value.status === 'pending' || task.value.status === 'processing'
+}
+
+async function refresh(options: { silent?: boolean } = {}) {
+  if (refreshing) {
+    return
+  }
+  refreshing = true
   try {
     await taskStore.loadTask(taskId.value)
   } catch (error: any) {
-    toast.error(error?.message || '加载任务详情失败')
+    if (!options.silent) {
+      toast.error(error?.message || '加载任务详情失败')
+    }
+  } finally {
+    refreshing = false
   }
 }
 
@@ -199,10 +218,8 @@ async function executeConfirmedAction() {
 onMounted(async () => {
   await refresh()
   timerId = window.setInterval(async () => {
-    if (!task.value) return
-    if (task.value.status === 'pending' || task.value.status === 'processing') {
-      await refresh()
-    }
+    if (!shouldPollCurrentTask()) return
+    await refresh({ silent: true })
   }, 5000)
 })
 

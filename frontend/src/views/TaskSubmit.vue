@@ -81,6 +81,7 @@
           </div>
         </div>
         <p v-if="pageRangeError" class="mt-3 text-sm text-red-600">{{ pageRangeError }}</p>
+        <p v-if="fileTypeError" class="mt-2 text-sm text-red-600">{{ fileTypeError }}</p>
 
         <div class="mt-4 space-y-2">
           <label class="flex items-center">
@@ -127,6 +128,20 @@ const fileUploader = ref<InstanceType<typeof FileUploader> | null>(null)
 
 const files = ref<File[]>([])
 const resultText = ref('等待提交...')
+const SUPPORTED_EXTENSIONS = new Set([
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.ppt',
+  '.pptx',
+  '.xlsx',
+  '.html',
+  '.htm',
+  '.epub',
+  '.png',
+  '.jpg',
+  '.jpeg',
+])
 
 const form = reactive({
   parse_method: 'auto' as 'auto' | 'txt' | 'ocr',
@@ -148,8 +163,27 @@ const pageRangeError = computed(() => {
     : ''
 })
 
+function getFileExtension(filename: string): string {
+  const index = filename.lastIndexOf('.')
+  if (index < 0) {
+    return ''
+  }
+  return filename.slice(index).toLowerCase()
+}
+
+const fileTypeError = computed(() => {
+  if (files.value.length === 0) {
+    return ''
+  }
+  const ext = getFileExtension(files.value[0].name)
+  if (SUPPORTED_EXTENSIONS.has(ext)) {
+    return ''
+  }
+  return `不支持的文件类型：${ext || '无扩展名'}`
+})
+
 const canSubmit = computed(() => {
-  return files.value.length > 0 && !pageRangeError.value
+  return files.value.length > 0 && !pageRangeError.value && !fileTypeError.value
 })
 
 function onFilesChange(nextFiles: File[]) {
@@ -167,11 +201,17 @@ async function submit() {
     toast.warning(pageRangeError.value)
     return
   }
+  if (fileTypeError.value) {
+    resultText.value = fileTypeError.value
+    toast.warning(fileTypeError.value)
+    return
+  }
 
   const file = files.value[0]
 
+  let result
   try {
-    const result = await taskStore.submit({
+    result = await taskStore.submit({
       file,
       parse_method: form.parse_method,
       lang: form.lang,
@@ -182,15 +222,22 @@ async function submit() {
       start_page: form.start_page,
       end_page: form.end_page === '' ? null : form.end_page,
     })
-    resultText.value = JSON.stringify(result, null, 2)
-    toast.success('任务提交成功')
-    fileUploader.value?.clearFiles()
-    files.value = []
-    await taskStore.loadDashboard(8)
   } catch (error: any) {
     const message = error?.message || '提交失败'
     resultText.value = message
     toast.error(message)
+    return
+  }
+
+  resultText.value = JSON.stringify(result, null, 2)
+  toast.success('任务提交成功')
+  fileUploader.value?.clearFiles()
+  files.value = []
+
+  try {
+    await taskStore.loadDashboard(8)
+  } catch {
+    toast.warning('任务已提交成功，但仪表盘刷新失败，可稍后手动刷新')
   }
 }
 </script>

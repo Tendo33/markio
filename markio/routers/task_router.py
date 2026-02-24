@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -7,11 +8,13 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
 
 from markio.schemas.task_schemas import SubmitTaskRequest, TaskStatus
+from markio.services import parser_registry
 from markio.services.runtime import get_task_manager
 from markio.settings import settings
 from markio.utils.file_utils import create_unique_temp_file, ensure_output_directory
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/tasks/submit", tags=["Async Tasks"])
@@ -28,6 +31,28 @@ async def submit_task(
 ):
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
+
+    file_extension = Path(file.filename).suffix.lower()
+    if not parser_registry.get_parser_for_extension(file_extension):
+        supported_types = ", ".join(parser_registry.get_supported_extensions())
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type. Supported types are: {supported_types}",
+        )
+
+    if not parser_registry.is_expected_mime_type(file_extension, file.content_type):
+        expected = (
+            ", ".join(parser_registry.get_expected_mime_types(file_extension))
+            or "unknown"
+        )
+        logger.warning(
+            "Task upload MIME mismatch: filename=%s extension=%s content_type=%s expected=%s",
+            file.filename,
+            file_extension,
+            file.content_type,
+            expected,
+        )
+
     if end_page is not None and end_page < start_page:
         raise HTTPException(
             status_code=400,

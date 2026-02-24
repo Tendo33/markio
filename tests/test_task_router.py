@@ -191,3 +191,32 @@ async def test_submit_task_rejects_invalid_page_range(monkeypatch, tmp_path: Pat
         assert "end_page" in response.text
 
     await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_submit_task_rejects_unsupported_extension(monkeypatch, tmp_path: Path):
+    file_path = tmp_path / "invalid.txt"
+    file_path.write_text("demo", encoding="utf-8")
+
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return "# done"
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+
+    app = FastAPI()
+    app.include_router(task_router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/tasks/submit",
+            files={"file": ("invalid.txt", file_path.read_bytes(), "text/plain")},
+        )
+        assert response.status_code == 400
+        assert "Unsupported file type" in response.text
+
+    await manager.stop()

@@ -42,6 +42,10 @@
       </div>
     </div>
 
+    <div v-if="taskStore.error" class="card mb-6 border-red-200 bg-red-50 text-sm text-red-700">
+      {{ taskStore.error }}
+    </div>
+
     <div class="card">
       <div v-if="taskStore.loading && taskStore.tasks.length === 0" class="text-center py-12">
         <LoadingSpinner text="加载中" />
@@ -75,22 +79,31 @@
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatRelativeTime(task.created_at) }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <div class="flex items-center gap-2">
-                  <router-link :to="`/tasks/${task.task_id}`" class="text-primary-600 hover:text-primary-700" title="详情">
+                  <router-link
+                    :to="`/tasks/${task.task_id}`"
+                    class="text-primary-600 hover:text-primary-700"
+                    title="详情"
+                    :aria-label="`查看任务 ${task.task_id} 详情`"
+                  >
                     <Eye class="w-4 h-4" />
                   </router-link>
                   <button
                     v-if="task.status === 'pending'"
                     @click="cancelTask(task.task_id)"
+                    type="button"
                     class="text-red-600 hover:text-red-700"
                     title="取消"
+                    :aria-label="`取消任务 ${task.task_id}`"
                   >
                     <X class="w-4 h-4" />
                   </button>
                   <button
                     v-if="task.status === 'failed' || task.status === 'canceled'"
                     @click="retryTask(task.task_id)"
+                    type="button"
                     class="text-amber-600 hover:text-amber-700"
                     title="重试"
+                    :aria-label="`重试任务 ${task.task_id}`"
                   >
                     <RotateCcw class="w-4 h-4" />
                   </button>
@@ -107,6 +120,8 @@
           <button
             @click="prevPage"
             :disabled="taskStore.page <= 1"
+            type="button"
+            aria-label="上一页"
             class="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronLeft class="w-5 h-5" />
@@ -115,6 +130,8 @@
           <button
             @click="nextPage"
             :disabled="taskStore.page >= taskStore.maxPage"
+            type="button"
+            aria-label="下一页"
             class="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronRight class="w-5 h-5" />
@@ -167,21 +184,24 @@ const confirmState = ref({
 })
 
 async function applyFilters() {
-  await taskStore.setFilters(status.value as TaskStatus | '', pageSize.value)
+  await runWithErrorToast(
+    () => taskStore.setFilters(status.value as TaskStatus | '', pageSize.value),
+    '应用过滤失败',
+  )
 }
 
 async function refresh() {
-  await taskStore.loadTasks(taskStore.page)
+  await runWithErrorToast(() => taskStore.loadTasks(taskStore.page), '刷新任务列表失败')
 }
 
 async function prevPage() {
   if (taskStore.page <= 1) return
-  await taskStore.loadTasks(taskStore.page - 1)
+  await runWithErrorToast(() => taskStore.loadTasks(taskStore.page - 1), '翻页失败')
 }
 
 async function nextPage() {
   if (taskStore.page >= taskStore.maxPage) return
-  await taskStore.loadTasks(taskStore.page + 1)
+  await runWithErrorToast(() => taskStore.loadTasks(taskStore.page + 1), '翻页失败')
 }
 
 async function cancelTask(taskId: string) {
@@ -222,7 +242,18 @@ async function executeConfirmedAction() {
   }
 }
 
+async function runWithErrorToast(
+  action: () => Promise<unknown>,
+  fallbackMessage: string,
+) {
+  try {
+    await action()
+  } catch (error: any) {
+    toast.error(error?.message || fallbackMessage)
+  }
+}
+
 onMounted(async () => {
-  await taskStore.loadTasks(1)
+  await runWithErrorToast(() => taskStore.loadTasks(1), '加载任务列表失败')
 })
 </script>

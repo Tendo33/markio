@@ -12,6 +12,10 @@
       <StatCard title="失败" :value="stats.failed" subtitle="需要重试" :icon="XCircle" color="red" />
     </div>
 
+    <div v-if="taskStore.error" class="card mb-6 border-red-200 bg-red-50 text-sm text-red-700">
+      {{ taskStore.error }}
+    </div>
+
     <div v-if="sla" class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
       <StatCard title="平均耗时" :value="`${sla.avg_ms} ms`" subtitle="已完成/失败任务" :icon="Clock3" color="blue" />
       <StatCard title="P95 耗时" :value="`${sla.p95_ms} ms`" subtitle="SLA 观测" :icon="Gauge" color="blue" />
@@ -112,6 +116,7 @@ import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { useTaskStore } from '@/stores'
 import { formatRelativeTime } from '@/utils/format'
+import { toast } from '@/utils/toast'
 
 const taskStore = useTaskStore()
 
@@ -130,7 +135,11 @@ const recentTasks = computed(() => taskStore.dashboard?.recent_tasks ?? [])
 const sla = computed(() => taskStore.dashboard?.sla ?? null)
 
 async function refresh() {
-  await taskStore.loadDashboard(10)
+  try {
+    await taskStore.loadDashboard(10)
+  } catch (error: any) {
+    toast.error(error?.message || '加载仪表盘失败')
+  }
 }
 
 onMounted(async () => {
