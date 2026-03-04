@@ -2,7 +2,7 @@
 
 一行命令，解析各种文档。
 
-[返回主README](../README_zh.md) | [English CLI Guide](cli_usage.md)
+[返回主README](../README.zh.md) | [English CLI Guide](cli_usage.md)
 
 ---
 
@@ -213,7 +213,7 @@ env | grep MINERU
 - [项目Wiki与FAQ](https://github.com/Tendo33/markio/wiki)
 - [GitHub Issues](https://github.com/Tendo33/markio/issues)
 - [GitHub Discussions](https://github.com/Tendo33/markio/discussions)
-- [主README](../README_zh.md) 获取完整文档
+- [主README](../README.zh.md) 获取完整文档
 - [英文CLI指南](cli_usage.md) 获取英文文档
 - [SDK使用指南](sdk_usage_zh.md) 获取Python SDK文档
 - [英文SDK指南](sdk_usage.md) 获取英文SDK文档

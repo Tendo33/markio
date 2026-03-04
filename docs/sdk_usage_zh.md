@@ -2,7 +2,7 @@
 
 支持异步文档解析和转换的 Python SDK。
 
-[返回主README](../README_zh.md) | [English SDK Guide](sdk_usage.md)
+[返回主README](../README.zh.md) | [English SDK Guide](sdk_usage.md)
 
 ---
 
@@ -610,7 +610,7 @@ batch_size = 2  # 从默认值减少
 - [项目Wiki与FAQ](https://github.com/Tendo33/markio/wiki)
 - [GitHub Issues](https://github.com/Tendo33/markio/issues)
 - [GitHub Discussions](https://github.com/Tendo33/markio/discussions)
-- [主README](../README_zh.md) 获取完整文档
+- [主README](../README.zh.md) 获取完整文档
 - [英文SDK指南](sdk_usage.md) 获取英文文档
 
 **更多信息请访问 [Markio 项目文档](https://github.com/Tendo33/markio)**

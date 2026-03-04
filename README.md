@@ -1,42 +1,81 @@
-<img src="assets/image.png" alt="Markio Logo" height="300" style="display:block;margin:auto;">
-
-> **Markio**: enterprise-lite document parsing platform powered by **docling + MinerU**.
-
 <div align="center">
-
-### 🌍 Language / 语言
-
-**English** | [中文](README_zh.md)
-
+  <img src="assets/image.png" alt="Markio Logo" height="240">
+  <h1>Markio</h1>
+  <p><strong>Unified document parsing platform built with FastAPI + Docling + MinerU</strong></p>
+  <p>
+    <a href="https://www.python.org/"><img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-blue"></a>
+    <a href="https://fastapi.tiangolo.com/"><img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-API-009688"></a>
+    <a href="https://vuejs.org/"><img alt="Vue 3" src="https://img.shields.io/badge/Vue-3-42b883"></a>
+    <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"></a>
+  </p>
+  <p><strong>English</strong> | <a href="README.zh.md">中文</a></p>
 </div>
 
 ---
 
-## What Markio Is
+## Overview
 
-Markio provides a unified FastAPI service for converting multiple document formats to Markdown and structured text.
+Markio is an API-first service that converts documents and web content into Markdown/structured text, with:
 
-This refactor focuses on:
+- Sync parsing endpoints (`/v1/parse_*`, `/v1/parse_file`, `/v1/parse_url`)
+- Async task queue with retry/cancel/pause/resume (`/v1/tasks/*`)
+- Optional Redis-backed queue/state/cache
+- Vue 3 console at `/console`
+- Local SDK + CLI for direct integration
 
-- latest MinerU-compatible parsing flow
-- async task queue with retry/cancel/pause/resume
-- Redis cache for task result reuse
-- OpenAI-style web console at `/console`
+This repository is currently in **alpha** (`0.1.0`) and focuses on practical parsing workflows over heavy platform features.
 
-## Current Scope (after refactor)
+## Highlights
 
-- Keep: docling + MinerU document processing
-- Keep: synchronous parse endpoints (`/v1/parse_*`)
-- Add: async task endpoints (`/v1/tasks/*`)
-- Add: queue management and dashboard APIs
-- Add: Vue console frontend served by FastAPI static files
-- Exclude: GPU load balancing, heavy auth/user center, extra Tianshu-only modality stack
+- **Unified parse contract** with `parsed_content`, `parser`, `source_type`, `request_id`, and `duration_ms`
+- **Broad format coverage**: Office files, PDF, HTML, EPUB, image OCR, URL, FASTA, GenBank
+- **Queue observability**: task stats, queue health, dashboard, per-task processing latency
+- **Operational safety**: upload size limits, strict output directory guard, consistent JSON error model, request ID tracing, rate limiting
+- **Flexible deployment**: local Python, Docker Compose, optional Redis backend
+- **Developer ergonomics**: typed FastAPI routes, SDK/CLI, and comprehensive pytest suite
 
----
+## Architecture (Simplified)
+
+```mermaid
+flowchart LR
+    A["Clients (API / CLI / SDK / Console)"] --> B["FastAPI App"]
+    B --> C["Sync Parse Routers"]
+    B --> D["Async Task Router"]
+    C --> E["Parser Registry + Guards"]
+    E --> F["Docling / MinerU Parsers"]
+    D --> G["Task Manager (Memory or Redis)"]
+    G --> F
+    G --> H["Redis Cache / Task Store (optional)"]
+    B --> I["Middlewares (trace, rate-limit, gzip, cors)"]
+```
+
+## Supported Inputs
+
+| Type | Extensions / Source | Dedicated Endpoint | Supported by `/v1/parse_file` |
+|---|---|---|---|
+| PDF | `.pdf` | `/v1/parse_pdf_file` | ✅ |
+| Word | `.doc`, `.docx` | `/v1/parse_doc_file`, `/v1/parse_docx_file` | ✅ |
+| PowerPoint | `.ppt`, `.pptx` | `/v1/parse_ppt_file`, `/v1/parse_pptx_file` | ✅ |
+| Excel | `.xlsx` | `/v1/parse_xlsx_file` | ✅ |
+| HTML File | `.html`, `.htm` | `/v1/parse_html_file` | ✅ |
+| EPUB | `.epub` | `/v1/parse_epub_file` | ✅ |
+| Image OCR | `.png`, `.jpg`, `.jpeg` | `/v1/parse_image_file` | ✅ |
+| URL | `http(s)://...` | `/v1/parse_url` | ❌ |
+| FASTA | `.fasta`, `.fa`, `.fna`, `.faa`, `.ffn`, `.fsa`, `.fas`, `.txt` | `/v1/parse_fasta_file` | ❌ |
+| GenBank | `.gb`, `.gbk`, `.genbank`, `.gbff`, `.txt` | `/v1/parse_genbank_file` | ❌ |
 
 ## Quick Start
 
-### 1) Local
+### Prerequisites
+
+- Python `3.11+`
+- [`uv`](https://docs.astral.sh/uv/) (recommended)
+- Node.js `18+` (for frontend development)
+- Optional: Docker + Docker Compose
+- Optional: Redis (`TASK_QUEUE_BACKEND=redis` + `REDIS_ENABLED=true`)
+- Optional: LibreOffice (`.doc` and `.ppt` conversion support)
+
+### Run Backend Locally
 
 ```bash
 git clone https://github.com/Tendo33/markio.git
@@ -45,6 +84,7 @@ cd markio
 uv sync
 uv pip install -e .
 
+cp .env.example .env
 python markio/main.py
 ```
 
@@ -52,161 +92,177 @@ Open:
 
 - API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 - Console: [http://localhost:8000/console](http://localhost:8000/console)
+- Health: [http://localhost:8000/healthz](http://localhost:8000/healthz)
 
-### 2) Docker
+### Run with Docker Compose
 
 ```bash
 docker compose up -d
 ```
 
-Then open the same URLs as above.
-
----
-
-## Sync Parse API (2 Request Patterns)
-
-Base path: `/v1`
-
-### 1) Format-specific endpoints
-
-Use this mode when you want explicit endpoint-to-format mapping.
-
-| Endpoint | Method | Input |
-|---|---|---|
-| `/parse_pdf_file` | POST | Upload file (`file`) |
-| `/parse_docx_file` | POST | Upload file (`file`) |
-| `/parse_doc_file` | POST | Upload file (`file`) |
-| `/parse_pptx_file` | POST | Upload file (`file`) |
-| `/parse_ppt_file` | POST | Upload file (`file`) |
-| `/parse_xlsx_file` | POST | Upload file (`file`) |
-| `/parse_html_file` | POST | Upload file (`file`) |
-| `/parse_epub_file` | POST | Upload file (`file`) |
-| `/parse_image_file` | POST | Upload file (`file`) |
-| `/parse_url` | POST | URL query param (`url`) |
-| `/parse_fasta_file` | POST | Upload file (`file`) |
-| `/parse_genbank_file` | POST | Upload file (`file`) |
-
-### 2) Unified file endpoint (auto-dispatch by extension)
-
-Use `POST /parse_file` when you do not want to pick a format-specific endpoint manually.
-
-The server dispatches parser logic based on uploaded file extension.
-
-Supported extensions for `/parse_file`:
-`.doc`, `.docx`, `.pdf`, `.ppt`, `.pptx`, `.xlsx`, `.html`, `.epub`, `.png`, `.jpg`, `.jpeg`
-
-Notes:
-- `/parse_file` is for uploaded local files only.
-- `URL`, `FASTA`, and `GenBank` are not dispatched through `/parse_file`; use their dedicated endpoints.
-
-Examples:
+### Run Frontend in Dev Mode (Optional)
 
 ```bash
-# Format-specific endpoint
-curl -X POST "http://localhost:8000/v1/parse_pdf_file" \
-  -F "file=@./sample.pdf"
+cd frontend
+npm install
+npm run dev
+```
 
-# Unified endpoint (server dispatches by extension)
+## Common Workflows
+
+### 1) Sync Parse a Local File (Auto Dispatch)
+
+```bash
 curl -X POST "http://localhost:8000/v1/parse_file" \
   -F "file=@./sample.docx"
 ```
 
-Sync parse response fields (all `/v1/parse_*` and `/v1/parse_file`):
-- `parsed_content`: parsed markdown/text output
-- `parser`: parser identifier (for example `pdf`, `docx`, `html`, `url`)
-- `source_type`: `file` or `url`
-- `request_id`: request correlation id
-- `duration_ms`: server-side parse duration
-
----
-
-## Async Task API
-
-Base path: `/v1/tasks`
-
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/submit` | POST | Submit file as async task |
-| `/` | GET | List tasks with pagination/filter |
-| `/{task_id}` | GET | Get task detail |
-| `/dashboard` | GET | Dashboard summary + recent tasks |
-| `/queue` | GET | Queue health |
-| `/queue/pause` | POST | Pause queue |
-| `/queue/resume` | POST | Resume queue |
-| `/{task_id}/cancel` | POST | Cancel pending task |
-| `/{task_id}/retry` | POST | Retry failed/canceled task |
-
-Task detail records include `processing_duration_ms` for observability.
-
-Example:
+### 2) Parse a URL
 
 ```bash
+curl -X POST "http://localhost:8000/v1/parse_url?url=https://example.com"
+```
+
+### 3) Submit an Async Task + Query Progress
+
+```bash
+# submit
 curl -X POST "http://localhost:8000/v1/tasks/submit" \
   -F "file=@./sample.pdf" \
   -F "parse_method=auto" \
   -F "lang=ch" \
   -F "priority=5"
+
+# list
+curl "http://localhost:8000/v1/tasks?page=1&page_size=20"
+
+# dashboard
+curl "http://localhost:8000/v1/tasks/dashboard"
 ```
 
----
+> `task_id` is expected to be a 32-char lowercase hex string.
 
-## Frontend Console (OpenAI-style)
+## API Surface
 
-The new console frontend source is under `frontend/` and outputs static assets to `markio/webapp/`.
+Base prefix: `/v1`
 
-Build manually:
+### Sync Parse Endpoints
+
+- `POST /parse_file` (extension-based dispatch)
+- `POST /parse_pdf_file`
+- `POST /parse_doc_file`
+- `POST /parse_docx_file`
+- `POST /parse_ppt_file`
+- `POST /parse_pptx_file`
+- `POST /parse_xlsx_file`
+- `POST /parse_html_file`
+- `POST /parse_epub_file`
+- `POST /parse_image_file`
+- `POST /parse_url`
+- `POST /parse_fasta_file`
+- `POST /parse_genbank_file`
+
+### Async Task Endpoints
+
+- `POST /tasks/submit`
+- `GET /tasks`
+- `GET /tasks/stats`
+- `GET /tasks/queue`
+- `GET /tasks/dashboard`
+- `GET /tasks/{task_id}`
+- `POST /tasks/queue/pause`
+- `POST /tasks/queue/resume`
+- `POST /tasks/{task_id}/cancel`
+- `POST /tasks/{task_id}/retry`
+
+### Service Endpoints
+
+- `GET /healthz`
+- `GET /readyz`
+- `GET /` (redirect to `/docs`)
+- `GET /console` (frontend static app / fallback page)
+
+## CLI & SDK
+
+After editable installation, CLI entrypoint is available as `markio`.
 
 ```bash
-cd frontend
-npm install
-npm run build
+markio pdf ./sample.pdf --method auto
+markio docx ./sample.docx --save
+markio image ./sample.png
 ```
 
-More details:
+Python SDK example:
 
-- [docs/console_frontend.md](docs/console_frontend.md)
-- [docs/console_frontend_zh.md](docs/console_frontend_zh.md)
+```python
+import asyncio
+from markio.sdk.markio_sdk import MarkioSDK
 
----
+async def main():
+    sdk = MarkioSDK(output_dir="outputs")
+    result = await sdk.parse_pdf("sample.pdf", parse_method="auto")
+    print(result["content"][:500])
 
-## Key Environment Variables
+asyncio.run(main())
+```
 
-| Variable | Default | Description |
+More:
+
+- CLI guide: [docs/cli_usage.md](docs/cli_usage.md)
+- SDK guide: [docs/sdk_usage.md](docs/sdk_usage.md)
+
+## Configuration
+
+Core settings come from environment variables (`.env`, see `.env.example`).
+
+| Variable | Default | Notes |
 |---|---|---|
-| `PDF_PARSE_ENGINE` | `pipeline` | PDF engine mode |
-| `MINERU_DEVICE_MODE` | `cuda` | MinerU device (`cuda/cpu/mps`) |
-| `REDIS_ENABLED` | `false` | Enable Redis cache |
-| `REDIS_HOST` | `localhost` | Redis host |
-| `REDIS_PORT` | `6379` | Redis port |
-| `TASK_WORKER_COUNT` | `2` | Async workers |
-| `TASK_QUEUE_BACKEND` | `memory` | Task queue backend (`memory/redis`) |
-| `TASK_HISTORY_LIMIT` | `500` | In-memory task history size |
-| `TASK_STATE_FILE` | `data/task_state.json` | Persisted task state path |
-| `TASK_UPLOAD_DIR` | `data/task_uploads` | Uploaded file temp dir |
-| `TASK_MAX_UPLOAD_SIZE_BYTES` | `52428800` | Max upload size in bytes (`413` when exceeded) |
-| `TASK_MAX_AUTO_RETRIES` | `0` | Max auto retries |
-| `TASK_RETRY_DELAY_SECONDS` | `0` | Retry delay |
-| `TASK_PROCESSING_TIMEOUT_SECONDS` | `0` | Processing timeout before requeue |
-| `RATE_LIMIT_ENABLED` | `true` | Enable lightweight per-IP+route rate limiting |
-| `RATE_LIMIT_REQUESTS` | `120` | Allowed requests per limit window |
-| `RATE_LIMIT_WINDOW_SECONDS` | `60` | Rate-limit window size in seconds |
+| `PDF_PARSE_ENGINE` | `pipeline` | `pipeline`, `vlm-vllm-engine`, `vlm-vllm-client` |
+| `MINERU_DEVICE_MODE` | `cuda` | `cuda`, `cpu`, `mps` |
+| `REDIS_ENABLED` | `false` | Enables Redis cache and Redis task backend |
+| `TASK_QUEUE_BACKEND` | `memory` | `memory` or `redis` |
+| `TASK_WORKER_COUNT` | `2` | Background workers |
+| `TASK_MAX_UPLOAD_SIZE_BYTES` | `52428800` | Upload cap (`413` on overflow) |
+| `TASK_MAX_AUTO_RETRIES` | `0` | Auto-retry limit |
+| `TASK_PROCESSING_TIMEOUT_SECONDS` | `0` | Requeue timeout for processing tasks |
+| `RATE_LIMIT_ENABLED` | `true` | Lightweight per-IP + route limiter |
+| `ENABLE_MCP` | `false` | Mount MCP endpoints/tools |
 
-See `.env.example` for full config template.
+Redis details: [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
 
----
+## Project Structure
 
-## Documentation
+```text
+markio/
+├── markio/          # FastAPI app, routers, parsers, services, SDK/CLI
+├── frontend/        # Vue 3 + Vite console
+├── tests/           # pytest suites and fixtures
+├── docs/            # usage docs and design plans
+├── scripts/         # helper scripts
+├── data/ logs/ outputs/
+├── compose.yaml
+└── .env.example
+```
 
-- CLI usage: [docs/cli_usage.md](docs/cli_usage.md)
-- SDK usage: [docs/sdk_usage.md](docs/sdk_usage.md)
+## Testing
+
+```bash
+# default suite (excludes live tests by marker)
+uv run pytest
+
+# tests requiring external running service
+uv run pytest -m live
+```
+
+## Documentation Index
+
+- CLI: [docs/cli_usage.md](docs/cli_usage.md)
+- SDK: [docs/sdk_usage.md](docs/sdk_usage.md)
+- Console frontend: [docs/console_frontend.md](docs/console_frontend.md)
+- Biological parsing: [docs/biological_data_parsing.md](docs/biological_data_parsing.md)
 - Redis integration: [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
-- Frontend console: [docs/console_frontend.md](docs/console_frontend.md)
-
----
 
 ## License
 
-Markio is MIT licensed. See [LICENSE](LICENSE).
-
-The frontend includes adapted third-party code from `mineru-tianshu` (Apache-2.0).
-See: `frontend/THIRD_PARTY_NOTICES.md`.
+- Project license: [MIT](LICENSE)
+- Frontend third-party notice: [frontend/THIRD_PARTY_NOTICES.md](frontend/THIRD_PARTY_NOTICES.md)
