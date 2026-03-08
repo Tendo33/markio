@@ -108,3 +108,22 @@ async def test_run_uploaded_file_parser_rejects_oversized_upload(monkeypatch, tm
     assert exc_info.value.status_code == 413
     assert "Maximum allowed size" in str(exc_info.value.detail)
     assert not forced_temp_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_run_uploaded_file_parser_sanitizes_malicious_filename():
+    upload = UploadFile(filename="..\\../evil/../../demo?.docx", file=BytesIO(b"demo"))
+    seen_path = None
+
+    async def fake_parser(resource_path: str) -> str:
+        nonlocal seen_path
+        seen_path = Path(resource_path).resolve()
+        return "# parsed"
+
+    result = await run_uploaded_file_parser(file=upload, parser=fake_parser)
+    assert result == "# parsed"
+    assert seen_path is not None
+    assert "?" not in seen_path.name
+    assert "/" not in seen_path.name
+    assert "\\" not in seen_path.name
+    assert not seen_path.exists()

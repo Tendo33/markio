@@ -18,6 +18,7 @@ export interface SubmitTaskRequest {
 export interface TaskRecord {
   task_id: string
   filename: string
+  owner_id?: string
   status: TaskStatus
   parse_method: string
   lang: string

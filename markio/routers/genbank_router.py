@@ -15,7 +15,6 @@ The main functionality includes:
 - Temporary file management and cleanup
 """
 
-import traceback
 from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -28,7 +27,7 @@ from markio.routers._request_guards import (
 )
 from markio.schemas.parsers_schemas import GenBankParserConfig
 from markio.services.sync_parse_service import (
-    build_parse_response,
+    execute_parse_request,
     run_uploaded_file_parser,
 )
 from markio.settings import settings
@@ -105,9 +104,8 @@ async def parse_genbank_endpoint(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
     started_at = perf_counter()
-
-    try:
-        parsed_content = await run_uploaded_file_parser(
+    return await execute_parse_request(
+        parse_fn=lambda: run_uploaded_file_parser(
             file=file,
             parser=genbank_parse_main,
             parser_kwargs={
@@ -116,30 +114,19 @@ async def parse_genbank_endpoint(
                 "include_features": config.include_features,
                 "include_sequence": config.include_sequence,
             },
-        )
-
-        logger.info(f"GenBank {file.filename} parsed successfully")
-
-        return build_parse_response(
-            parsed_content=parsed_content,
-            parser="genbank",
-            source_type="file",
-            started_at=started_at,
-        )
-
-    except HTTPException:
-        raise
-    except ValueError as e:
-        # Handle format validation errors
-        error_msg = f"Invalid GenBank format in {file.filename}: {str(e)}"
-        logger.error(error_msg)
-        raise HTTPException(status_code=400, detail=error_msg)
-
-    except Exception as e:
-        error_msg = f"Error occurred while parsing {file.filename}: {str(e)}"
-        logger.error(error_msg)
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=error_msg)
+        ),
+        parser="genbank",
+        source_type="file",
+        source_name=file.filename or "genbank_upload",
+        started_at=started_at,
+        logger=logger,
+        handled_errors={
+            ValueError: lambda error: HTTPException(
+                status_code=400,
+                detail=f"Invalid GenBank format in {file.filename}: {error}",
+            )
+        },
+    )
 
 
 def _validate_genbank_file(file: UploadFile) -> None:

@@ -30,6 +30,8 @@ class RedisTaskStore:
         self.key_prefix = key_prefix
         self.use_lua = use_lua
         self._claim_sha: Optional[str] = None
+        self._cancel_sha: Optional[str] = None
+        self._retry_sha: Optional[str] = None
 
     async def submit_task(
         self,
@@ -46,6 +48,8 @@ class RedisTaskStore:
         now = created_at or datetime.now(timezone.utc)
         task_id = task_id or uuid.uuid4().hex
         result_key = self._result_key(task_id)
+        owner_id = (request.owner_id or "").strip() or "anonymous"
+        request.owner_id = owner_id
 
         payload = self._build_task_payload(
             task_id=task_id,
@@ -67,13 +71,14 @@ class RedisTaskStore:
         created_score = self._to_epoch(now)
         await redis.zadd(self._task_created_key(), {task_id: created_score})
         await redis.zadd(self._task_status_key(status), {task_id: created_score})
+        await redis.zadd(self._owner_tasks_key(owner_id), {task_id: created_score})
 
         if status == TaskStatus.pending:
             await self._enqueue_task(task_id, request.priority)
         elif status == TaskStatus.completed and result is not None:
             await redis.set(result_key, result)
 
-        return await self.get_task(task_id)  # type: ignore[return-value]
+        return await self.get_task(task_id, owner_id=owner_id)  # type: ignore[return-value]
 
     async def claim_next_task(self) -> Optional[TaskRecord]:
         redis = self._ensure_redis()
@@ -142,18 +147,41 @@ class RedisTaskStore:
         await self._move_status(task_id, payload, TaskStatus.failed, created_score)
         await redis.zrem(self._queue_processing_key(), task_id)
 
-    async def mark_pending_for_retry(self, task_id: str, error_message: str | None = None) -> bool:
+    async def mark_pending_for_retry(
+        self,
+        task_id: str,
+        error_message: str | None = None,
+        owner_id: str | None = None,
+    ) -> bool:
         redis = self._ensure_redis()
         task_key = self._task_key(task_id)
         payload = await redis.hgetall(task_key)
         if not payload:
             return False
 
-        status = self._decode(payload.get("status"))
+        payload = self._decode_mapping(payload)
+        if not self._owner_matches(payload, owner_id):
+            return False
+        status = payload.get("status", "")
         if status not in {TaskStatus.failed.value, TaskStatus.canceled.value}:
             return False
 
-        retry_count = int(self._decode(payload.get("retry_count") or "0")) + 1
+        if self.use_lua:
+            retried = await self._retry_with_lua(
+                task_id=task_id,
+                owner_id=owner_id,
+                error_message=error_message,
+                created_score=self._created_score_from_payload(payload),
+            )
+            if retried:
+                await self._ensure_owner_index(
+                    task_id=task_id,
+                    payload=payload,
+                    created_score=self._created_score_from_payload(payload),
+                )
+            return retried
+
+        retry_count = int(payload.get("retry_count", "0")) + 1
         created_score = self._created_score_from_payload(payload)
         await redis.hset(
             task_key,
@@ -168,11 +196,11 @@ class RedisTaskStore:
         )
         await redis.delete(self._result_key(task_id))
         await self._move_status(task_id, payload, TaskStatus.pending, created_score)
-        priority = int(self._decode(payload.get("priority") or "0"))
+        priority = int(payload.get("priority", "0"))
         await self._enqueue_task(task_id, priority)
         return True
 
-    async def cancel_task(self, task_id: str) -> bool:
+    async def cancel_task(self, task_id: str, owner_id: str | None = None) -> bool:
         redis = self._ensure_redis()
         now = datetime.now(timezone.utc)
         task_key = self._task_key(task_id)
@@ -180,9 +208,27 @@ class RedisTaskStore:
         if not payload:
             return False
 
-        status = self._decode(payload.get("status"))
+        payload = self._decode_mapping(payload)
+        if not self._owner_matches(payload, owner_id):
+            return False
+        status = payload.get("status", "")
         if status != TaskStatus.pending.value:
             return False
+
+        if self.use_lua:
+            canceled = await self._cancel_with_lua(
+                task_id=task_id,
+                now_iso=now.isoformat(),
+                owner_id=owner_id,
+                created_score=self._created_score_from_payload(payload),
+            )
+            if canceled:
+                await self._ensure_owner_index(
+                    task_id=task_id,
+                    payload=payload,
+                    created_score=self._created_score_from_payload(payload),
+                )
+            return canceled
 
         created_score = self._created_score_from_payload(payload)
         await redis.hset(
@@ -204,35 +250,102 @@ class RedisTaskStore:
         status: TaskStatus | None = None,
         page: int = 1,
         page_size: int = 20,
+        owner_id: str | None = None,
+        include_result: bool = True,
     ) -> TaskListPage:
         redis = self._ensure_redis()
         page = max(1, page)
         page_size = max(1, page_size)
         key = self._task_status_key(status) if status else self._task_created_key()
-        total = await redis.zcard(key)
         start = (page - 1) * page_size
         end = start + page_size - 1
 
-        if hasattr(redis, "zrevrange"):
-            task_ids = await redis.zrevrange(key, start, end)
+        if owner_id:
+            owner_key = self._owner_tasks_key(owner_id)
+            if status is None:
+                total = int(await redis.zcard(owner_key))
+                if total == 0:
+                    total = await self._rebuild_owner_index(owner_id)
+                if hasattr(redis, "zrevrange"):
+                    owner_task_ids = await redis.zrevrange(owner_key, start, end)
+                else:
+                    all_owner_ids = await redis.zrange(owner_key, 0, -1)
+                    owner_task_ids = list(reversed(all_owner_ids))[start : end + 1]
+                collected: list[TaskRecord] = []
+                for raw_task_id in owner_task_ids:
+                    task = await self.get_task(
+                        self._decode(raw_task_id),
+                        owner_id=owner_id,
+                        include_result=include_result,
+                    )
+                    if task is not None:
+                        collected.append(task)
+            else:
+                if hasattr(redis, "zrevrange"):
+                    ordered_raw_ids = await redis.zrevrange(owner_key, 0, -1)
+                else:
+                    ordered_raw_ids = list(reversed(await redis.zrange(owner_key, 0, -1)))
+
+                filtered_ids: list[str] = []
+                for raw_task_id in ordered_raw_ids:
+                    task_id = self._decode(raw_task_id)
+                    payload = await self._get_payload(task_id)
+                    if not payload:
+                        continue
+                    if payload.get("status") == status.value:
+                        filtered_ids.append(task_id)
+
+                total = len(filtered_ids)
+                paged_ids = filtered_ids[start : end + 1]
+                collected = []
+                for task_id in paged_ids:
+                    task = await self.get_task(
+                        task_id,
+                        owner_id=owner_id,
+                        include_result=include_result,
+                    )
+                    if task is not None:
+                        collected.append(task)
         else:
-            all_task_ids = await redis.zrange(key, 0, -1)
-            task_ids = list(reversed(all_task_ids))[start : end + 1]
+            if hasattr(redis, "zrevrange"):
+                task_ids = await redis.zrevrange(key, start, end)
+            else:
+                all_task_ids = await redis.zrange(key, 0, -1)
+                task_ids = list(reversed(all_task_ids))[start : end + 1]
 
-        items = []
-        for raw_task_id in task_ids:
-            task_id = self._decode(raw_task_id)
-            task = await self.get_task(task_id)
-            if task:
-                items.append(task)
-        return TaskListPage(items=items, total=int(total), page=page, page_size=page_size)
+            collected: list[TaskRecord] = []
+            for raw_task_id in task_ids:
+                task_id = self._decode(raw_task_id)
+                task = await self.get_task(
+                    task_id,
+                    include_result=include_result,
+                )
+                if task:
+                    collected.append(task)
 
-    async def get_task(self, task_id: str, *, include_result: bool = True) -> Optional[TaskRecord]:
+            total = int(await redis.zcard(key))
+
+        return TaskListPage(
+            items=collected,
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+
+    async def get_task(
+        self,
+        task_id: str,
+        *,
+        owner_id: str | None = None,
+        include_result: bool = True,
+    ) -> Optional[TaskRecord]:
         redis = self._ensure_redis()
         payload = await redis.hgetall(self._task_key(task_id))
         if not payload:
             return None
         payload = self._decode_mapping(payload)
+        if not self._owner_matches(payload, owner_id):
+            return None
 
         result: Optional[str] = None
         if include_result:
@@ -242,9 +355,11 @@ class RedisTaskStore:
 
         return self._build_task_record(payload, result)
 
-    async def get_request(self, task_id: str) -> Optional[SubmitTaskRequest]:
+    async def get_request(self, task_id: str, owner_id: str | None = None) -> Optional[SubmitTaskRequest]:
         payload = await self._get_payload(task_id)
         if not payload:
+            return None
+        if not self._owner_matches(payload, owner_id):
             return None
         return self._build_request(payload)
 
@@ -255,13 +370,30 @@ class RedisTaskStore:
         value = payload.get("cache_key")
         return value or None
 
-    async def get_stats(self) -> TaskStats:
+    async def get_stats(self, owner_id: str | None = None) -> TaskStats:
         redis = self._ensure_redis()
+        if not owner_id:
+            return TaskStats(
+                pending=int(await redis.zcard(self._task_status_key(TaskStatus.pending))),
+                processing=int(await redis.zcard(self._task_status_key(TaskStatus.processing))),
+                completed=int(await redis.zcard(self._task_status_key(TaskStatus.completed))),
+                failed=int(await redis.zcard(self._task_status_key(TaskStatus.failed))),
+            )
+
+        async def count_status(status_filter: TaskStatus) -> int:
+            task_ids = await redis.zrange(self._task_status_key(status_filter), 0, -1)
+            count = 0
+            for raw_task_id in task_ids:
+                payload = await self._get_payload(self._decode(raw_task_id))
+                if payload and self._owner_matches(payload, owner_id):
+                    count += 1
+            return count
+
         return TaskStats(
-            pending=int(await redis.zcard(self._task_status_key(TaskStatus.pending))),
-            processing=int(await redis.zcard(self._task_status_key(TaskStatus.processing))),
-            completed=int(await redis.zcard(self._task_status_key(TaskStatus.completed))),
-            failed=int(await redis.zcard(self._task_status_key(TaskStatus.failed))),
+            pending=await count_status(TaskStatus.pending),
+            processing=await count_status(TaskStatus.processing),
+            completed=await count_status(TaskStatus.completed),
+            failed=await count_status(TaskStatus.failed),
         )
 
     async def get_queue_health(self, worker_count: int, paused: bool) -> QueueHealth:
@@ -317,6 +449,12 @@ class RedisTaskStore:
 
     async def clear_all(self) -> None:
         redis = self._ensure_redis()
+        owner_keys: set[str] = set()
+        task_ids_with_scores = await redis.zrange(self._task_created_key(), 0, -1, withscores=True)
+        for raw_task_id, _ in task_ids_with_scores:
+            payload = await self._get_payload(self._decode(raw_task_id))
+            if payload:
+                owner_keys.add(self._owner_tasks_key(payload.get("owner_id", "anonymous")))
         keys = [
             self._queue_pending_key(),
             self._queue_processing_key(),
@@ -324,6 +462,7 @@ class RedisTaskStore:
         ]
         for status in TaskStatus:
             keys.append(self._task_status_key(status))
+        keys.extend(owner_keys)
         await redis.delete(*keys)
 
     def _task_key(self, task_id: str) -> str:
@@ -339,6 +478,10 @@ class RedisTaskStore:
         if status is None:
             raise ValueError("status is required")
         return f"{self.key_prefix}task:status:{status.value}"
+
+    def _owner_tasks_key(self, owner_id: str) -> str:
+        normalized = owner_id.strip() or "anonymous"
+        return f"{self.key_prefix}task:owner:{normalized}"
 
     def _queue_pending_key(self) -> str:
         return f"{self.key_prefix}queue:pending"
@@ -395,6 +538,7 @@ class RedisTaskStore:
         return {
             "task_id": task_id,
             "filename": request.filename,
+            "owner_id": request.owner_id,
             "file_path": request.file_path,
             "parse_method": request.parse_method,
             "lang": request.lang,
@@ -423,6 +567,7 @@ class RedisTaskStore:
         return TaskRecord(
             task_id=payload.get("task_id", ""),
             filename=payload.get("filename", ""),
+            owner_id=payload.get("owner_id", "anonymous"),
             status=TaskStatus(payload.get("status", TaskStatus.pending.value)),
             parse_method=payload.get("parse_method", "auto"),
             lang=payload.get("lang", "ch"),
@@ -446,6 +591,7 @@ class RedisTaskStore:
         return SubmitTaskRequest(
             filename=payload.get("filename", ""),
             file_path=payload.get("file_path", ""),
+            owner_id=payload.get("owner_id", "anonymous"),
             parse_method=payload.get("parse_method", "auto"),
             lang=payload.get("lang", "ch"),
             save_parsed_content=payload.get("save_parsed_content", "0") == "1",
@@ -497,6 +643,94 @@ class RedisTaskStore:
             return self._decode(result[0])
         return self._decode(result)
 
+    async def _cancel_with_lua(
+        self,
+        *,
+        task_id: str,
+        now_iso: str,
+        owner_id: str | None,
+        created_score: float,
+    ) -> bool:
+        redis = self._ensure_redis()
+        if self._cancel_sha is None:
+            self._cancel_sha = await redis.script_load(self._cancel_script())
+        try:
+            result = await redis.evalsha(
+                self._cancel_sha,
+                4,
+                self._task_key(task_id),
+                self._queue_pending_key(),
+                self._task_status_key(TaskStatus.pending),
+                self._task_status_key(TaskStatus.canceled),
+                task_id,
+                now_iso,
+                owner_id or "",
+                str(created_score),
+            )
+        except NoScriptError:
+            self._cancel_sha = await redis.script_load(self._cancel_script())
+            result = await redis.evalsha(
+                self._cancel_sha,
+                4,
+                self._task_key(task_id),
+                self._queue_pending_key(),
+                self._task_status_key(TaskStatus.pending),
+                self._task_status_key(TaskStatus.canceled),
+                task_id,
+                now_iso,
+                owner_id or "",
+                str(created_score),
+            )
+        return bool(result == 1)
+
+    async def _retry_with_lua(
+        self,
+        *,
+        task_id: str,
+        owner_id: str | None,
+        error_message: str | None,
+        created_score: float,
+    ) -> bool:
+        redis = self._ensure_redis()
+        if self._retry_sha is None:
+            self._retry_sha = await redis.script_load(self._retry_script())
+        try:
+            result = await redis.evalsha(
+                self._retry_sha,
+                8,
+                self._task_key(task_id),
+                self._queue_pending_key(),
+                self._task_status_key(TaskStatus.failed),
+                self._task_status_key(TaskStatus.canceled),
+                self._task_status_key(TaskStatus.pending),
+                self._result_key(task_id),
+                self._queue_seq_key(),
+                self._queue_processing_key(),
+                task_id,
+                owner_id or "",
+                error_message or "",
+                str(created_score),
+            )
+        except NoScriptError:
+            self._retry_sha = await redis.script_load(self._retry_script())
+            result = await redis.evalsha(
+                self._retry_sha,
+                8,
+                self._task_key(task_id),
+                self._queue_pending_key(),
+                self._task_status_key(TaskStatus.failed),
+                self._task_status_key(TaskStatus.canceled),
+                self._task_status_key(TaskStatus.pending),
+                self._result_key(task_id),
+                self._queue_seq_key(),
+                self._queue_processing_key(),
+                task_id,
+                owner_id or "",
+                error_message or "",
+                str(created_score),
+            )
+        return bool(result == 1)
+
     async def _claim_fallback(self, redis: Redis, now_iso: str, now_epoch: float) -> Optional[str]:
         items = await redis.zpopmin(self._queue_pending_key(), 1)
         if not items:
@@ -529,6 +763,33 @@ class RedisTaskStore:
         if old_status:
             await redis.zrem(self._task_status_key_for_value(old_status), task_id)
         await redis.zadd(self._task_status_key(new_status), {task_id: created_score})
+        await self._ensure_owner_index(
+            task_id=task_id,
+            payload=payload,
+            created_score=created_score,
+        )
+
+    async def _ensure_owner_index(
+        self,
+        *,
+        task_id: str,
+        payload: dict[str, Any],
+        created_score: float,
+    ) -> None:
+        redis = self._ensure_redis()
+        owner_id = self._decode(payload.get("owner_id")) if payload else "anonymous"
+        await redis.zadd(self._owner_tasks_key(owner_id), {task_id: created_score})
+
+    async def _rebuild_owner_index(self, owner_id: str) -> int:
+        redis = self._ensure_redis()
+        owner_key = self._owner_tasks_key(owner_id)
+        pairs = await redis.zrange(self._task_created_key(), 0, -1, withscores=True)
+        for raw_task_id, score in pairs:
+            task_id = self._decode(raw_task_id)
+            payload = await self._get_payload(task_id)
+            if payload and self._owner_matches(payload, owner_id):
+                await redis.zadd(owner_key, {task_id: float(score)})
+        return int(await redis.zcard(owner_key))
 
     @staticmethod
     def _decode(value: Any) -> str:
@@ -540,6 +801,12 @@ class RedisTaskStore:
 
     def _decode_mapping(self, payload: dict[Any, Any]) -> dict[str, str]:
         return {self._decode(key): self._decode(value) for key, value in payload.items()}
+
+    @staticmethod
+    def _owner_matches(payload: dict[str, str], owner_id: str | None) -> bool:
+        if not owner_id:
+            return True
+        return payload.get("owner_id", "anonymous") == owner_id
 
     @staticmethod
     def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
@@ -599,4 +866,96 @@ redis.call('ZREM', status_pending, task_id)
 redis.call('ZADD', status_processing, now_epoch, task_id)
 redis.call('ZADD', processing, now_epoch, task_id)
 return {task_id}
+"""
+
+    @staticmethod
+    def _cancel_script() -> str:
+        return """
+local task_key = KEYS[1]
+local queue_pending = KEYS[2]
+local status_pending = KEYS[3]
+local status_canceled = KEYS[4]
+
+local task_id = ARGV[1]
+local now_iso = ARGV[2]
+local owner_id = ARGV[3]
+local created_score = tonumber(ARGV[4])
+
+if redis.call('EXISTS', task_key) == 0 then
+  return 0
+end
+
+local task_owner = redis.call('HGET', task_key, 'owner_id') or 'anonymous'
+if owner_id ~= '' and task_owner ~= owner_id then
+  return 0
+end
+
+local status = redis.call('HGET', task_key, 'status')
+if status ~= 'pending' then
+  return 0
+end
+
+redis.call('HSET', task_key,
+  'status', 'canceled',
+  'completed_at', now_iso,
+  'error_message', 'Canceled by user',
+  'processing_duration_ms', ''
+)
+redis.call('ZREM', queue_pending, task_id)
+redis.call('ZREM', status_pending, task_id)
+redis.call('ZADD', status_canceled, created_score, task_id)
+return 1
+"""
+
+    @staticmethod
+    def _retry_script() -> str:
+        return """
+local task_key = KEYS[1]
+local queue_pending = KEYS[2]
+local status_failed = KEYS[3]
+local status_canceled = KEYS[4]
+local status_pending = KEYS[5]
+local result_key = KEYS[6]
+local queue_seq = KEYS[7]
+local queue_processing = KEYS[8]
+
+local task_id = ARGV[1]
+local owner_id = ARGV[2]
+local error_message = ARGV[3]
+local created_score = tonumber(ARGV[4])
+
+if redis.call('EXISTS', task_key) == 0 then
+  return 0
+end
+
+local task_owner = redis.call('HGET', task_key, 'owner_id') or 'anonymous'
+if owner_id ~= '' and task_owner ~= owner_id then
+  return 0
+end
+
+local status = redis.call('HGET', task_key, 'status')
+if status ~= 'failed' and status ~= 'canceled' then
+  return 0
+end
+
+local retry_count = tonumber(redis.call('HGET', task_key, 'retry_count') or '0') + 1
+local priority = tonumber(redis.call('HGET', task_key, 'priority') or '0')
+local seq = tonumber(redis.call('INCR', queue_seq))
+local score = (0 - priority * 1000000000000) + seq
+
+redis.call('HSET', task_key,
+  'status', 'pending',
+  'error_message', error_message,
+  'retry_count', tostring(retry_count),
+  'started_at', '',
+  'completed_at', '',
+  'processing_duration_ms', ''
+)
+redis.call('DEL', result_key)
+redis.call('ZREM', status_failed, task_id)
+redis.call('ZREM', status_canceled, task_id)
+redis.call('ZREM', queue_processing, task_id)
+redis.call('ZADD', status_pending, created_score, task_id)
+redis.call('ZADD', queue_pending, score, task_id)
+return 1
 """

@@ -12,8 +12,8 @@
       <StatCard title="失败" :value="stats.failed" subtitle="需要重试" :icon="XCircle" color="red" />
     </div>
 
-    <div v-if="taskStore.error" class="card mb-6 border-red-200 bg-red-50 text-sm text-red-700">
-      {{ taskStore.error }}
+    <div v-if="taskStore.dashboardError" class="card mb-6 border-red-200 bg-red-50 text-sm text-red-700">
+      {{ taskStore.dashboardError }}
     </div>
 
     <div v-if="sla" class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import {
   CheckCircle,
   Clock,
@@ -142,7 +142,4 @@ async function refresh() {
   }
 }
 
-onMounted(async () => {
-  await refresh()
-})
 </script>

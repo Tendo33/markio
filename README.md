@@ -23,6 +23,8 @@ Markio is an API-first service that converts documents and web content into Mark
 - Vue 3 console at `/console`
 - Local SDK + CLI for direct integration
 
+> **Breaking change:** all `/v1/*` endpoints now require `Authorization: Bearer <JWT>`.
+
 This repository is currently in **alpha** (`0.1.0`) and focuses on practical parsing workflows over heavy platform features.
 
 ## Highlights
@@ -114,13 +116,15 @@ npm run dev
 
 ```bash
 curl -X POST "http://localhost:8000/v1/parse_file" \
+  -H "Authorization: Bearer <YOUR_JWT>" \
   -F "file=@./sample.docx"
 ```
 
 ### 2) Parse a URL
 
 ```bash
-curl -X POST "http://localhost:8000/v1/parse_url?url=https://example.com"
+curl -X POST "http://localhost:8000/v1/parse_url?url=https://example.com" \
+  -H "Authorization: Bearer <YOUR_JWT>"
 ```
 
 ### 3) Submit an Async Task + Query Progress
@@ -128,16 +132,19 @@ curl -X POST "http://localhost:8000/v1/parse_url?url=https://example.com"
 ```bash
 # submit
 curl -X POST "http://localhost:8000/v1/tasks/submit" \
+  -H "Authorization: Bearer <YOUR_JWT>" \
   -F "file=@./sample.pdf" \
   -F "parse_method=auto" \
   -F "lang=ch" \
   -F "priority=5"
 
 # list
-curl "http://localhost:8000/v1/tasks?page=1&page_size=20"
+curl -H "Authorization: Bearer <YOUR_JWT>" \
+  "http://localhost:8000/v1/tasks?page=1&page_size=20"
 
 # dashboard
-curl "http://localhost:8000/v1/tasks/dashboard"
+curl -H "Authorization: Bearer <YOUR_JWT>" \
+  "http://localhost:8000/v1/tasks/dashboard"
 ```
 
 > `task_id` is expected to be a 32-char lowercase hex string.
@@ -190,6 +197,9 @@ After editable installation, CLI entrypoint is available as `markio`.
 markio pdf ./sample.pdf --method auto
 markio docx ./sample.docx --save
 markio image ./sample.png
+
+# optional remote API mode + JWT
+markio --api-base-url http://localhost:8000 --token <YOUR_JWT> url https://example.com
 ```
 
 Python SDK example:
@@ -204,6 +214,15 @@ async def main():
     print(result["content"][:500])
 
 asyncio.run(main())
+```
+
+Remote SDK mode (JWT auto-attached):
+```python
+sdk = MarkioSDK(
+    output_dir="outputs",
+    api_base_url="http://localhost:8000",
+    token="<YOUR_JWT>",
+)
 ```
 
 More:
@@ -227,8 +246,16 @@ Core settings come from environment variables (`.env`, see `.env.example`).
 | `TASK_PROCESSING_TIMEOUT_SECONDS` | `0` | Requeue timeout for processing tasks |
 | `RATE_LIMIT_ENABLED` | `true` | Lightweight per-IP + route limiter |
 | `ENABLE_MCP` | `false` | Mount MCP endpoints/tools |
+| `AUTH_JWT_SECRET` | _(required)_ | HS256 secret for `/v1/*` auth |
+| `AUTH_JWT_ALGORITHM` | `HS256` | JWT algorithm (`HS256` only) |
+| `MARKIO_API_TOKEN` | `""` | SDK/CLI/Gradio bearer token |
+| `MARKIO_API_BASE_URL` | `""` | SDK/CLI remote API base URL |
 
 Redis details: [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
+
+JWT claim requirements:
+- required: `sub`
+- `role=admin` required for `/v1/tasks/queue/pause` and `/v1/tasks/queue/resume`
 
 ## Project Structure
 

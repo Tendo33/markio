@@ -36,7 +36,7 @@ from markio.sdk.markio_sdk import MarkioSDK
 
 async def quick_start():
     # Initialize SDK
-    sdk = MarkioSDK(base_url="http://localhost:8000")
+    sdk = MarkioSDK(output_dir="./outputs")
     
     # Parse a PDF document
     result = await sdk.parse_pdf(
@@ -46,12 +46,20 @@ async def quick_start():
     
     print(f"Content: {result['content'][:200]}...")
     print(f"File: {result['file_name']}")
-    print(f"Status: {result['status_code']}")
     
     return result
 
 # Run
 result = asyncio.run(quick_start())
+```
+
+Remote API mode (server `/v1/*` requires JWT):
+```python
+sdk = MarkioSDK(
+    output_dir="./outputs",
+    api_base_url="http://localhost:8000",
+    token="<YOUR_JWT>",
+)
 ```
 
 ---
@@ -137,9 +145,9 @@ from markio.sdk.markio_sdk import MarkioSDK
 
 # Initialize with custom settings
 sdk = MarkioSDK(
-    base_url="http://localhost:8000",
+    api_base_url="http://localhost:8000",
     output_dir="./processed_documents",
-    timeout=300  # 5 minutes timeout
+    timeout_seconds=300  # 5 minutes timeout
 )
 
 # Configure per-request settings
@@ -147,7 +155,6 @@ result = await sdk.parse_pdf(
     file_path="document.pdf",
     parse_method="auto",
     save_parsed_content=True,
-    output_dir="./custom_output",
     start_page=0,
     end_page=10
 )
@@ -302,13 +309,11 @@ async def process_results():
     content = result['content']  # Markdown content
     file_name = result['file_name']  # Original filename
     output_path = result['output_path']  # Path to saved file
-    status_code = result['status_code']  # HTTP status code
     
     # Print summary
     print(f"File: {file_name}")
     print(f"Content length: {len(content)} characters")
     print(f"Output saved to: {output_path}")
-    print(f"Status: {status_code}")
     
     # Save content to custom location
     custom_path = f"./custom/{file_name}.md"
@@ -325,10 +330,8 @@ async def process_results():
 ### Environment Variables
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MARKIO_BASE_URL` | `http://localhost:8000` | Markio server URL |
-| `MARKIO_OUTPUT_DIR` | `outputs` | Default output directory |
-| `MARKIO_TIMEOUT` | `300` | Request timeout in seconds |
-| `MARKIO_LOG_LEVEL` | `INFO` | Logging level |
+| `MARKIO_API_BASE_URL` | `""` | Remote Markio API base URL |
+| `MARKIO_API_TOKEN` | `""` | JWT bearer token for remote `/v1/*` calls |
 
 ### SDK Configuration
 ```python
@@ -336,16 +339,15 @@ from markio.sdk.markio_sdk import MarkioSDK
 
 # Basic configuration
 sdk = MarkioSDK(
-    base_url="http://localhost:8000",
     output_dir="./my_outputs"
 )
 
 # Advanced configuration
 sdk = MarkioSDK(
-    base_url="http://localhost:8000",
+    api_base_url="http://localhost:8000",
+    token="<YOUR_JWT>",
     output_dir="./processed",
-    timeout=600,  # 10 minutes
-    headers={"Custom-Header": "value"}
+    timeout_seconds=600,  # 10 minutes
 )
 ```
 
@@ -356,8 +358,8 @@ sdk = MarkioSDK(
 ### Common Exceptions
 ```python
 import asyncio
+import httpx
 from markio.sdk.markio_sdk import MarkioSDK
-from markio.sdk.exceptions import MarkioAPIError, MarkioTimeoutError
 
 async def error_handling_example():
     sdk = MarkioSDK()
@@ -365,17 +367,17 @@ async def error_handling_example():
     try:
         result = await sdk.parse_pdf("document.pdf", save_parsed_content=True)
         return result
-    except MarkioTimeoutError as e:
+    except httpx.ReadTimeout as e:
         print(f"Request timed out: {e}")
         # Retry with longer timeout
-        sdk.timeout = 600
+        sdk.timeout_seconds = 600
         return await sdk.parse_pdf("document.pdf", save_parsed_content=True)
-    except MarkioAPIError as e:
-        print(f"API error: {e.status_code} - {e.message}")
+    except httpx.HTTPStatusError as e:
+        print(f"API error: {e.response.status_code} - {e.response.text}")
         # Handle specific API errors
-        if e.status_code == 413:
+        if e.response.status_code == 413:
             print("File too large, consider processing in chunks")
-        elif e.status_code == 422:
+        elif e.response.status_code == 422:
             print("Invalid file format or parameters")
         raise
     except Exception as e:
@@ -517,14 +519,14 @@ async def debug_example():
     sdk = MarkioSDK()
     
     # Check SDK configuration
-    print(f"Base URL: {sdk.base_url}")
+    print(f"Base URL: {sdk.api_base_url}")
     print(f"Output directory: {sdk.output_dir}")
-    print(f"Timeout: {sdk.timeout}")
+    print(f"Timeout: {sdk.timeout_seconds}")
     
     # Test connection
     try:
         result = await sdk.parse_pdf("test.pdf", save_parsed_content=True)
-        print(f"Connection successful: {result['status_code']}")
+        print(f"Connection successful: {bool(result.get('content'))}")
     except Exception as e:
         print(f"Connection failed: {e}")
         print(f"Error type: {type(e)}")
@@ -565,15 +567,15 @@ async def check_server():
             print(f"Server not reachable: {e}")
 
 # Verify SDK configuration
-sdk = MarkioSDK(base_url="http://localhost:8000")
-print(f"SDK will connect to: {sdk.base_url}")
+sdk = MarkioSDK(api_base_url="http://localhost:8000")
+print(f"SDK will connect to: {sdk.api_base_url}")
 ```
 
 #### Timeout Issues
 **Issue**: Requests timing out for large files
 ```python
 # Increase timeout
-sdk = MarkioSDK(timeout=600)  # 10 minutes
+sdk = MarkioSDK(timeout_seconds=600)  # 10 minutes
 
 # Or process in smaller chunks
 result = await sdk.parse_pdf(

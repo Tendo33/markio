@@ -12,10 +12,9 @@ The main functionality includes:
 - Temporary file management and cleanup
 """
 
-import traceback
 from time import perf_counter
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.image_parser import image_parse_main
@@ -25,7 +24,7 @@ from markio.routers._request_guards import (
 )
 from markio.schemas.parsers_schemas import ImageParserConfig
 from markio.services.sync_parse_service import (
-    build_parse_response,
+    execute_parse_request,
     run_uploaded_file_parser,
 )
 from markio.settings import settings
@@ -86,13 +85,10 @@ async def parse_image_file_endpoint(
         base_output_dir=DEFAULT_OUTPUT_DIR,
         save_parsed_content=config.save_parsed_content,
     )
-
-    try:
-        parse_backend = settings.pdf_parse_engine
-        logger.info(f"Using image parse engine: {parse_backend}")
-
-        # Parse the image file
-        parsed_content = await run_uploaded_file_parser(
+    parse_backend = settings.pdf_parse_engine
+    logger.info(f"Using image parse engine: {parse_backend}")
+    return await execute_parse_request(
+        parse_fn=lambda: run_uploaded_file_parser(
             file=file,
             parser=image_parse_main,
             parser_kwargs={
@@ -100,26 +96,13 @@ async def parse_image_file_endpoint(
                 "output_dir": output_dir,
                 "parse_backend": parse_backend,
             },
-        )
-
-        # Log success
-        logger.info(f"Image parsed successfully: {file.filename}")
-
-        return build_parse_response(
-            parsed_content=parsed_content,
-            parser="image",
-            source_type="file",
-            started_at=started_at,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        # Log detailed error with traceback
-        logger.error(
-            f"Error occurred while parsing {file.filename}: {traceback.format_exc()}"
-        )
-        raise HTTPException(status_code=500, detail=f"Image parsing error: {e}")
+        ),
+        parser="image",
+        source_type="file",
+        source_name=file.filename or "image_upload",
+        started_at=started_at,
+        logger=logger,
+    )
 
 
 def _validate_img_file(file: UploadFile) -> None:

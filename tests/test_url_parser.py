@@ -51,9 +51,27 @@ async def test_url_parse_main_saves_to_expected_markdown_path(monkeypatch, tmp_p
     )
 
     assert "Hello Markio" in content
-    markdown_file = tmp_path / "Demo" / "Demo.md"
+    markdown_file = tmp_path / "demo" / "demo.md"
     assert markdown_file.exists()
     assert "Hello Markio" in markdown_file.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_url_parse_main_sanitizes_malicious_title(monkeypatch, tmp_path: Path):
+    response = _FakeResponse("Title: ../../..\\\\evil/title\n\nHello")
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda: _FakeSession(response))
+
+    await url_parser.url_parse_main(
+        url="https://example.com",
+        save_parsed_content=True,
+        output_dir=str(tmp_path),
+    )
+
+    escaped_target = tmp_path.parent / "evil"
+    assert not escaped_target.exists()
+    saved_files = list(tmp_path.rglob("*.md"))
+    assert len(saved_files) == 1
+    assert saved_files[0].resolve().is_relative_to(tmp_path.resolve())
 
 
 @pytest.mark.asyncio

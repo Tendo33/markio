@@ -13,7 +13,6 @@ Redis工具模块
 """
 
 import json
-import pickle
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
@@ -172,18 +171,9 @@ class RedisCache:
         Returns:
             bytes: 序列化后的字节数据
         """
-        try:
-            if use_pickle:
-                return pickle.dumps(value)
-            else:
-                # 尝试JSON序列化
-                return json.dumps(value).encode("utf-8")
-        except (TypeError, ValueError):
-            # JSON序列化失败,回退到pickle
-            logger.debug(
-                f"JSON serialization failed, using pickle for value: {type(value)}"
-            )
-            return pickle.dumps(value)
+        if use_pickle:
+            logger.warning("RedisCache pickle mode is disabled; falling back to JSON")
+        return json.dumps(value).encode("utf-8")
 
     @staticmethod
     def _deserialize(value: bytes, use_pickle: bool = False) -> Any:
@@ -200,19 +190,13 @@ class RedisCache:
         if value is None:
             return None
 
+        if use_pickle:
+            logger.warning("RedisCache pickle mode is disabled; falling back to JSON")
         try:
-            if use_pickle:
-                return pickle.loads(value)
-            else:
-                # 尝试JSON反序列化
-                return json.loads(value.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            # JSON反序列化失败,尝试pickle
-            try:
-                return pickle.loads(value)
-            except Exception as e:
-                logger.error(f"Failed to deserialize value: {e}")
-                return None
+            return json.loads(value.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            logger.warning(f"Redis cache payload is not valid JSON: {exc}")
+            return None
 
     @staticmethod
     async def set(

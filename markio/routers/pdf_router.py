@@ -11,7 +11,6 @@ The main functionality includes:
 - Temporary file management and cleanup
 """
 
-import traceback
 from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -24,7 +23,7 @@ from markio.routers._request_guards import (
 )
 from markio.schemas.parsers_schemas import PDFParserConfig
 from markio.services.sync_parse_service import (
-    build_parse_response,
+    execute_parse_request,
     run_uploaded_file_parser,
 )
 from markio.settings import settings
@@ -88,52 +87,37 @@ async def parse_pdf_file_endpoint(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
     started_at = perf_counter()
+    pdf_parse_engine = settings.pdf_parse_engine
+    logger.info(f"Using PDF parse engine: {pdf_parse_engine}")
 
-    try:
-        pdf_parse_engine = settings.pdf_parse_engine
-        logger.info(f"Using PDF parse engine: {pdf_parse_engine}")
+    async def parse_pdf(temp_path: str) -> str:
+        return await pdf_parse_main(
+            resource_path=temp_path,
+            parse_method=config.parse_method,
+            lang=config.lang,
+            save_parsed_content=config.save_parsed_content,
+            save_middle_content=config.save_middle_content,
+            output_dir=output_dir,
+            start_page=config.start_page,
+            end_page=config.end_page,
+            backend=pdf_parse_engine,
+            server_url=settings.vlm_server_url,
+        )
 
-        async def parse_pdf(temp_path: str) -> str:
-            return await pdf_parse_main(
-                resource_path=temp_path,
-                parse_method=config.parse_method,
-                lang=config.lang,
-                save_parsed_content=config.save_parsed_content,
-                save_middle_content=config.save_middle_content,
-                output_dir=output_dir,
-                start_page=config.start_page,
-                end_page=config.end_page,
-                backend=pdf_parse_engine,
-                server_url=settings.vlm_server_url,
+    return await execute_parse_request(
+        parse_fn=lambda: run_uploaded_file_parser(file=file, parser=parse_pdf),
+        parser="pdf",
+        source_type="file",
+        source_name=file.filename or "pdf_upload",
+        started_at=started_at,
+        logger=logger,
+        handled_errors={
+            ValueError: lambda error: HTTPException(
+                status_code=400,
+                detail=f"Configuration error: {error}",
             )
-
-        parsed_content = await run_uploaded_file_parser(file=file, parser=parse_pdf)
-
-        logger.info(
-            f"PDF {file.filename} parsed successfully using {pdf_parse_engine} engine"
-        )
-
-        return build_parse_response(
-            parsed_content=parsed_content,
-            parser="pdf",
-            source_type="file",
-            started_at=started_at,
-        )
-
-    except HTTPException:
-        raise
-    except ValueError as e:
-        logger.error(f"Configuration error: {e}")
-        raise HTTPException(status_code=400, detail=f"Configuration error: {str(e)}")
-    except RuntimeError as e:
-        logger.error(f"Runtime error: {e}")
-        raise HTTPException(status_code=500, detail=f"Runtime error: {str(e)}")
-    except Exception as e:
-        logger.error(
-            f"Unexpected error occurred while parsing {file.filename}: {str(e)}"
-        )
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail="Internal server error occurred")
+        },
+    )
 
 
 def _validate_pdf_file(file: UploadFile) -> None:

@@ -2,10 +2,14 @@
 Pytest configuration file for markio API tests
 """
 
+import os
 from pathlib import Path
 
 import httpx
 import pytest
+
+# /v1 endpoints enforce JWT auth; make test env deterministic.
+os.environ.setdefault("AUTH_JWT_SECRET", "test-suite-secret")
 
 # Test configuration
 BASE_URL = "http://0.0.0.0:8000"

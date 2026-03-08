@@ -93,6 +93,8 @@ class RedisTaskManager(BaseTaskManager):
     async def submit(self, request: SubmitTaskRequest) -> TaskRecord:
         if not self._started:
             raise RuntimeError("Task manager is not started")
+        owner_id = (request.owner_id or "").strip() or "anonymous"
+        request.owner_id = owner_id
 
         cache_key = self._build_cache_key(request)
         cache_allowed = not (
@@ -117,29 +119,57 @@ class RedisTaskManager(BaseTaskManager):
             cache_key=cache_key,
         )
 
-    async def get_task(self, task_id: str) -> TaskRecord | None:
-        return await self.store.get_task(task_id)
+    async def get_task(
+        self,
+        task_id: str,
+        owner_id: str | None = None,
+        include_result: bool = True,
+    ) -> TaskRecord | None:
+        return await self.store.get_task(
+            task_id,
+            owner_id=owner_id,
+            include_result=include_result,
+        )
 
     async def list_tasks(
         self,
         page: int = 1,
         page_size: int = 20,
         status: TaskStatus | str | None = None,
+        owner_id: str | None = None,
+        include_result: bool = True,
     ) -> TaskListPage:
         status_filter = self._normalize_status_filter(status)
-        return await self.store.list_tasks(status=status_filter, page=page, page_size=page_size)
+        return await self.store.list_tasks(
+            status=status_filter,
+            page=page,
+            page_size=page_size,
+            owner_id=owner_id,
+            include_result=include_result,
+        )
 
-    async def get_stats(self) -> TaskStats:
-        return await self.store.get_stats()
+    async def get_stats(self, owner_id: str | None = None) -> TaskStats:
+        return await self.store.get_stats(owner_id=owner_id)
 
     async def get_queue_health(self) -> QueueHealth:
         return await self.store.get_queue_health(self.worker_count, self._paused)
 
-    async def get_dashboard(self, recent_limit: int = 10) -> dict:
-        stats = await self.get_stats()
+    async def get_dashboard(self, recent_limit: int = 10, owner_id: str | None = None) -> dict:
+        stats = await self.get_stats(owner_id=owner_id)
         queue_health = await self.get_queue_health()
-        recent = await self.list_tasks(page=1, page_size=max(1, recent_limit))
-        samples = await self.list_tasks(page=1, page_size=5000)
+        recent = await self.list_tasks(
+            page=1,
+            page_size=max(1, recent_limit),
+            owner_id=owner_id,
+            include_result=False,
+        )
+        sample_size = min(max(recent_limit * 20, 100), 1000)
+        samples = await self.list_tasks(
+            page=1,
+            page_size=sample_size,
+            owner_id=owner_id,
+            include_result=False,
+        )
 
         finished = stats.completed + stats.failed
         success_rate = 0.0
@@ -171,14 +201,14 @@ class RedisTaskManager(BaseTaskManager):
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    async def cancel_task(self, task_id: str) -> bool:
-        return await self.store.cancel_task(task_id)
+    async def cancel_task(self, task_id: str, owner_id: str | None = None) -> bool:
+        return await self.store.cancel_task(task_id, owner_id=owner_id)
 
-    async def retry_task(self, task_id: str) -> bool:
-        request = await self.store.get_request(task_id)
+    async def retry_task(self, task_id: str, owner_id: str | None = None) -> bool:
+        request = await self.store.get_request(task_id, owner_id=owner_id)
         if request is None or not os.path.exists(request.file_path):
             return False
-        return await self.store.mark_pending_for_retry(task_id)
+        return await self.store.mark_pending_for_retry(task_id, owner_id=owner_id)
 
     async def _worker_loop(self, worker_index: int) -> None:
         try:
@@ -259,6 +289,7 @@ class RedisTaskManager(BaseTaskManager):
         return {
             "task_id": record.task_id,
             "filename": record.filename,
+            "owner_id": record.owner_id,
             "status": record.status.value,
             "parse_method": record.parse_method,
             "lang": record.lang,

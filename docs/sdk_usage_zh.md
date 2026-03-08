@@ -36,7 +36,7 @@ from markio.sdk.markio_sdk import MarkioSDK
 
 async def quick_start():
     # 初始化SDK
-    sdk = MarkioSDK(base_url="http://localhost:8000")
+    sdk = MarkioSDK(output_dir="./outputs")
     
     # 解析PDF文档
     result = await sdk.parse_pdf(
@@ -46,12 +46,20 @@ async def quick_start():
     
     print(f"内容: {result['content'][:200]}...")
     print(f"文件: {result['file_name']}")
-    print(f"状态: {result['status_code']}")
     
     return result
 
 # 运行
 result = asyncio.run(quick_start())
+```
+
+远程 API 模式（服务端 `/v1/*` 需要 JWT）：
+```python
+sdk = MarkioSDK(
+    output_dir="./outputs",
+    api_base_url="http://localhost:8000",
+    token="<YOUR_JWT>",
+)
 ```
 
 ---
@@ -137,9 +145,9 @@ from markio.sdk.markio_sdk import MarkioSDK
 
 # 使用自定义设置初始化
 sdk = MarkioSDK(
-    base_url="http://localhost:8000",
+    api_base_url="http://localhost:8000",
     output_dir="./processed_documents",
-    timeout=300  # 5分钟超时
+    timeout_seconds=300  # 5分钟超时
 )
 
 # 配置单个请求设置
@@ -147,7 +155,6 @@ result = await sdk.parse_pdf(
     file_path="document.pdf",
     parse_method="auto",
     save_parsed_content=True,
-    output_dir="./custom_output",
     start_page=0,
     end_page=10
 )
@@ -302,13 +309,11 @@ async def process_results():
     content = result['content']  # Markdown内容
     file_name = result['file_name']  # 原始文件名
     output_path = result['output_path']  # 保存文件路径
-    status_code = result['status_code']  # HTTP状态码
     
     # 打印摘要
     print(f"文件: {file_name}")
     print(f"内容长度: {len(content)} 字符")
     print(f"输出保存到: {output_path}")
-    print(f"状态: {status_code}")
     
     # 保存内容到自定义位置
     custom_path = f"./custom/{file_name}.md"
@@ -325,10 +330,8 @@ async def process_results():
 ### 环境变量
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `MARKIO_BASE_URL` | `http://localhost:8000` | Markio服务器URL |
-| `MARKIO_OUTPUT_DIR` | `outputs` | 默认输出目录 |
-| `MARKIO_TIMEOUT` | `300` | 请求超时时间（秒） |
-| `MARKIO_LOG_LEVEL` | `INFO` | 日志级别 |
+| `MARKIO_API_BASE_URL` | `""` | 远程 Markio API 地址 |
+| `MARKIO_API_TOKEN` | `""` | 远程 `/v1/*` 调用附带的 JWT |
 
 ### SDK配置
 ```python
@@ -336,16 +339,15 @@ from markio.sdk.markio_sdk import MarkioSDK
 
 # 基础配置
 sdk = MarkioSDK(
-    base_url="http://localhost:8000",
     output_dir="./my_outputs"
 )
 
 # 高级配置
 sdk = MarkioSDK(
-    base_url="http://localhost:8000",
+    api_base_url="http://localhost:8000",
+    token="<YOUR_JWT>",
     output_dir="./processed",
-    timeout=600,  # 10分钟
-    headers={"Custom-Header": "value"}
+    timeout_seconds=600,  # 10分钟
 )
 ```
 
@@ -356,8 +358,8 @@ sdk = MarkioSDK(
 ### 常见异常
 ```python
 import asyncio
+import httpx
 from markio.sdk.markio_sdk import MarkioSDK
-from markio.sdk.exceptions import MarkioAPIError, MarkioTimeoutError
 
 async def error_handling_example():
     sdk = MarkioSDK()
@@ -365,17 +367,17 @@ async def error_handling_example():
     try:
         result = await sdk.parse_pdf("document.pdf", save_parsed_content=True)
         return result
-    except MarkioTimeoutError as e:
+    except httpx.ReadTimeout as e:
         print(f"请求超时: {e}")
         # 使用更长超时重试
-        sdk.timeout = 600
+        sdk.timeout_seconds = 600
         return await sdk.parse_pdf("document.pdf", save_parsed_content=True)
-    except MarkioAPIError as e:
-        print(f"API错误: {e.status_code} - {e.message}")
+    except httpx.HTTPStatusError as e:
+        print(f"API错误: {e.response.status_code} - {e.response.text}")
         # 处理特定API错误
-        if e.status_code == 413:
+        if e.response.status_code == 413:
             print("文件过大，考虑分块处理")
-        elif e.status_code == 422:
+        elif e.response.status_code == 422:
             print("无效的文件格式或参数")
         raise
     except Exception as e:
@@ -517,14 +519,14 @@ async def debug_example():
     sdk = MarkioSDK()
     
     # 检查SDK配置
-    print(f"基础URL: {sdk.base_url}")
+    print(f"基础URL: {sdk.api_base_url}")
     print(f"输出目录: {sdk.output_dir}")
-    print(f"超时时间: {sdk.timeout}")
+    print(f"超时时间: {sdk.timeout_seconds}")
     
     # 测试连接
     try:
         result = await sdk.parse_pdf("test.pdf", save_parsed_content=True)
-        print(f"连接成功: {result['status_code']}")
+        print(f"连接成功: {bool(result.get('content'))}")
     except Exception as e:
         print(f"连接失败: {e}")
         print(f"错误类型: {type(e)}")
@@ -565,15 +567,15 @@ async def check_server():
             print(f"服务器无法访问: {e}")
 
 # 验证SDK配置
-sdk = MarkioSDK(base_url="http://localhost:8000")
-print(f"SDK将连接到: {sdk.base_url}")
+sdk = MarkioSDK(api_base_url="http://localhost:8000")
+print(f"SDK将连接到: {sdk.api_base_url}")
 ```
 
 #### 超时问题
 **问题**: 大文件请求超时
 ```python
 # 增加超时时间
-sdk = MarkioSDK(timeout=600)  # 10分钟
+sdk = MarkioSDK(timeout_seconds=600)  # 10分钟
 
 # 或分小块处理
 result = await sdk.parse_pdf(

@@ -28,6 +28,20 @@ markio docx document.docx --save --output result.md
 for file in *.pdf; do markio pdf "$file" -s -o "${file%.pdf}.md"; done
 ```
 
+> If you call a running Markio API (`/v1/*`), the server now enforces `Authorization: Bearer <JWT>`.
+
+### Remote API Mode (JWT)
+
+```bash
+# One-off remote call
+markio --api-base-url http://localhost:8000 --token <YOUR_JWT> pdf ./document.pdf -s
+
+# Or use environment variables
+export MARKIO_API_BASE_URL=http://localhost:8000
+export MARKIO_API_TOKEN=<YOUR_JWT>
+markio url https://example.com -s
+```
+
 ---
 
 ## Typical Scenarios
@@ -136,7 +150,7 @@ markio image diagram.png -s -o ./ocr_results/
   ```python
   from markio.sdk.markio_sdk import MarkioSDK
   sdk = MarkioSDK()
-  result = await sdk.parse_document(file_path="document.pdf", save_parsed_content=True)
+  result = await sdk.parse_pdf(file_path="document.pdf", save_parsed_content=True)
   print(result["content"])
   ```
 
@@ -164,6 +178,8 @@ markio image diagram.png -s -o ./ocr_results/
 | `MINERU_MIN_BATCH_INFERENCE_SIZE` | 256 | MinerU batch size for inference |
 | `MINERU_VIRTUAL_VRAM_SIZE` | 8192 | Virtual VRAM size in MB |
 | `VLM_GPU_MEMORY_UTILIZATION` | 0.9 | vLLM GPU memory utilization (0.1-1.0) |
+| `MARKIO_API_BASE_URL` | `""` | Remote API base URL for CLI passthrough mode |
+| `MARKIO_API_TOKEN` | `""` | JWT bearer token sent as `Authorization` header |
 
 ### Configuration Examples
 

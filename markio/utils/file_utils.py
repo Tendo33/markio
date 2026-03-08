@@ -1,5 +1,6 @@
 import contextlib
 import os
+import re
 import time
 from functools import wraps
 from pathlib import Path
@@ -12,6 +13,8 @@ import aiohttp
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
+_FILENAME_ALLOWED_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
+_SLUG_ALLOWED_CHARS = re.compile(r"[^a-z0-9-]+")
 
 
 def ensure_output_directory(output_dir: str) -> str:
@@ -28,7 +31,52 @@ def ensure_output_directory(output_dir: str) -> str:
     abs_output_dir.mkdir(parents=True, exist_ok=True)
     logger.debug(f"Ensured output directory exists: {abs_output_dir}")
 
-    return str(output_dir)
+    return str(abs_output_dir)
+
+
+def sanitize_filename(filename: str | None, fallback: str = "upload") -> str:
+    raw_name = Path(filename or "").name
+    if raw_name in {"", ".", ".."}:
+        raw_name = fallback
+
+    suffix = Path(raw_name).suffix
+    stem = Path(raw_name).stem or fallback
+    sanitized_stem = _FILENAME_ALLOWED_CHARS.sub("_", stem).strip("._-")
+    if not sanitized_stem:
+        sanitized_stem = fallback
+
+    sanitized_suffix = _FILENAME_ALLOWED_CHARS.sub("", suffix)
+    if sanitized_suffix and not sanitized_suffix.startswith("."):
+        sanitized_suffix = f".{sanitized_suffix}"
+    if len(sanitized_suffix) > 10:
+        sanitized_suffix = sanitized_suffix[:10]
+    if sanitized_suffix in {".", ".."}:
+        sanitized_suffix = ""
+
+    normalized = f"{sanitized_stem[:120]}{sanitized_suffix}"
+    return normalized or fallback
+
+
+def slugify_path_component(value: str, fallback: str = "untitled", max_length: int = 80) -> str:
+    lowered = (value or "").strip().lower()
+    normalized = (
+        lowered.replace("\\", "-")
+        .replace("/", "-")
+        .replace(":", "-")
+        .replace(" ", "-")
+    )
+    normalized = _SLUG_ALLOWED_CHARS.sub("-", normalized)
+    normalized = re.sub(r"-{2,}", "-", normalized).strip("-")
+    if not normalized:
+        normalized = fallback
+    return normalized[:max_length] or fallback
+
+
+def resolve_path_within_base(base_dir: str | Path, candidate: str | Path) -> Path:
+    base_path = Path(base_dir).expanduser().resolve()
+    candidate_path = Path(candidate).expanduser().resolve()
+    candidate_path.relative_to(base_path)
+    return candidate_path
 
 
 async def md_dump_io(
@@ -311,14 +359,17 @@ def create_unique_temp_file(
     if temp_dir is None:
         temp_dir = tempfile.gettempdir()
 
-    # Extract base name and file extension
-    base_name = os.path.splitext(original_filename)[0]
-    file_extension = os.path.splitext(original_filename)[1]
+    safe_name = sanitize_filename(original_filename)
+    base_name = os.path.splitext(safe_name)[0]
+    file_extension = os.path.splitext(safe_name)[1]
 
     # Generate unique filename: original_name + UUID suffix + extension
     # This preserves the original name while ensuring uniqueness
     unique_suffix = uuid.uuid4().hex[:6]  # Use first 6 chars of UUID for shorter names
     unique_filename = f"{base_name}_{unique_suffix}{file_extension}"
-    temp_file_path = os.path.join(temp_dir, unique_filename)
+    base_dir = Path(temp_dir).resolve()
+    base_dir.mkdir(parents=True, exist_ok=True)
+    temp_file_path = (base_dir / unique_filename).resolve()
+    temp_file_path.relative_to(base_dir)
 
-    return temp_file_path, unique_filename
+    return str(temp_file_path), unique_filename

@@ -23,6 +23,8 @@ Markio 是一个 API 优先的服务，用于将文档与网页内容转换为 M
 - `/console` 下的 Vue 3 控制台
 - 可直接集成的本地 SDK + CLI
 
+> **破坏性变更：** 所有 `/v1/*` 接口现已强制要求 `Authorization: Bearer <JWT>`。
+
 当前仓库版本为 **alpha**（`0.1.0`），重点聚焦实用解析能力，而非重型平台化功能。
 
 ## 核心亮点
@@ -114,13 +116,15 @@ npm run dev
 
 ```bash
 curl -X POST "http://localhost:8000/v1/parse_file" \
+  -H "Authorization: Bearer <YOUR_JWT>" \
   -F "file=@./sample.docx"
 ```
 
 ### 2）解析 URL
 
 ```bash
-curl -X POST "http://localhost:8000/v1/parse_url?url=https://example.com"
+curl -X POST "http://localhost:8000/v1/parse_url?url=https://example.com" \
+  -H "Authorization: Bearer <YOUR_JWT>"
 ```
 
 ### 3）提交异步任务并查询进度
@@ -128,16 +132,19 @@ curl -X POST "http://localhost:8000/v1/parse_url?url=https://example.com"
 ```bash
 # 提交任务
 curl -X POST "http://localhost:8000/v1/tasks/submit" \
+  -H "Authorization: Bearer <YOUR_JWT>" \
   -F "file=@./sample.pdf" \
   -F "parse_method=auto" \
   -F "lang=ch" \
   -F "priority=5"
 
 # 查询任务列表
-curl "http://localhost:8000/v1/tasks?page=1&page_size=20"
+curl -H "Authorization: Bearer <YOUR_JWT>" \
+  "http://localhost:8000/v1/tasks?page=1&page_size=20"
 
 # 查询仪表盘
-curl "http://localhost:8000/v1/tasks/dashboard"
+curl -H "Authorization: Bearer <YOUR_JWT>" \
+  "http://localhost:8000/v1/tasks/dashboard"
 ```
 
 > `task_id` 需要是 32 位小写十六进制字符串。
@@ -190,6 +197,9 @@ curl "http://localhost:8000/v1/tasks/dashboard"
 markio pdf ./sample.pdf --method auto
 markio docx ./sample.docx --save
 markio image ./sample.png
+
+# 可选：远程 API 模式 + JWT
+markio --api-base-url http://localhost:8000 --token <YOUR_JWT> url https://example.com
 ```
 
 Python SDK 示例：
@@ -204,6 +214,15 @@ async def main():
     print(result["content"][:500])
 
 asyncio.run(main())
+```
+
+远程 SDK 模式（自动附带 JWT）：
+```python
+sdk = MarkioSDK(
+    output_dir="outputs",
+    api_base_url="http://localhost:8000",
+    token="<YOUR_JWT>",
+)
 ```
 
 更多文档：
@@ -227,8 +246,16 @@ asyncio.run(main())
 | `TASK_PROCESSING_TIMEOUT_SECONDS` | `0` | 处理中任务的超时回收阈值 |
 | `RATE_LIMIT_ENABLED` | `true` | 按 IP + 路由的轻量限流 |
 | `ENABLE_MCP` | `false` | 挂载 MCP 相关端点/工具 |
+| `AUTH_JWT_SECRET` | _(必填)_ | `/v1/*` 鉴权 HS256 密钥 |
+| `AUTH_JWT_ALGORITHM` | `HS256` | JWT 算法（仅支持 `HS256`） |
+| `MARKIO_API_TOKEN` | `""` | SDK/CLI/Gradio 远程调用时使用的 Bearer Token |
+| `MARKIO_API_BASE_URL` | `""` | SDK/CLI 远程 API 地址 |
 
 Redis 详情见：[docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
+
+JWT claim 要求：
+- 必填：`sub`
+- `role=admin` 才可调用 `/v1/tasks/queue/pause` 与 `/v1/tasks/queue/resume`
 
 ## 项目结构
 

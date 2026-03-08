@@ -11,14 +11,13 @@ The main functionality includes:
 - Error handling and logging
 """
 
-import traceback
 from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Query
 
 from markio.parsers.url_parser import url_parse_main
 from markio.routers._request_guards import resolve_parser_output_dir
-from markio.services.sync_parse_service import build_parse_response
+from markio.services.sync_parse_service import execute_parse_request
 from markio.settings import settings
 from markio.utils.logger_config import get_logger
 
@@ -73,24 +72,18 @@ async def parse_html_url_endpoint(
         save_parsed_content=save_parsed_content,
     )
     started_at = perf_counter()
-
-    try:
-        parsed_content = await url_parse_main(
-            url=url, save_parsed_content=save_parsed_content, output_dir=output_dir
-        )
-        logger.info("Successfully parsed content from URL", extra={"url": url})
-        return build_parse_response(
-            parsed_content=parsed_content,
-            parser="url",
-            source_type="url",
-            started_at=started_at,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Error during URL parsing: {url} - {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"HTML parsing failed: {str(e)}")
+    return await execute_parse_request(
+        parse_fn=lambda: url_parse_main(
+            url=url,
+            save_parsed_content=save_parsed_content,
+            output_dir=output_dir,
+        ),
+        parser="url",
+        source_type="url",
+        source_name=url,
+        started_at=started_at,
+        logger=logger,
+    )
 
 
 def _validate_url(url: str) -> None:

@@ -6,10 +6,27 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from markio import routers
+from markio.auth import AuthUser, require_admin_user, require_auth_user
 from markio.routers.task_router import router as task_router
 from markio.schemas.task_schemas import SubmitTaskRequest
 from markio.services import runtime
 from markio.services.task_manager import AsyncTaskManager
+
+
+def _build_app(*, user_id: str = "user-a", role: str = "admin") -> FastAPI:
+    app = FastAPI()
+    app.dependency_overrides[require_auth_user] = lambda: AuthUser(
+        user_id=user_id,
+        role=role,
+        claims={"sub": user_id, "role": role},
+    )
+    app.dependency_overrides[require_admin_user] = lambda: AuthUser(
+        user_id=user_id,
+        role="admin",
+        claims={"sub": user_id, "role": "admin"},
+    )
+    app.include_router(task_router, prefix="/v1")
+    return app
 
 
 @pytest.mark.asyncio
@@ -26,8 +43,7 @@ async def test_submit_task_endpoint_and_query(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -85,8 +101,7 @@ async def test_queue_pause_resume_and_cancel(monkeypatch, tmp_path: Path):
     await manager.start()
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -132,8 +147,7 @@ async def test_retry_endpoint_and_pagination(monkeypatch, tmp_path: Path):
     await manager.start()
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -176,8 +190,7 @@ async def test_submit_task_rejects_invalid_page_range(monkeypatch, tmp_path: Pat
     await manager.start()
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -206,8 +219,7 @@ async def test_submit_task_rejects_unsupported_extension(monkeypatch, tmp_path: 
     await manager.start()
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -238,8 +250,7 @@ async def test_submit_task_rejects_invalid_parse_method_for_pdf(
     await manager.start()
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -274,8 +285,7 @@ async def test_submit_task_rejects_invalid_lang_for_pdf(monkeypatch, tmp_path: P
     await manager.start()
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -313,8 +323,7 @@ async def test_submit_task_rejects_output_dir_outside_default_root(
     await manager.start()
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -355,8 +364,7 @@ async def test_submit_task_rejects_too_large_file(monkeypatch, tmp_path: Path):
         raising=False,
     )
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -381,8 +389,7 @@ async def test_task_routes_reject_invalid_task_id(monkeypatch):
     await manager.start()
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -414,8 +421,7 @@ async def test_cancel_retry_return_semantic_status(monkeypatch, tmp_path: Path):
     await manager.start()
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -463,8 +469,7 @@ async def test_list_and_dashboard_hide_large_result_field(monkeypatch, tmp_path:
     await manager.start()
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -513,8 +518,7 @@ async def test_task_detail_supports_result_projection_and_truncation(
     await manager.start()
     monkeypatch.setattr(runtime, "_task_manager", manager)
 
-    app = FastAPI()
-    app.include_router(task_router, prefix="/v1")
+    app = _build_app()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -553,3 +557,51 @@ async def test_task_detail_supports_result_projection_and_truncation(
         assert truncated_payload["result_truncated"] is True
 
     await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_submit_task_sanitizes_malicious_filename(monkeypatch, tmp_path: Path):
+    captured: dict[str, str] = {}
+
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        captured["file_path"] = path
+        captured["filename"] = request.filename
+        return "# done"
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+
+    app = _build_app()
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/tasks/submit",
+            files={
+                "file": (
+                    "..\\../evil/../../demo?.pdf",
+                    b"demo",
+                    "application/pdf",
+                )
+            },
+        )
+        assert response.status_code == 200
+        task_id = response.json()["task_id"]
+        for _ in range(40):
+            detail = await client.get(f"/v1/tasks/{task_id}")
+            if detail.status_code == 200 and detail.json()["status"] == "completed":
+                break
+            await asyncio.sleep(0.05)
+
+    await manager.stop()
+
+    assert captured["filename"].endswith(".pdf")
+    assert "?" not in captured["filename"]
+    assert "/" not in captured["filename"]
+    assert "\\" not in captured["filename"]
+    assert Path(captured["file_path"]).resolve().is_relative_to(
+        Path(routers.task_router.settings.task_upload_dir).resolve()
+    )

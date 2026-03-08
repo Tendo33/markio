@@ -28,6 +28,20 @@ markio docx document.docx --save --output result.md
 for file in *.pdf; do markio pdf "$file" -s -o "${file%.pdf}.md"; done
 ```
 
+> 若 CLI 走远程 Markio API（`/v1/*`），服务端现已强制 `Authorization: Bearer <JWT>`。
+
+### 远程 API 模式（JWT）
+
+```bash
+# 单次命令传参
+markio --api-base-url http://localhost:8000 --token <YOUR_JWT> pdf ./document.pdf -s
+
+# 或通过环境变量
+export MARKIO_API_BASE_URL=http://localhost:8000
+export MARKIO_API_TOKEN=<YOUR_JWT>
+markio url https://example.com -s
+```
+
 ---
 
 ## 典型场景
@@ -55,7 +69,7 @@ for file in *.pdf; do markio pdf "$file" -s -o "${file%.pdf}.md"; done
   ```python
   from markio.sdk.markio_sdk import MarkioSDK
   sdk = MarkioSDK()
-  result = await sdk.parse_document(file_path="document.pdf", save_parsed_content=True)
+  result = await sdk.parse_pdf(file_path="document.pdf", save_parsed_content=True)
   print(result["content"])
   ```
 - **调试模式：**
@@ -75,6 +89,8 @@ for file in *.pdf; do markio pdf "$file" -s -o "${file%.pdf}.md"; done
 | PDF_PARSE_ENGINE    | pipeline | PDF解析引擎          |
 | MINERU_DEVICE_MODE  | cuda     | MinerU设备选择       |
 | VLM_SERVER_URL      | -        | VLM服务端点          |
+| MARKIO_API_BASE_URL | `""`     | CLI 远程 API 基础地址 |
+| MARKIO_API_TOKEN    | `""`     | 附带到 `Authorization` 的 JWT |
 
 ---
 

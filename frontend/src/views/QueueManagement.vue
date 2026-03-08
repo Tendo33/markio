@@ -19,15 +19,15 @@
       <div class="card">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">管理操作</h2>
         <div class="flex flex-wrap gap-3">
-          <button @click="pause" class="btn btn-secondary flex items-center">
+          <button @click="pause" :disabled="actionLocked" class="btn btn-secondary flex items-center">
             <Pause class="w-4 h-4 mr-2" />
             暂停队列
           </button>
-          <button @click="resume" class="btn btn-primary flex items-center">
+          <button @click="resume" :disabled="actionLocked" class="btn btn-primary flex items-center">
             <Play class="w-4 h-4 mr-2" />
             恢复队列
           </button>
-          <button @click="refresh" class="btn btn-secondary flex items-center">
+          <button @click="refresh" :disabled="actionLocked" class="btn btn-secondary flex items-center">
             <RefreshCw :class="{ 'animate-spin': queueStore.loading }" class="w-4 h-4 mr-2" />
             刷新状态
           </button>
@@ -75,6 +75,7 @@ import { toast } from '@/utils/toast'
 const queueStore = useQueueStore()
 
 const logs = ref<Array<{ time: string; message: string; type: 'info' | 'error' }>>([])
+const actionLocked = ref(false)
 
 function addLog(message: string, type: 'info' | 'error' = 'info') {
   logs.value.unshift({
@@ -88,6 +89,8 @@ function addLog(message: string, type: 'info' | 'error' = 'info') {
 }
 
 async function refresh() {
+  if (actionLocked.value) return
+  actionLocked.value = true
   try {
     await queueStore.fetchHealth()
     addLog('刷新队列状态')
@@ -95,10 +98,14 @@ async function refresh() {
     const message = error?.message || '刷新队列状态失败'
     addLog(message, 'error')
     toast.error(message)
+  } finally {
+    actionLocked.value = false
   }
 }
 
 async function pause() {
+  if (actionLocked.value) return
+  actionLocked.value = true
   try {
     await queueStore.pause()
     await queueStore.fetchHealth()
@@ -108,10 +115,14 @@ async function pause() {
     const message = error?.message || '暂停失败'
     addLog(message, 'error')
     toast.error(message)
+  } finally {
+    actionLocked.value = false
   }
 }
 
 async function resume() {
+  if (actionLocked.value) return
+  actionLocked.value = true
   try {
     await queueStore.resume()
     await queueStore.fetchHealth()
@@ -121,6 +132,8 @@ async function resume() {
     const message = error?.message || '恢复失败'
     addLog(message, 'error')
     toast.error(message)
+  } finally {
+    actionLocked.value = false
   }
 }
 

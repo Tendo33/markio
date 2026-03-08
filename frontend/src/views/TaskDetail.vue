@@ -16,8 +16,8 @@
       <LoadingSpinner size="lg" text="加载中" />
     </div>
 
-    <div v-else-if="taskStore.error" class="card bg-red-50 border-red-200 text-red-700">
-      {{ taskStore.error }}
+    <div v-else-if="taskStore.detailError" class="card bg-red-50 border-red-200 text-red-700">
+      {{ taskStore.detailError }}
     </div>
 
     <div v-else-if="task" class="space-y-6">
@@ -141,6 +141,7 @@ let refreshing = false
 
 const taskId = computed(() => String(route.params.id))
 const task = computed(() => taskStore.currentTask)
+const finalResultLoaded = ref(false)
 const confirmState = ref({
   visible: false,
   title: '',
@@ -165,7 +166,18 @@ async function refresh(options: { silent?: boolean } = {}) {
   }
   refreshing = true
   try {
-    await taskStore.loadTask(taskId.value)
+    const includeResult = task.value?.status === 'completed'
+    const latest = await taskStore.loadTask(taskId.value, { includeResult })
+    if (latest.status === 'completed') {
+      if (!includeResult && !finalResultLoaded.value) {
+        finalResultLoaded.value = true
+        await taskStore.loadTask(taskId.value, { includeResult: true })
+      } else if (includeResult) {
+        finalResultLoaded.value = true
+      }
+    } else {
+      finalResultLoaded.value = false
+    }
   } catch (error: any) {
     if (!options.silent) {
       toast.error(error?.message || '加载任务详情失败')

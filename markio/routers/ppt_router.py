@@ -11,10 +11,9 @@ The main functionality includes:
 - Temporary file management and cleanup
 """
 
-import traceback
 from time import perf_counter
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import JSONResponse
 
 from markio.parsers.ppt_parser import ppt_parse_main
@@ -24,7 +23,7 @@ from markio.routers._request_guards import (
 )
 from markio.schemas.parsers_schemas import PPTParserConfig
 from markio.services.sync_parse_service import (
-    build_parse_response,
+    execute_parse_request,
     run_uploaded_file_parser,
 )
 from markio.settings import settings
@@ -83,34 +82,21 @@ async def parse_ppt_file_endpoint(
         f"Starting to parse file: {file.filename}, File size: {file.size} bytes"
     )
     started_at = perf_counter()
-
-    # Parse the PPT file
-    try:
-        parsed_content = await run_uploaded_file_parser(
+    return await execute_parse_request(
+        parse_fn=lambda: run_uploaded_file_parser(
             file=file,
             parser=ppt_parse_main,
             parser_kwargs={
                 "save_parsed_content": config.save_parsed_content,
                 "output_dir": output_dir,
             },
-        )
-
-        logger.info(f"PPT {file.filename} parsed successfully")
-
-        return build_parse_response(
-            parsed_content=parsed_content,
-            parser="ppt",
-            source_type="file",
-            started_at=started_at,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            f"Error occurred while parsing {file.filename}: {traceback.format_exc()}"
-        )
-        raise HTTPException(status_code=500, detail=f"PPT parsing error: {str(e)}")
+        ),
+        parser="ppt",
+        source_type="file",
+        source_name=file.filename or "ppt_upload",
+        started_at=started_at,
+        logger=logger,
+    )
 
 
 def _validate_ppt_file(file: UploadFile) -> None:

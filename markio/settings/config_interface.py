@@ -41,7 +41,21 @@ class Settings(ApplicationConfig, BaseSettings):
         if cls._instance is None:
             try:
                 cls._instance = cls()
-                logger.info(f"Settings loaded successfully: {cls._instance}")
+                secret = (cls._instance.auth_jwt_secret or "").strip()
+                if not secret:
+                    raise ValueError(
+                        "AUTH_JWT_SECRET is required because all /v1 endpoints enforce JWT auth"
+                    )
+                algorithm = (cls._instance.auth_jwt_algorithm or "HS256").strip().upper()
+                if algorithm != "HS256":
+                    raise ValueError("AUTH_JWT_ALGORITHM must be HS256")
+                logger.info(
+                    "Settings loaded successfully (redis_enabled={}, task_backend={}, mcp={}, log_level={})",
+                    cls._instance.redis_enabled,
+                    cls._instance.task_queue_backend,
+                    cls._instance.enable_mcp,
+                    cls._instance.log_level,
+                )
             except Exception as e:
                 logger.error(f"Error loading settings: {e}")
                 raise

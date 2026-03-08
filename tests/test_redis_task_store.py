@@ -1,4 +1,5 @@
 import unittest
+import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
@@ -171,6 +172,130 @@ class RedisTaskStoreTests(unittest.IsolatedAsyncioTestCase):
         page = await self.store.list_tasks(page=1, page_size=3)
         filenames = [item.filename for item in page.items]
         self.assertEqual(filenames, ["file-2.pdf", "file-1.pdf", "file-0.pdf"])
+
+    async def test_owner_isolation_for_get_list_cancel_and_retry(self):
+        request_a = SubmitTaskRequest(
+            filename="a.pdf",
+            file_path="/tmp/a.pdf",
+            owner_id="owner-a",
+        )
+        request_b = SubmitTaskRequest(
+            filename="b.pdf",
+            file_path="/tmp/b.pdf",
+            owner_id="owner-b",
+        )
+        task_a = await self.store.submit_task(request_a)
+        await self.store.submit_task(request_b)
+
+        listed_a = await self.store.list_tasks(owner_id="owner-a", page=1, page_size=10)
+        self.assertEqual(listed_a.total, 1)
+        self.assertEqual(listed_a.items[0].task_id, task_a.task_id)
+
+        cross_get = await self.store.get_task(task_a.task_id, owner_id="owner-b")
+        self.assertIsNone(cross_get)
+
+        cross_cancel = await self.store.cancel_task(task_a.task_id, owner_id="owner-b")
+        self.assertFalse(cross_cancel)
+
+        own_cancel = await self.store.cancel_task(task_a.task_id, owner_id="owner-a")
+        self.assertTrue(own_cancel)
+
+        cross_retry = await self.store.mark_pending_for_retry(
+            task_a.task_id,
+            owner_id="owner-b",
+        )
+        self.assertFalse(cross_retry)
+
+    async def test_owner_list_paginates_after_owner_filter(self):
+        owner_task = await self.store.submit_task(
+            SubmitTaskRequest(
+                filename="owner-a.pdf",
+                file_path="/tmp/owner-a.pdf",
+                owner_id="owner-a",
+            )
+        )
+
+        for idx in range(3):
+            await self.store.submit_task(
+                SubmitTaskRequest(
+                    filename=f"owner-b-{idx}.pdf",
+                    file_path=f"/tmp/owner-b-{idx}.pdf",
+                    owner_id="owner-b",
+                )
+            )
+
+        listed_a = await self.store.list_tasks(
+            owner_id="owner-a",
+            page=1,
+            page_size=1,
+        )
+        self.assertEqual(listed_a.total, 1)
+        self.assertEqual(len(listed_a.items), 1)
+        self.assertEqual(listed_a.items[0].task_id, owner_task.task_id)
+
+    async def test_owner_index_is_preserved_across_status_transitions(self):
+        task = await self.store.submit_task(
+            SubmitTaskRequest(
+                filename="owner-a.pdf",
+                file_path="/tmp/owner-a.pdf",
+                owner_id="owner-a",
+            )
+        )
+        owner_key = "task:owner:owner-a"
+        self.assertIn(task.task_id, self.redis.zsets[owner_key])
+
+        canceled = await self.store.cancel_task(task.task_id, owner_id="owner-a")
+        self.assertTrue(canceled)
+        self.assertIn(task.task_id, self.redis.zsets[owner_key])
+
+        retried = await self.store.mark_pending_for_retry(task.task_id, owner_id="owner-a")
+        self.assertTrue(retried)
+        self.assertIn(task.task_id, self.redis.zsets[owner_key])
+
+        claimed = await self.store.claim_next_task()
+        self.assertIsNotNone(claimed)
+        await self.store.mark_failed(task.task_id, "boom")
+        self.assertIn(task.task_id, self.redis.zsets[owner_key])
+
+    async def test_owner_index_rebuilds_for_legacy_records(self):
+        task = await self.store.submit_task(
+            SubmitTaskRequest(
+                filename="legacy.pdf",
+                file_path="/tmp/legacy.pdf",
+                owner_id="owner-legacy",
+            )
+        )
+        owner_key = "task:owner:owner-legacy"
+        await self.redis.zrem(owner_key, task.task_id)
+        self.assertEqual(await self.redis.zcard(owner_key), 0)
+
+        listed = await self.store.list_tasks(owner_id="owner-legacy", page=1, page_size=10)
+        self.assertEqual(listed.total, 1)
+        self.assertEqual(listed.items[0].task_id, task.task_id)
+        self.assertEqual(await self.redis.zcard(owner_key), 1)
+
+    async def test_claim_and_cancel_race_keeps_consistent_status(self):
+        request = SubmitTaskRequest(
+            filename="race.pdf",
+            file_path="/tmp/race.pdf",
+            owner_id="owner-race",
+        )
+        record = await self.store.submit_task(request)
+
+        claimed, canceled = await asyncio.gather(
+            self.store.claim_next_task(),
+            self.store.cancel_task(record.task_id, owner_id="owner-race"),
+        )
+        current = await self.store.get_task(record.task_id, include_result=False)
+        self.assertIsNotNone(current)
+        self.assertIn(current.status, {TaskStatus.processing, TaskStatus.canceled})
+
+        if claimed is not None:
+            self.assertEqual(current.status, TaskStatus.processing)
+            self.assertFalse(canceled)
+        else:
+            self.assertTrue(canceled)
+            self.assertEqual(current.status, TaskStatus.canceled)
 
 
 if __name__ == "__main__":

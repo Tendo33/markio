@@ -49,8 +49,16 @@ export async function listTasks(
   return response.data
 }
 
-export async function getTaskDetail(taskId: string): Promise<TaskRecord> {
-  const response = await apiClient.get<TaskRecord>(`${TASK_BASE}/${taskId}`)
+export async function getTaskDetail(
+  taskId: string,
+  options: { includeResult?: boolean; maxResultChars?: number } = {}
+): Promise<TaskRecord> {
+  const response = await apiClient.get<TaskRecord>(`${TASK_BASE}/${taskId}`, {
+    params: {
+      include_result: options.includeResult,
+      max_result_chars: options.maxResultChars,
+    },
+  })
   return response.data
 }
 

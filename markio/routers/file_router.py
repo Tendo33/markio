@@ -12,8 +12,6 @@ The main functionality includes:
 - Consistent error handling and response format
 """
 
-import os
-import traceback
 from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -29,7 +27,7 @@ from markio.schemas.parsers_schemas import (
     BaseParserConfig,
 )
 from markio.services.sync_parse_service import (
-    build_parse_response,
+    execute_parse_request,
     run_uploaded_file_parser,
 )
 from markio.settings import settings
@@ -100,57 +98,49 @@ async def parse_file_endpoint(
     logger.info(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
+    # Get parser function
+    parser_func = parser_registry.get_parser_for_extension(file_extension)
 
-    try:
-        # Get parser function
-        parser_func = parser_registry.get_parser_for_extension(file_extension)
+    # Process file based on type
+    if file_extension == ".pdf":
+        pdf_parse_engine = settings.pdf_parse_engine
+        logger.info(f"Using PDF parse engine: {pdf_parse_engine}")
 
-        # Process file based on type
-        if file_extension == ".pdf":
-            pdf_parse_engine = settings.pdf_parse_engine
-            logger.info(f"Using PDF parse engine: {pdf_parse_engine}")
+        async def parse_pdf(temp_path: str) -> str:
+            return await pdf_parser.pdf_parse_main(
+                resource_path=temp_path,
+                parse_method=getattr(config, "parse_method", "auto"),
+                lang=getattr(config, "lang", "ch"),
+                save_parsed_content=config.save_parsed_content,
+                save_middle_content=getattr(config, "save_middle_content", False),
+                output_dir=output_dir,
+                start_page=getattr(config, "start_page", 0),
+                end_page=getattr(config, "end_page", None),
+                backend=pdf_parse_engine,
+                server_url=settings.vlm_server_url,
+            )
 
-            async def parse_pdf(temp_path: str) -> str:
-                return await pdf_parser.pdf_parse_main(
-                    resource_path=temp_path,
-                    parse_method=getattr(config, "parse_method", "auto"),
-                    lang=getattr(config, "lang", "ch"),
-                    save_parsed_content=config.save_parsed_content,
-                    save_middle_content=getattr(config, "save_middle_content", False),
-                    output_dir=output_dir,
-                    start_page=getattr(config, "start_page", 0),
-                    end_page=getattr(config, "end_page", None),
-                    backend=pdf_parse_engine,
-                    server_url=settings.vlm_server_url,
-                )
-
-            parsed_content = await run_uploaded_file_parser(file=file, parser=parse_pdf)
-        elif parser_func is not None:
-            parsed_content = await run_uploaded_file_parser(
+        async def parse_fn() -> str:
+            return await run_uploaded_file_parser(file=file, parser=parse_pdf)
+    elif parser_func is not None:
+        async def parse_fn() -> str:
+            return await run_uploaded_file_parser(
                 file=file,
                 parser=parser_func,
                 parser_args=(config.save_parsed_content, config.output_dir),
             )
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported file type: {file_extension}",
-            )
-
-        logger.info(f"File {file.filename} parsed successfully")
-
-        parser_name = "pdf" if file_extension == ".pdf" else file_extension.lstrip(".")
-        return build_parse_response(
-            parsed_content=parsed_content,
-            parser=parser_name,
-            source_type="file",
-            started_at=started_at,
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: {file_extension}",
         )
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = f"Error occurred while parsing {file.filename}: {str(e)}"
-        logger.error(error_msg)
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=error_msg)
+    parser_name = "pdf" if file_extension == ".pdf" else file_extension.lstrip(".")
+    return await execute_parse_request(
+        parse_fn=parse_fn,
+        parser=parser_name,
+        source_type="file",
+        source_name=file.filename or "file_upload",
+        started_at=started_at,
+        logger=logger,
+    )

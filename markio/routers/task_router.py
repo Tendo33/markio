@@ -4,9 +4,10 @@ import logging
 import re
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
 
+from markio.auth import AuthUser, require_admin_user, require_auth_user
 from markio.routers._request_guards import (
     cleanup_file_safely,
     enforce_upload_size,
@@ -17,7 +18,12 @@ from markio.schemas.parsers_schemas import PDF_PARSE_LANG, PDF_PARSE_TYPE
 from markio.schemas.task_schemas import SubmitTaskRequest, TaskStatus
 from markio.services.runtime import get_task_manager
 from markio.settings import settings
-from markio.utils.file_utils import create_unique_temp_file, ensure_output_directory
+from markio.utils.file_utils import (
+    create_unique_temp_file,
+    ensure_output_directory,
+    resolve_path_within_base,
+    sanitize_filename,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -43,6 +49,7 @@ def _sanitize_task_list_payload(items: list[dict]) -> list[dict]:
 
 @router.post("/tasks/submit", tags=["Async Tasks"])
 async def submit_task(
+    current_user: AuthUser = Depends(require_auth_user),
     file: UploadFile = File(...),
     parse_method: str = Form("auto"),
     lang: str = Form("ch"),
@@ -80,10 +87,15 @@ async def submit_task(
 
     temp_dir = ensure_output_directory(settings.task_upload_dir)
     Path(temp_dir).mkdir(parents=True, exist_ok=True)
+    safe_filename = sanitize_filename(file.filename)
     temp_file_path, _ = create_unique_temp_file(
-        original_filename=file.filename,
+        original_filename=safe_filename,
         temp_dir=temp_dir,
     )
+    try:
+        resolve_path_within_base(temp_dir, temp_file_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid upload filename path") from exc
 
     bytes_written = 0
     try:
@@ -103,8 +115,9 @@ async def submit_task(
         raise
 
     request = SubmitTaskRequest(
-        filename=file.filename,
+        filename=safe_filename,
         file_path=temp_file_path,
+        owner_id=current_user.user_id,
         parse_method=parse_method,
         lang=lang,
         save_parsed_content=save_parsed_content,
@@ -126,6 +139,7 @@ async def submit_task(
 
 @router.get("/tasks", tags=["Async Tasks"])
 async def list_tasks(
+    current_user: AuthUser = Depends(require_auth_user),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=200),
     status: TaskStatus | None = Query(None),
@@ -134,6 +148,8 @@ async def list_tasks(
         page=page,
         page_size=page_size,
         status=status,
+        owner_id=current_user.user_id,
+        include_result=False,
     )
     payload = jsonable_encoder(result)
     payload["items"] = _sanitize_task_list_payload(payload.get("items", []))
@@ -141,20 +157,31 @@ async def list_tasks(
 
 
 @router.get("/tasks/stats", tags=["Async Tasks"])
-async def get_task_stats():
-    stats = await get_task_manager().get_stats()
+async def get_task_stats(
+    current_user: AuthUser = Depends(require_auth_user),
+):
+    stats = await get_task_manager().get_stats(owner_id=current_user.user_id)
     return jsonable_encoder(stats)
 
 
 @router.get("/tasks/queue", tags=["Async Tasks"])
-async def get_queue_health():
+async def get_queue_health(
+    current_user: AuthUser = Depends(require_auth_user),
+):
+    _ = current_user
     health = await get_task_manager().get_queue_health()
     return jsonable_encoder(health)
 
 
 @router.get("/tasks/dashboard", tags=["Async Tasks"])
-async def get_dashboard(recent_limit: int = Query(10, ge=1, le=100)):
-    dashboard = await get_task_manager().get_dashboard(recent_limit=recent_limit)
+async def get_dashboard(
+    recent_limit: int = Query(10, ge=1, le=100),
+    current_user: AuthUser = Depends(require_auth_user),
+):
+    dashboard = await get_task_manager().get_dashboard(
+        recent_limit=recent_limit,
+        owner_id=current_user.user_id,
+    )
     payload = jsonable_encoder(dashboard)
     payload["recent_tasks"] = _sanitize_task_list_payload(
         payload.get("recent_tasks", [])
@@ -163,14 +190,20 @@ async def get_dashboard(recent_limit: int = Query(10, ge=1, le=100)):
 
 
 @router.post("/tasks/queue/pause", tags=["Async Tasks"])
-async def pause_queue():
+async def pause_queue(
+    current_user: AuthUser = Depends(require_admin_user),
+):
+    _ = current_user
     await get_task_manager().pause_queue()
     health = await get_task_manager().get_queue_health()
     return jsonable_encoder({"paused": health.paused})
 
 
 @router.post("/tasks/queue/resume", tags=["Async Tasks"])
-async def resume_queue():
+async def resume_queue(
+    current_user: AuthUser = Depends(require_admin_user),
+):
+    _ = current_user
     await get_task_manager().resume_queue()
     health = await get_task_manager().get_queue_health()
     return jsonable_encoder({"paused": health.paused})
@@ -181,9 +214,14 @@ async def get_task(
     task_id: str,
     include_result: bool = Query(True),
     max_result_chars: int | None = Query(None, ge=1),
+    current_user: AuthUser = Depends(require_auth_user),
 ):
     _validate_task_id(task_id)
-    task = await get_task_manager().get_task(task_id)
+    task = await get_task_manager().get_task(
+        task_id,
+        owner_id=current_user.user_id,
+        include_result=include_result,
+    )
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     payload = jsonable_encoder(task)
@@ -204,13 +242,23 @@ async def get_task(
 
 
 @router.post("/tasks/{task_id}/cancel", tags=["Async Tasks"])
-async def cancel_task(task_id: str):
+async def cancel_task(
+    task_id: str,
+    current_user: AuthUser = Depends(require_auth_user),
+):
     _validate_task_id(task_id)
-    task = await get_task_manager().get_task(task_id)
+    task = await get_task_manager().get_task(
+        task_id,
+        owner_id=current_user.user_id,
+        include_result=False,
+    )
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    canceled = await get_task_manager().cancel_task(task_id)
+    canceled = await get_task_manager().cancel_task(
+        task_id,
+        owner_id=current_user.user_id,
+    )
     if not canceled:
         raise HTTPException(
             status_code=409,
@@ -221,13 +269,23 @@ async def cancel_task(task_id: str):
 
 
 @router.post("/tasks/{task_id}/retry", tags=["Async Tasks"])
-async def retry_task(task_id: str):
+async def retry_task(
+    task_id: str,
+    current_user: AuthUser = Depends(require_auth_user),
+):
     _validate_task_id(task_id)
-    task = await get_task_manager().get_task(task_id)
+    task = await get_task_manager().get_task(
+        task_id,
+        owner_id=current_user.user_id,
+        include_result=False,
+    )
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    retried = await get_task_manager().retry_task(task_id)
+    retried = await get_task_manager().retry_task(
+        task_id,
+        owner_id=current_user.user_id,
+    )
     if not retried:
         raise HTTPException(
             status_code=409,

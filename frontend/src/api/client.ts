@@ -1,6 +1,30 @@
 import axios, { AxiosError } from 'axios'
 
 const envBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
+const envApiToken = (import.meta.env.VITE_API_TOKEN as string | undefined)?.trim() ?? ''
+export const API_TOKEN_STORAGE_KEY = 'markio_api_token'
+
+function resolveStoredToken(): string {
+  if (typeof window === 'undefined') {
+    return envApiToken
+  }
+  const sessionToken = window.sessionStorage.getItem(API_TOKEN_STORAGE_KEY)?.trim() ?? ''
+  return sessionToken || envApiToken
+}
+
+export function setApiToken(token: string) {
+  if (typeof window === 'undefined') return
+  const normalized = token.trim()
+  if (normalized) {
+    window.sessionStorage.setItem(API_TOKEN_STORAGE_KEY, normalized)
+  } else {
+    window.sessionStorage.removeItem(API_TOKEN_STORAGE_KEY)
+  }
+}
+
+export function getApiToken(): string {
+  return resolveStoredToken()
+}
 
 const apiClient = axios.create({
   baseURL: envBaseUrl && envBaseUrl.length > 0 ? envBaseUrl : '',
@@ -8,6 +32,15 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+})
+
+apiClient.interceptors.request.use((config) => {
+  const token = resolveStoredToken()
+  if (token) {
+    config.headers = config.headers ?? {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
 })
 
 type ApiErrorPayload = {

@@ -1,3 +1,6 @@
+import pytest
+
+from markio.settings.config_interface import Settings
 from markio.settings.config_model import ApplicationConfig
 
 
@@ -15,3 +18,14 @@ def test_task_settings_defaults():
     assert config.rate_limit_enabled is True
     assert config.rate_limit_requests == 120
     assert config.rate_limit_window_seconds == 60
+
+
+def test_settings_reload_fails_when_auth_secret_missing(monkeypatch):
+    original_instance = Settings._instance
+    try:
+        monkeypatch.setenv("AUTH_JWT_SECRET", "")
+        monkeypatch.setattr(Settings, "_instance", None)
+        with pytest.raises(ValueError, match="AUTH_JWT_SECRET is required"):
+            Settings.get_instance()
+    finally:
+        Settings._instance = original_instance

@@ -9,6 +9,26 @@ app = typer.Typer(help="Markio Document Parser CLI")
 sdk = MarkioSDK()
 
 
+@app.callback()
+def configure(
+    api_base_url: Optional[str] = typer.Option(
+        None,
+        "--api-base-url",
+        help="Remote Markio API base URL (e.g. http://localhost:8000).",
+        envvar="MARKIO_API_BASE_URL",
+    ),
+    token: Optional[str] = typer.Option(
+        None,
+        "--token",
+        help="JWT token for remote API authentication.",
+        envvar="MARKIO_API_TOKEN",
+    ),
+):
+    """Configure optional remote API mode and token auth."""
+    global sdk
+    sdk = MarkioSDK(api_base_url=api_base_url, token=token)
+
+
 @app.command()
 def pdf(
     file_path: str = typer.Argument(..., help="Path to the PDF file"),

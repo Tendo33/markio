@@ -134,6 +134,8 @@ class AsyncTaskManager(BaseTaskManager):
         if not self._started:
             raise RuntimeError("Task manager is not started")
 
+        owner_id = (request.owner_id or "").strip() or "anonymous"
+        request.owner_id = owner_id
         task_id = uuid.uuid4().hex
         cache_key = self._build_cache_key(request)
 
@@ -147,6 +149,7 @@ class AsyncTaskManager(BaseTaskManager):
                 record = TaskRecord(
                     task_id=task_id,
                     filename=request.filename,
+                    owner_id=owner_id,
                     status=TaskStatus.completed,
                     parse_method=request.parse_method,
                     lang=request.lang,
@@ -168,6 +171,7 @@ class AsyncTaskManager(BaseTaskManager):
         record = TaskRecord(
             task_id=task_id,
             filename=request.filename,
+            owner_id=owner_id,
             status=TaskStatus.pending,
             parse_method=request.parse_method,
             lang=request.lang,
@@ -185,16 +189,30 @@ class AsyncTaskManager(BaseTaskManager):
         await self._enqueue_task(task_id)
         return copy.deepcopy(record)
 
-    async def get_task(self, task_id: str) -> TaskRecord | None:
+    async def get_task(
+        self,
+        task_id: str,
+        owner_id: str | None = None,
+        include_result: bool = True,
+    ) -> TaskRecord | None:
         async with self._lock:
             record = self._records.get(task_id)
-            return None if record is None else copy.deepcopy(record)
+            if record is None:
+                return None
+            if owner_id and record.owner_id != owner_id:
+                return None
+            copied = copy.deepcopy(record)
+            if not include_result:
+                copied.result = None
+            return copied
 
     async def list_tasks(
         self,
         page: int = 1,
         page_size: int = 20,
         status: TaskStatus | str | None = None,
+        owner_id: str | None = None,
+        include_result: bool = True,
     ) -> TaskListPage:
         page = max(1, page)
         page_size = max(1, page_size)
@@ -207,21 +225,28 @@ class AsyncTaskManager(BaseTaskManager):
         records.sort(key=lambda row: row.created_at, reverse=True)
         if status_filter is not None:
             records = [row for row in records if row.status == status_filter]
+        if owner_id:
+            records = [row for row in records if row.owner_id == owner_id]
 
         total = len(records)
         start = (page - 1) * page_size
         end = start + page_size
 
         return TaskListPage(
-            items=[copy.deepcopy(row) for row in records[start:end]],
+            items=[
+                self._copy_record(row, include_result=include_result)
+                for row in records[start:end]
+            ],
             total=total,
             page=page,
             page_size=page_size,
         )
 
-    async def get_stats(self) -> TaskStats:
+    async def get_stats(self, owner_id: str | None = None) -> TaskStats:
         async with self._lock:
             records = list(self._records.values())
+        if owner_id:
+            records = [row for row in records if row.owner_id == owner_id]
 
         stats = TaskStats()
         for record in records:
@@ -247,12 +272,19 @@ class AsyncTaskManager(BaseTaskManager):
             paused=paused,
         )
 
-    async def get_dashboard(self, recent_limit: int = 10) -> dict:
-        stats = await self.get_stats()
+    async def get_dashboard(self, recent_limit: int = 10, owner_id: str | None = None) -> dict:
+        stats = await self.get_stats(owner_id=owner_id)
         queue_health = await self.get_queue_health()
-        recent = await self.list_tasks(page=1, page_size=max(1, recent_limit))
+        recent = await self.list_tasks(
+            page=1,
+            page_size=max(1, recent_limit),
+            owner_id=owner_id,
+            include_result=False,
+        )
         async with self._lock:
             records = list(self._records.values())
+        if owner_id:
+            records = [row for row in records if row.owner_id == owner_id]
 
         finished = stats.completed + stats.failed
         success_rate = 0.0
@@ -274,10 +306,12 @@ class AsyncTaskManager(BaseTaskManager):
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    async def cancel_task(self, task_id: str) -> bool:
+    async def cancel_task(self, task_id: str, owner_id: str | None = None) -> bool:
         async with self._lock:
             record = self._records.get(task_id)
             if record is None or record.status != TaskStatus.pending:
+                return False
+            if owner_id and record.owner_id != owner_id:
                 return False
 
             record.status = TaskStatus.canceled
@@ -289,11 +323,13 @@ class AsyncTaskManager(BaseTaskManager):
 
         return True
 
-    async def retry_task(self, task_id: str) -> bool:
+    async def retry_task(self, task_id: str, owner_id: str | None = None) -> bool:
         async with self._lock:
             record = self._records.get(task_id)
             request = self._requests.get(task_id)
             if record is None or request is None:
+                return False
+            if owner_id and record.owner_id != owner_id:
                 return False
             if record.status not in {TaskStatus.failed, TaskStatus.canceled}:
                 return False
@@ -537,6 +573,7 @@ class AsyncTaskManager(BaseTaskManager):
     def _record_to_dict(record: TaskRecord) -> dict:
         payload = asdict(record)
         payload["status"] = record.status.value
+        payload["owner_id"] = record.owner_id
         payload["created_at"] = record.created_at.isoformat()
         payload["started_at"] = (
             record.started_at.isoformat() if record.started_at else None
@@ -551,6 +588,7 @@ class AsyncTaskManager(BaseTaskManager):
         return TaskRecord(
             task_id=payload["task_id"],
             filename=payload["filename"],
+            owner_id=payload.get("owner_id", "anonymous"),
             status=TaskStatus(payload["status"]),
             parse_method=payload["parse_method"],
             lang=payload["lang"],
@@ -576,6 +614,13 @@ class AsyncTaskManager(BaseTaskManager):
                 else None
             ),
         )
+
+    @staticmethod
+    def _copy_record(record: TaskRecord, *, include_result: bool) -> TaskRecord:
+        copied = copy.deepcopy(record)
+        if not include_result:
+            copied.result = None
+        return copied
 
     @staticmethod
     def _calculate_duration_ms(

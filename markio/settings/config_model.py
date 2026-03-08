@@ -219,6 +219,18 @@ class ApplicationConfig(BaseModel):
         alias="RATE_LIMIT_WINDOW_SECONDS",
     )
 
+    auth_jwt_secret: str = Field(
+        default="",
+        description="HS256 JWT secret used for API authentication",
+        alias="AUTH_JWT_SECRET",
+    )
+
+    auth_jwt_algorithm: str = Field(
+        default="HS256",
+        description="JWT signing algorithm (currently HS256)",
+        alias="AUTH_JWT_ALGORITHM",
+    )
+
     model_config = ConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

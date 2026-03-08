@@ -37,6 +37,11 @@ class MarkioFrontend:
     def __init__(self):
         self.session = requests.Session()
         self.session.timeout = 300
+        self.api_token = (os.getenv("MARKIO_API_TOKEN", "") or "").strip()
+        if self.api_token:
+            self.session.headers.update(
+                {"Authorization": f"Bearer {self.api_token}"}
+            )
         self.pdf_engine = None
         self._init_pdf_engine()
 

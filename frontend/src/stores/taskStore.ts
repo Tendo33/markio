@@ -16,24 +16,30 @@ export const useTaskStore = defineStore('task', () => {
 
   const loading = ref(false)
   const submitting = ref(false)
-  const error = ref('')
+  const dashboardError = ref('')
+  const listError = ref('')
+  const detailError = ref('')
+  const submitError = ref('')
+  const error = computed(() =>
+    detailError.value || listError.value || dashboardError.value || submitError.value
+  )
 
   const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
   async function loadDashboard(recentLimit: number = 8) {
-    error.value = ''
+    dashboardError.value = ''
     try {
       dashboard.value = await taskApi.getDashboard(recentLimit)
       return dashboard.value
     } catch (err: any) {
-      error.value = err?.message || '加载仪表盘失败'
+      dashboardError.value = err?.message || '加载仪表盘失败'
       throw err
     }
   }
 
   async function loadTasks(nextPage: number = page.value) {
     loading.value = true
-    error.value = ''
+    listError.value = ''
 
     try {
       const response = await taskApi.listTasks(
@@ -46,7 +52,7 @@ export const useTaskStore = defineStore('task', () => {
       page.value = response.page
       return response
     } catch (err: any) {
-      error.value = err?.message || '加载任务列表失败'
+      listError.value = err?.message || '加载任务列表失败'
       throw err
     } finally {
       loading.value = false
@@ -60,19 +66,25 @@ export const useTaskStore = defineStore('task', () => {
     await loadTasks(1)
   }
 
-  async function loadTask(taskId: string) {
+  async function loadTask(
+    taskId: string,
+    options: { includeResult?: boolean; maxResultChars?: number } = {}
+  ) {
     loading.value = true
-    error.value = ''
+    detailError.value = ''
 
     try {
-      currentTask.value = await taskApi.getTaskDetail(taskId)
+      currentTask.value = await taskApi.getTaskDetail(taskId, {
+        includeResult: options.includeResult,
+        maxResultChars: options.maxResultChars,
+      })
       const index = tasks.value.findIndex((item) => item.task_id === taskId)
       if (index >= 0) {
         tasks.value[index] = currentTask.value
       }
       return currentTask.value
     } catch (err: any) {
-      error.value = err?.message || '加载任务详情失败'
+      detailError.value = err?.message || '加载任务详情失败'
       throw err
     } finally {
       loading.value = false
@@ -81,7 +93,7 @@ export const useTaskStore = defineStore('task', () => {
 
   async function submit(request: SubmitTaskRequest) {
     submitting.value = true
-    error.value = ''
+    submitError.value = ''
 
     try {
       const result = await taskApi.submitTask(request)
@@ -89,7 +101,7 @@ export const useTaskStore = defineStore('task', () => {
       total.value += 1
       return result
     } catch (err: any) {
-      error.value = err?.message || '提交任务失败'
+      submitError.value = err?.message || '提交任务失败'
       throw err
     } finally {
       submitting.value = false
@@ -112,8 +124,11 @@ export const useTaskStore = defineStore('task', () => {
     await Promise.all([loadTasks(page.value), loadDashboard(8)])
   }
 
-  function clearError() {
-    error.value = ''
+  function clearError(scope: 'dashboard' | 'list' | 'detail' | 'submit' | 'all' = 'all') {
+    if (scope === 'dashboard' || scope === 'all') dashboardError.value = ''
+    if (scope === 'list' || scope === 'all') listError.value = ''
+    if (scope === 'detail' || scope === 'all') detailError.value = ''
+    if (scope === 'submit' || scope === 'all') submitError.value = ''
   }
 
   return {
@@ -127,6 +142,10 @@ export const useTaskStore = defineStore('task', () => {
     statusFilter,
     loading,
     submitting,
+    dashboardError,
+    listError,
+    detailError,
+    submitError,
     error,
     loadDashboard,
     loadTasks,

@@ -5,9 +5,12 @@ This module provides a unified interface for parsing various document formats to
 It supports PDF, DOCX, HTML, EPUB, and image files with automatic format detection.
 """
 
+import os
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+import httpx
 
 from markio.parsers.doc_parser import doc_parse_main
 from markio.parsers.docx_parser import docx_parse_main
@@ -45,7 +48,13 @@ class MarkioSDK:
     to clean, readable Markdown.
     """
 
-    def __init__(self, output_dir: str = "output"):
+    def __init__(
+        self,
+        output_dir: str = "output",
+        api_base_url: Optional[str] = None,
+        token: Optional[str] = None,
+        timeout_seconds: int = 180,
+    ):
         """
         Initialize the Markio SDK.
 
@@ -55,6 +64,68 @@ class MarkioSDK:
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        resolved_base_url = api_base_url or os.getenv("MARKIO_API_BASE_URL", "")
+        self.api_base_url = resolved_base_url.strip().rstrip("/")
+        self.token = (token or os.getenv("MARKIO_API_TOKEN", "")).strip()
+        self.timeout_seconds = timeout_seconds
+
+    def _auth_headers(self) -> Dict[str, str]:
+        if not self.token:
+            return {}
+        return {"Authorization": f"Bearer {self.token}"}
+
+    async def _remote_parse_file(
+        self,
+        endpoint: str,
+        *,
+        file_path: str,
+        data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        full_url = f"{self.api_base_url}{endpoint}"
+        file_name = Path(file_path).name
+        file_content = Path(file_path).read_bytes()
+        files = {"file": (file_name, file_content, "application/octet-stream")}
+        payload = {k: v for k, v in data.items() if v is not None}
+
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            response = await client.post(
+                full_url,
+                data=payload,
+                files=files,
+                headers=self._auth_headers(),
+            )
+            response.raise_for_status()
+            body = response.json()
+        return {
+            "content": body.get("parsed_content", ""),
+            "file_name": Path(file_path).stem,
+            "output_path": str(self.output_dir / Path(file_path).stem),
+        }
+
+    async def _remote_parse_url(
+        self,
+        *,
+        url: str,
+        save_parsed_content: bool,
+    ) -> Dict[str, Any]:
+        full_url = f"{self.api_base_url}/v1/parse_url"
+        params = {
+            "url": url,
+            "save_parsed_content": str(save_parsed_content).lower(),
+        }
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            response = await client.post(
+                full_url,
+                params=params,
+                headers=self._auth_headers(),
+            )
+            response.raise_for_status()
+            body = response.json()
+        return {
+            "content": body.get("parsed_content", ""),
+            "file_name": url.replace("://", "_").replace("/", "_"),
+            "output_path": str(self.output_dir / url.replace("://", "_").replace("/", "_")),
+        }
 
     async def parse_pdf(
         self,
@@ -79,6 +150,19 @@ class MarkioSDK:
         Returns:
             Dict containing parsed content and metadata
         """
+        if self.api_base_url:
+            return await self._remote_parse_file(
+                "/v1/parse_pdf_file",
+                file_path=file_path,
+                data={
+                    "parse_method": parse_method,
+                    "save_parsed_content": str(save_parsed_content).lower(),
+                    "save_middle_content": str(save_middle_content).lower(),
+                    "start_page": start_page,
+                    "end_page": end_page,
+                },
+            )
+
         output_path = str(self.output_dir / Path(file_path).stem)
 
         markdown_content = await pdf_parse_main(
@@ -123,6 +207,19 @@ class MarkioSDK:
         Returns:
             Dict containing parsed content and metadata
         """
+        if self.api_base_url:
+            return await self._remote_parse_file(
+                "/v1/parse_pdf_file",
+                file_path=file_path,
+                data={
+                    "parse_method": "auto",
+                    "save_parsed_content": str(save_parsed_content).lower(),
+                    "save_middle_content": str(save_middle_content).lower(),
+                    "start_page": start_page,
+                    "end_page": end_page,
+                },
+            )
+
         output_path = str(self.output_dir / Path(file_path).stem)
 
         markdown_content = await pdf_parse_vlm_main(
@@ -156,6 +253,13 @@ class MarkioSDK:
         Returns:
             Dict containing parsed content and metadata
         """
+        if self.api_base_url:
+            return await self._remote_parse_file(
+                "/v1/parse_docx_file",
+                file_path=file_path,
+                data={"save_parsed_content": str(save_parsed_content).lower()},
+            )
+
         markdown_content = await docx_parse_main(
             resource_path=file_path,
             save_parsed_content=save_parsed_content,
@@ -185,6 +289,13 @@ class MarkioSDK:
         Returns:
             Dict containing parsed content and metadata
         """
+        if self.api_base_url:
+            return await self._remote_parse_file(
+                "/v1/parse_doc_file",
+                file_path=file_path,
+                data={"save_parsed_content": str(save_parsed_content).lower()},
+            )
+
         markdown_content = await doc_parse_main(
             resource_path=file_path,
             save_parsed_content=save_parsed_content,
@@ -212,6 +323,13 @@ class MarkioSDK:
         Returns:
             Dict containing parsed content and metadata
         """
+        if self.api_base_url:
+            return await self._remote_parse_file(
+                "/v1/parse_pptx_file",
+                file_path=file_path,
+                data={"save_parsed_content": str(save_parsed_content).lower()},
+            )
+
         markdown_content = await pptx_parse_main(
             resource_path=file_path,
             save_parsed_content=save_parsed_content,
@@ -241,6 +359,13 @@ class MarkioSDK:
         Returns:
             Dict containing parsed content and metadata
         """
+        if self.api_base_url:
+            return await self._remote_parse_file(
+                "/v1/parse_ppt_file",
+                file_path=file_path,
+                data={"save_parsed_content": str(save_parsed_content).lower()},
+            )
+
         markdown_content = await ppt_parse_main(
             resource_path=file_path,
             save_parsed_content=save_parsed_content,
@@ -268,6 +393,13 @@ class MarkioSDK:
         Returns:
             Dict containing parsed content and metadata
         """
+        if self.api_base_url:
+            return await self._remote_parse_file(
+                "/v1/parse_xlsx_file",
+                file_path=file_path,
+                data={"save_parsed_content": str(save_parsed_content).lower()},
+            )
+
         markdown_content = await xlsx_parse_main(
             resource_path=file_path,
             save_parsed_content=save_parsed_content,
@@ -295,6 +427,13 @@ class MarkioSDK:
         Returns:
             Dict containing parsed content and metadata
         """
+        if self.api_base_url:
+            return await self._remote_parse_file(
+                "/v1/parse_html_file",
+                file_path=file_path,
+                data={"save_parsed_content": str(save_parsed_content).lower()},
+            )
+
         markdown_content = await html_parse_main(
             resource_path=file_path,
             save_parsed_content=save_parsed_content,
@@ -322,6 +461,12 @@ class MarkioSDK:
         Returns:
             Dict containing parsed content and metadata
         """
+        if self.api_base_url:
+            return await self._remote_parse_url(
+                url=url,
+                save_parsed_content=save_parsed_content,
+            )
+
         markdown_content = await url_parse_main(
             url=url,
             save_parsed_content=save_parsed_content,
@@ -351,6 +496,13 @@ class MarkioSDK:
         Returns:
             Dict containing parsed content and metadata
         """
+        if self.api_base_url:
+            return await self._remote_parse_file(
+                "/v1/parse_epub_file",
+                file_path=file_path,
+                data={"save_parsed_content": str(save_parsed_content).lower()},
+            )
+
         markdown_content = await epub_parse_main(
             resource_path=file_path,
             save_parsed_content=save_parsed_content,
@@ -378,6 +530,13 @@ class MarkioSDK:
         Returns:
             Dict containing parsed content and metadata
         """
+        if self.api_base_url:
+            return await self._remote_parse_file(
+                "/v1/parse_image_file",
+                file_path=file_path,
+                data={"save_parsed_content": str(save_parsed_content).lower()},
+            )
+
         markdown_content = await image_parse_main(
             resource_path=file_path,
             save_parsed_content=save_parsed_content,

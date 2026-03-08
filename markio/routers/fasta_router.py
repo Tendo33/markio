@@ -14,7 +14,6 @@ The main functionality includes:
 - Temporary file management and cleanup
 """
 
-import traceback
 from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -27,7 +26,7 @@ from markio.routers._request_guards import (
 )
 from markio.schemas.parsers_schemas import FASTAParserConfig
 from markio.services.sync_parse_service import (
-    build_parse_response,
+    execute_parse_request,
     run_uploaded_file_parser,
 )
 from markio.settings import settings
@@ -103,9 +102,8 @@ async def parse_fasta_endpoint(
         f"Starting to parse file: {file.filename}, File size: {calculate_file_size(file.size)}"
     )
     started_at = perf_counter()
-
-    try:
-        parsed_content = await run_uploaded_file_parser(
+    return await execute_parse_request(
+        parse_fn=lambda: run_uploaded_file_parser(
             file=file,
             parser=fasta_parse_main,
             parser_kwargs={
@@ -113,30 +111,19 @@ async def parse_fasta_endpoint(
                 "output_dir": output_dir,
                 "include_statistics": config.include_statistics,
             },
-        )
-
-        logger.info(f"FASTA {file.filename} parsed successfully")
-
-        return build_parse_response(
-            parsed_content=parsed_content,
-            parser="fasta",
-            source_type="file",
-            started_at=started_at,
-        )
-
-    except HTTPException:
-        raise
-    except ValueError as e:
-        # Handle format validation errors
-        error_msg = f"Invalid FASTA format in {file.filename}: {str(e)}"
-        logger.error(error_msg)
-        raise HTTPException(status_code=400, detail=error_msg)
-
-    except Exception as e:
-        error_msg = f"Error occurred while parsing {file.filename}: {str(e)}"
-        logger.error(error_msg)
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=error_msg)
+        ),
+        parser="fasta",
+        source_type="file",
+        source_name=file.filename or "fasta_upload",
+        started_at=started_at,
+        logger=logger,
+        handled_errors={
+            ValueError: lambda error: HTTPException(
+                status_code=400,
+                detail=f"Invalid FASTA format in {file.filename}: {error}",
+            )
+        },
+    )
 
 
 def _validate_fasta_file(file: UploadFile) -> None:

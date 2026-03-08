@@ -42,8 +42,8 @@
       </div>
     </div>
 
-    <div v-if="taskStore.error" class="card mb-6 border-red-200 bg-red-50 text-sm text-red-700">
-      {{ taskStore.error }}
+    <div v-if="taskStore.listError" class="card mb-6 border-red-200 bg-red-50 text-sm text-red-700">
+      {{ taskStore.listError }}
     </div>
 
     <div class="card">

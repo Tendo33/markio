@@ -42,6 +42,7 @@ class BaseTaskManager:
 
         options = {
             "filename": request.filename,
+            "owner_id": request.owner_id,
             "parse_method": request.parse_method,
             "lang": request.lang,
             "save_middle_content": request.save_middle_content,

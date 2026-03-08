@@ -29,6 +29,30 @@
           </div>
 
           <div class="flex items-center gap-2">
+            <div class="hidden lg:flex items-center gap-2">
+              <input
+                v-model="apiToken"
+                type="password"
+                class="w-52 px-2 py-1.5 text-xs rounded-lg border border-[#d9d9e3] bg-white text-[#202123]"
+                placeholder="JWT Token"
+                aria-label="API JWT Token"
+                @keyup.enter="saveToken"
+              />
+              <button
+                @click="saveToken"
+                class="px-2 py-1.5 text-xs rounded-lg border border-[#d9d9e3] text-[#4a4a62] hover:bg-[#f4f4f5]"
+                aria-label="保存 API Token"
+              >
+                保存
+              </button>
+              <button
+                @click="clearToken"
+                class="px-2 py-1.5 text-xs rounded-lg border border-[#d9d9e3] text-[#4a4a62] hover:bg-[#f4f4f5]"
+                aria-label="清除 API Token"
+              >
+                清除
+              </button>
+            </div>
             <div class="hidden md:flex items-center gap-3 px-3 py-1.5 bg-[#f7f7f8] rounded-lg border border-[#ececf1]">
               <div class="flex items-center gap-1.5 text-xs">
                 <div class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
@@ -68,7 +92,9 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { LayoutDashboard, ListTodo, RefreshCw, Settings, Upload } from 'lucide-vue-next'
 
+import { getApiToken, setApiToken } from '@/api/client'
 import { useQueueStore, useTaskStore } from '@/stores'
+import { toast } from '@/utils/toast'
 
 const route = useRoute()
 const taskStore = useTaskStore()
@@ -76,6 +102,7 @@ const queueStore = useQueueStore()
 
 const refreshing = ref(false)
 const autoRefreshing = ref(false)
+const apiToken = ref(getApiToken())
 let timerId: number | null = null
 
 const navItems = [
@@ -139,6 +166,20 @@ function handleVisibilityChange() {
       // ignore visibility refresh error
     })
   }
+}
+
+function saveToken() {
+  setApiToken(apiToken.value)
+  toast.success('Token 已保存')
+  refreshAll().catch(() => {
+    // ignore refresh error after token save
+  })
+}
+
+function clearToken() {
+  apiToken.value = ''
+  setApiToken('')
+  toast.info('Token 已清除')
 }
 
 onMounted(async () => {

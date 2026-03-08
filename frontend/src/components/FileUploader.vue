@@ -4,9 +4,13 @@
       @dragover.prevent="onDragOver"
       @dragleave.prevent="onDragLeave"
       @drop.prevent="onDrop"
+      @keydown="onKeyDown"
       :class="dropzoneClass"
-      class="border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer"
+      class="border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500"
       @click="openFileDialog"
+      role="button"
+      tabindex="0"
+      aria-label="文件上传拖拽区域"
     >
       <input
         ref="fileInput"
@@ -15,6 +19,7 @@
         :multiple="multiple"
         class="hidden"
         @change="onFileChange"
+        aria-label="选择上传文件"
       />
 
       <Upload class="mx-auto h-12 w-12 text-gray-400" />
@@ -41,6 +46,7 @@
         <button
           @click="removeFile(index)"
           class="ml-2 p-1 text-gray-400 hover:text-red-600 transition-colors"
+          :aria-label="`移除文件 ${file.name}`"
         >
           <X class="w-5 h-5" />
         </button>
@@ -83,6 +89,13 @@ const dropzoneClass = computed(() => {
 
 function openFileDialog() {
   fileInput.value?.click()
+}
+
+function onKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    openFileDialog()
+  }
 }
 
 function onFileChange(event: Event) {

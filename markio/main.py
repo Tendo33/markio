@@ -3,10 +3,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from markio.auth import require_auth_user
 from markio.mcps.mcp_server import MarkioMCP
 from markio.middlewares.error_handlers import add_error_handlers
 from markio.middlewares.handle import handle_middleware
@@ -118,7 +119,11 @@ def register_routers(app: FastAPI):
         (task_router, "TASK"),
     ]
     for router, name in routers:
-        app.include_router(router, prefix=API_PREFIX)
+        app.include_router(
+            router,
+            prefix=API_PREFIX,
+            dependencies=[Depends(require_auth_user)],
+        )
         logger.debug(f"Registered router for {name} conversion")
 
 

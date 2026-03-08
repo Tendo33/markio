@@ -2,7 +2,12 @@ from pathlib import Path
 
 import aiohttp
 
-from markio.utils.file_utils import func_processing_time, md_dump_io
+from markio.utils.file_utils import (
+    func_processing_time,
+    md_dump_io,
+    resolve_path_within_base,
+    slugify_path_component,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -52,18 +57,27 @@ async def url_parse_main(
                 markdown_content = await response.text()
 
         file_name = markdown_content.split("\n")[0].replace("Title:", "").strip()
+        safe_slug = slugify_path_component(file_name, fallback="url-content")
 
         if save_parsed_content:
-            output_dir = Path(output_dir)
-            save_parsed_dir = output_dir / file_name
+            resolved_output_dir = Path(output_dir).resolve()
+            save_parsed_dir = (resolved_output_dir / safe_slug).resolve()
+            try:
+                resolve_path_within_base(resolved_output_dir, save_parsed_dir)
+            except ValueError as exc:
+                raise RuntimeError("Invalid URL output path") from exc
             save_parsed_dir.mkdir(parents=True, exist_ok=True)
-            output_path = save_parsed_dir / f"{file_name}.md"
+            output_path = (save_parsed_dir / f"{safe_slug}.md").resolve()
+            try:
+                resolve_path_within_base(resolved_output_dir, output_path)
+            except ValueError as exc:
+                raise RuntimeError("Invalid URL output file path") from exc
 
             await md_dump_io(
                 md_content=markdown_content,
                 output_path=output_path,
             )
-            logger.info(f"URL {file_name} saved to {output_path}")
+            logger.info(f"URL {safe_slug} saved to {output_path}")
 
         return markdown_content
 

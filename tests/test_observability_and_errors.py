@@ -55,6 +55,32 @@ async def test_parse_url_validation_error_uses_error_envelope():
 
 
 @pytest.mark.asyncio
+async def test_parse_url_internal_error_uses_generic_message(monkeypatch):
+    async def fake_url_parse_main(url: str, save_parsed_content: bool, output_dir: str) -> str:
+        raise RuntimeError("boom with implementation detail")
+
+    monkeypatch.setattr(url_router, "url_parse_main", fake_url_parse_main)
+
+    test_app = FastAPI()
+    add_error_handlers(test_app)
+    test_app.include_router(url_router.router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=test_app),
+        base_url="http://testserver",
+    ) as async_client:
+        response = await async_client.post(
+            "/v1/parse_url",
+            params={"url": "https://example.com"},
+        )
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert payload["error"]["message"] == "Internal server error"
+    assert "implementation detail" not in payload["detail"]
+
+
+@pytest.mark.asyncio
 async def test_html_router_accepts_htm_extension(monkeypatch, tmp_path: Path):
     html_path = tmp_path / "demo.htm"
     html_path.write_text("<html><body>demo</body></html>", encoding="utf-8")

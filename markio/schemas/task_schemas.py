@@ -17,6 +17,7 @@ class TaskStatus(str, Enum):
 class SubmitTaskRequest:
     filename: str
     file_path: str
+    owner_id: str = ""
     parse_method: str = "auto"
     lang: str = "ch"
     save_parsed_content: bool = False
@@ -31,6 +32,7 @@ class SubmitTaskRequest:
 class TaskRecord:
     task_id: str
     filename: str
+    owner_id: str
     status: TaskStatus
     parse_method: str
     lang: str
