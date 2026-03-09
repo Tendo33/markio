@@ -23,7 +23,7 @@ Dependencies:
 """
 
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 from markio.utils.file_utils import func_processing_time, process_resource_path
 from markio.utils.logger_config import get_logger
@@ -146,26 +146,6 @@ class FASTASequence:
             return "Protein"
         else:
             return "Unknown"
-
-    def to_dict(self) -> Dict:
-        """Convert sequence to dictionary representation"""
-        result = {
-            "id": self.id,
-            "description": self.description,
-            "type": self.get_sequence_type(),
-            "length": self.length,
-            "sequence": self.sequence,
-        }
-        if self.gc_content is not None:
-            result["gc_content"] = round(self.gc_content, 2)
-        if self.molecular_weight_value is not None:
-            result["molecular_weight"] = round(self.molecular_weight_value, 2)
-        if self.protein_properties:
-            result["protein_properties"] = {
-                k: round(v, 2) if isinstance(v, float) else v
-                for k, v in self.protein_properties.items()
-            }
-        return result
 
     def to_markdown(self) -> str:
         """Convert sequence to Markdown format with enhanced properties"""

@@ -109,7 +109,7 @@ class FakeRedis:
         self.scripts[sha] = script
         return sha
 
-    async def evalsha(self, sha, numkeys, *args):
+    async def evalsha(self, sha, _numkeys, *args):
         script = self.scripts.get(sha)
         if script is None:
             raise RuntimeError("missing script")

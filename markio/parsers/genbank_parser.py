@@ -28,7 +28,7 @@ Dependencies:
 
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from markio.utils.file_utils import func_processing_time, process_resource_path
 from markio.utils.logger_config import get_logger
@@ -59,21 +59,6 @@ class GenBankRecord:
         self.source = {}
         self.features = []
         self.sequence = ""
-        self.references = []
-
-    def to_dict(self) -> Dict:
-        """Convert record to dictionary representation"""
-        return {
-            "locus": self.locus,
-            "definition": self.definition,
-            "accession": self.accession,
-            "version": self.version,
-            "keywords": self.keywords,
-            "source": self.source,
-            "features": self.features,
-            "sequence_length": len(self.sequence),
-            "gc_content": self._calculate_gc_content(),
-        }
 
     def _calculate_gc_content(self) -> Optional[float]:
         """Calculate GC content of sequence"""

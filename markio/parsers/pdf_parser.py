@@ -300,8 +300,8 @@ async def pdf_parse_main(
         return markdown_content
 
     except Exception as exc:  # noqa: BLE001
-        logger.error(f"Error occurred during PDF parsing: {exc}")
-        raise HTTPException(status_code=500, detail=f"PDF parsing failed: {str(exc)}")
+        logger.exception(f"Error occurred during PDF parsing: {exc}")
+        raise HTTPException(status_code=500, detail="PDF parsing failed")
     finally:
         if not save_parsed_content:
             import shutil

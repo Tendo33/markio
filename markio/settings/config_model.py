@@ -171,6 +171,12 @@ class ApplicationConfig(BaseModel):
         alias="TASK_STATE_FILE",
     )
 
+    task_state_result_max_chars: int = Field(
+        default=2048,
+        description="Maximum result chars persisted in task state file. 0 disables result persistence.",
+        alias="TASK_STATE_RESULT_MAX_CHARS",
+    )
+
     task_upload_dir: str = Field(
         default="data/task_uploads",
         description="Directory for uploaded async task source files",
@@ -217,6 +223,54 @@ class ApplicationConfig(BaseModel):
         default=60,
         description="Rate-limit window size in seconds",
         alias="RATE_LIMIT_WINDOW_SECONDS",
+    )
+
+    rate_limit_max_buckets: int = Field(
+        default=5000,
+        description="Maximum in-memory rate-limit buckets to avoid unbounded growth",
+        alias="RATE_LIMIT_MAX_BUCKETS",
+    )
+
+    url_fetch_mode: str = Field(
+        default="direct",
+        description="URL fetch mode: 'direct' or 'jina_proxy'",
+        alias="URL_FETCH_MODE",
+    )
+
+    url_proxy_base: str = Field(
+        default="https://r.jina.ai/",
+        description="Proxy prefix used when URL_FETCH_MODE=jina_proxy",
+        alias="URL_PROXY_BASE",
+    )
+
+    url_request_timeout_seconds: int = Field(
+        default=30,
+        description="Timeout in seconds for URL fetch",
+        alias="URL_REQUEST_TIMEOUT_SECONDS",
+    )
+
+    url_max_response_bytes: int = Field(
+        default=5 * 1024 * 1024,
+        description="Maximum response payload size in bytes for URL fetch",
+        alias="URL_MAX_RESPONSE_BYTES",
+    )
+
+    url_block_private_networks: bool = Field(
+        default=True,
+        description="Block URL targets resolving to private/link-local/loopback addresses",
+        alias="URL_BLOCK_PRIVATE_NETWORKS",
+    )
+
+    url_allowed_domains: str = Field(
+        default="",
+        description="Optional comma-separated domain allowlist for URL parsing",
+        alias="URL_ALLOWED_DOMAINS",
+    )
+
+    url_max_redirects: int = Field(
+        default=3,
+        description="Maximum redirects followed during URL fetch",
+        alias="URL_MAX_REDIRECTS",
     )
 
     auth_jwt_secret: str = Field(

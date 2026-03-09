@@ -10,7 +10,9 @@ from markio.main import app
 from markio.middlewares.error_handlers import add_error_handlers
 from markio.middlewares.rate_limit_middleware import add_rate_limit_middleware
 from markio.middlewares.trace_middleware import add_trace_middleware
+from markio.parsers.url_parser import URLFetchError, URLSecurityError
 from markio.routers import html_router, url_router
+from markio.utils import logger_config
 
 
 client = TestClient(app)
@@ -78,6 +80,56 @@ async def test_parse_url_internal_error_uses_generic_message(monkeypatch):
     payload = response.json()
     assert payload["error"]["message"] == "Internal server error"
     assert "implementation detail" not in payload["detail"]
+
+
+@pytest.mark.asyncio
+async def test_parse_url_security_errors_return_400(monkeypatch):
+    async def fake_url_parse_main(url: str, save_parsed_content: bool, output_dir: str) -> str:
+        raise URLSecurityError("URL host is not in allowed domains")
+
+    monkeypatch.setattr(url_router, "url_parse_main", fake_url_parse_main)
+
+    test_app = FastAPI()
+    add_error_handlers(test_app)
+    test_app.include_router(url_router.router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=test_app),
+        base_url="http://testserver",
+    ) as async_client:
+        response = await async_client.post(
+            "/v1/parse_url",
+            params={"url": "https://example.com"},
+        )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["error"]["message"] == "URL host is not in allowed domains"
+
+
+@pytest.mark.asyncio
+async def test_parse_url_fetch_errors_return_502(monkeypatch):
+    async def fake_url_parse_main(url: str, save_parsed_content: bool, output_dir: str) -> str:
+        raise URLFetchError("URL fetch timeout")
+
+    monkeypatch.setattr(url_router, "url_parse_main", fake_url_parse_main)
+
+    test_app = FastAPI()
+    add_error_handlers(test_app)
+    test_app.include_router(url_router.router, prefix="/v1")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=test_app),
+        base_url="http://testserver",
+    ) as async_client:
+        response = await async_client.post(
+            "/v1/parse_url",
+            params={"url": "https://example.com"},
+        )
+
+    assert response.status_code == 502
+    payload = response.json()
+    assert payload["error"]["message"] == "Failed to fetch URL content"
 
 
 @pytest.mark.asyncio
@@ -163,3 +215,45 @@ def test_rate_limit_middleware_returns_429_when_exceeded():
     assert payload["error"]["code"] == "http_429"
     assert payload["request_id"]
     assert limited.headers["X-Request-ID"] == payload["request_id"]
+
+
+def test_setup_logger_disables_diagnose_and_backtrace_outside_debug(monkeypatch, tmp_path):
+    captured = []
+
+    def fake_add(*args, **kwargs):
+        captured.append(kwargs)
+        return len(captured)
+
+    monkeypatch.setattr(logger_config.logger, "remove", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(logger_config.logger, "add", fake_add)
+
+    logger_config.setup_logger(
+        project_name="markio-test",
+        log_dir=str(tmp_path),
+        log_level="INFO",
+    )
+
+    assert len(captured) == 3
+    assert all(item["backtrace"] is False for item in captured)
+    assert all(item["diagnose"] is False for item in captured)
+
+
+def test_setup_logger_keeps_diagnose_and_backtrace_in_debug(monkeypatch, tmp_path):
+    captured = []
+
+    def fake_add(*args, **kwargs):
+        captured.append(kwargs)
+        return len(captured)
+
+    monkeypatch.setattr(logger_config.logger, "remove", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(logger_config.logger, "add", fake_add)
+
+    logger_config.setup_logger(
+        project_name="markio-test",
+        log_dir=str(tmp_path),
+        log_level="DEBUG",
+    )
+
+    assert len(captured) == 3
+    assert all(item["backtrace"] is True for item in captured)
+    assert all(item["diagnose"] is True for item in captured)

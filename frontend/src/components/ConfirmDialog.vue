@@ -25,6 +25,7 @@
             <!-- 按钮 -->
             <div class="flex justify-end gap-3">
               <button
+                ref="cancelButtonRef"
                 @click="onCancel"
                 type="button"
                 class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -32,6 +33,7 @@
                 {{ cancelText }}
               </button>
               <button
+                ref="confirmButtonRef"
                 @click="onConfirm"
                 type="button"
                 :class="confirmButtonClass"
@@ -71,8 +73,11 @@ const emit = defineEmits<{
   'cancel': []
 }>()
 const dialogRef = ref<HTMLDivElement | null>(null)
-const titleId = 'confirm-dialog-title'
-const messageId = 'confirm-dialog-message'
+const cancelButtonRef = ref<HTMLButtonElement | null>(null)
+const confirmButtonRef = ref<HTMLButtonElement | null>(null)
+const titleId = `confirm-dialog-title-${Math.random().toString(36).slice(2)}`
+const messageId = `confirm-dialog-message-${Math.random().toString(36).slice(2)}`
+let previousFocusedElement: HTMLElement | null = null
 
 const confirmButtonClass = computed(() => {
   const classMap = {
@@ -96,10 +101,40 @@ function onCancel() {
   emit('update:modelValue', false)
 }
 
+function getFocusableElements(): HTMLElement[] {
+  if (!dialogRef.value) {
+    return []
+  }
+  return Array.from(
+    dialogRef.value.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.hasAttribute('disabled'))
+}
+
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.modelValue) {
+  if (!props.modelValue) {
+    return
+  }
+
+  if (event.key === 'Escape') {
     event.preventDefault()
     onCancel()
+    return
+  }
+
+  if (event.key === 'Tab') {
+    const focusable = getFocusableElements()
+    if (focusable.length === 0) {
+      event.preventDefault()
+      return
+    }
+    const active = document.activeElement as HTMLElement | null
+    const currentIndex = focusable.indexOf(active || focusable[0])
+    const direction = event.shiftKey ? -1 : 1
+    const nextIndex = (currentIndex + direction + focusable.length) % focusable.length
+    event.preventDefault()
+    focusable[nextIndex].focus()
   }
 }
 
@@ -107,12 +142,15 @@ watch(
   () => props.modelValue,
   async (visible) => {
     if (visible) {
+      previousFocusedElement = document.activeElement as HTMLElement | null
       document.addEventListener('keydown', onKeydown)
       await nextTick()
-      dialogRef.value?.focus()
+      cancelButtonRef.value?.focus()
       return
     }
     document.removeEventListener('keydown', onKeydown)
+    previousFocusedElement?.focus?.()
+    previousFocusedElement = null
   },
 )
 

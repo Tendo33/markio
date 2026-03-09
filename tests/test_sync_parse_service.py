@@ -13,7 +13,7 @@ async def test_run_uploaded_file_parser_calls_parser_and_cleans_temp_file():
     upload = UploadFile(filename="demo.docx", file=BytesIO(b"demo"))
     seen_path = ""
 
-    async def fake_parser(resource_path: str, flag: bool) -> str:
+    async def fake_parser(resource_path: str, _flag: bool) -> str:
         nonlocal seen_path
         seen_path = resource_path
         assert Path(resource_path).exists()

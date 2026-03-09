@@ -138,6 +138,7 @@ const taskStore = useTaskStore()
 
 let timerId: number | null = null
 let refreshing = false
+let pollDelayMs = 3000
 
 const taskId = computed(() => String(route.params.id))
 const task = computed(() => taskStore.currentTask)
@@ -162,7 +163,7 @@ function shouldPollCurrentTask() {
 
 async function refresh(options: { silent?: boolean } = {}) {
   if (refreshing) {
-    return
+    return true
   }
   refreshing = true
   try {
@@ -178,10 +179,12 @@ async function refresh(options: { silent?: boolean } = {}) {
     } else {
       finalResultLoaded.value = false
     }
+    return true
   } catch (error: any) {
     if (!options.silent) {
       toast.error(error?.message || '加载任务详情失败')
     }
+    return false
   } finally {
     refreshing = false
   }
@@ -227,17 +230,49 @@ async function executeConfirmedAction() {
   }
 }
 
+function nextPollDelay(hadError: boolean) {
+  if (!shouldPollCurrentTask()) {
+    pollDelayMs = 15000
+    return pollDelayMs
+  }
+  const baseline = task.value?.status === 'processing' ? 3000 : 5000
+  if (hadError) {
+    pollDelayMs = Math.min(Math.max(baseline, pollDelayMs * 2), 30000)
+  } else {
+    pollDelayMs = baseline
+  }
+  return pollDelayMs
+}
+
+function schedulePoll(hadError = false) {
+  if (timerId) {
+    clearTimeout(timerId)
+  }
+  timerId = window.setTimeout(async () => {
+    const ok = await refresh({ silent: true })
+    schedulePoll(!ok)
+  }, nextPollDelay(hadError))
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    refresh({ silent: true }).catch(() => {
+      // ignore visibility-triggered refresh errors
+    })
+    schedulePoll()
+  }
+}
+
 onMounted(async () => {
   await refresh()
-  timerId = window.setInterval(async () => {
-    if (!shouldPollCurrentTask()) return
-    await refresh({ silent: true })
-  }, 5000)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  schedulePoll()
 })
 
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   if (timerId) {
-    clearInterval(timerId)
+    clearTimeout(timerId)
     timerId = null
   }
 })

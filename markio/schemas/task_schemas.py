@@ -56,14 +56,6 @@ class TaskStats:
 
 
 @dataclass
-class TaskSubmitResponse:
-    task_id: str
-    status: TaskStatus
-    filename: str
-    cache_hit: bool = False
-
-
-@dataclass
 class TaskListPage:
     items: list[TaskRecord] = field(default_factory=list)
     total: int = 0

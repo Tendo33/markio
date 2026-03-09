@@ -328,6 +328,80 @@ class TaskManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(loaded.result, "# persisted")
         await manager2.stop()
 
+    async def test_persistence_truncates_result_by_config(self):
+        file_path = self.tmp_dir / "persist-truncate.pdf"
+        file_path.write_text("demo", encoding="utf-8")
+        state_file = self.tmp_dir / "task_state_truncate.json"
+
+        async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+            return "1234567890"
+
+        manager1 = AsyncTaskManager(
+            worker_count=1,
+            parser_func=fake_parser,
+            state_file_path=str(state_file),
+            state_result_max_chars=4,
+        )
+        await manager1.start()
+
+        task = await manager1.submit(
+            SubmitTaskRequest(
+                filename="persist-truncate.pdf",
+                file_path=str(file_path),
+            )
+        )
+        await self._wait_status(manager1, task.task_id, TaskStatus.completed)
+        await manager1.stop()
+
+        manager2 = AsyncTaskManager(
+            worker_count=1,
+            parser_func=fake_parser,
+            state_file_path=str(state_file),
+            state_result_max_chars=4,
+        )
+        await manager2.start()
+        loaded = await manager2.get_task(task.task_id)
+        self.assertIsNotNone(loaded)
+        self.assertEqual(loaded.result, "1234")
+        await manager2.stop()
+
+    async def test_persistence_can_disable_result_storage(self):
+        file_path = self.tmp_dir / "persist-no-result.pdf"
+        file_path.write_text("demo", encoding="utf-8")
+        state_file = self.tmp_dir / "task_state_no_result.json"
+
+        async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+            return "# do-not-persist"
+
+        manager1 = AsyncTaskManager(
+            worker_count=1,
+            parser_func=fake_parser,
+            state_file_path=str(state_file),
+            state_result_max_chars=0,
+        )
+        await manager1.start()
+
+        task = await manager1.submit(
+            SubmitTaskRequest(
+                filename="persist-no-result.pdf",
+                file_path=str(file_path),
+            )
+        )
+        await self._wait_status(manager1, task.task_id, TaskStatus.completed)
+        await manager1.stop()
+
+        manager2 = AsyncTaskManager(
+            worker_count=1,
+            parser_func=fake_parser,
+            state_file_path=str(state_file),
+            state_result_max_chars=0,
+        )
+        await manager2.start()
+        loaded = await manager2.get_task(task.task_id)
+        self.assertIsNotNone(loaded)
+        self.assertIsNone(loaded.result)
+        await manager2.stop()
+
     async def test_list_tasks_supports_pagination_and_status(self):
         state_file = self.tmp_dir / "list_state.json"
 

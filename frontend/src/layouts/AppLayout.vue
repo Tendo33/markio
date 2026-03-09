@@ -29,6 +29,15 @@
           </div>
 
           <div class="flex items-center gap-2">
+            <button
+              class="inline-flex lg:hidden px-2 py-1.5 text-xs rounded-lg border border-[#d9d9e3] text-[#4a4a62] hover:bg-[#f4f4f5]"
+              type="button"
+              @click="showMobileTokenPanel = !showMobileTokenPanel"
+              :aria-expanded="showMobileTokenPanel ? 'true' : 'false'"
+              aria-controls="mobile-token-panel"
+            >
+              {{ showMobileTokenPanel ? '收起 Token' : '配置 Token' }}
+            </button>
             <div class="hidden lg:flex items-center gap-2">
               <input
                 v-model="apiToken"
@@ -81,6 +90,37 @@
       </div>
     </nav>
 
+    <section
+      id="mobile-token-panel"
+      v-if="showMobileTokenPanel"
+      class="lg:hidden px-4 sm:px-6 py-3 border-b border-[#ececf1] bg-white"
+    >
+      <div class="flex items-center gap-2">
+        <input
+          v-model="apiToken"
+          type="password"
+          class="flex-1 px-2 py-2 text-xs rounded-lg border border-[#d9d9e3] bg-white text-[#202123]"
+          placeholder="JWT Token"
+          aria-label="移动端 API JWT Token"
+          @keyup.enter="saveToken"
+        />
+        <button
+          @click="saveToken"
+          class="px-2 py-2 text-xs rounded-lg border border-[#d9d9e3] text-[#4a4a62] hover:bg-[#f4f4f5]"
+          aria-label="保存移动端 API Token"
+        >
+          保存
+        </button>
+        <button
+          @click="clearToken"
+          class="px-2 py-2 text-xs rounded-lg border border-[#d9d9e3] text-[#4a4a62] hover:bg-[#f4f4f5]"
+          aria-label="清除移动端 API Token"
+        >
+          清除
+        </button>
+      </div>
+    </section>
+
     <main class="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-4 lg:py-6">
       <router-view />
     </main>
@@ -102,8 +142,10 @@ const queueStore = useQueueStore()
 
 const refreshing = ref(false)
 const autoRefreshing = ref(false)
+const showMobileTokenPanel = ref(false)
 const apiToken = ref(getApiToken())
 let timerId: number | null = null
+let autoRefreshDelayMs = 5000
 
 const navItems = [
   { path: '/', label: '仪表盘', icon: LayoutDashboard },
@@ -140,7 +182,7 @@ function shouldAutoRefresh() {
 async function refreshAll(options: { silent?: boolean } = {}) {
   const isSilent = options.silent ?? false
   if ((refreshing.value || autoRefreshing.value) || (isSilent && !shouldAutoRefresh())) {
-    return
+    return true
   }
   if (isSilent) {
     autoRefreshing.value = true
@@ -149,8 +191,10 @@ async function refreshAll(options: { silent?: boolean } = {}) {
   }
   try {
     await Promise.all([taskStore.loadDashboard(8), queueStore.fetchHealth()])
+    return true
   } catch {
     // Errors are stored in Pinia stores and surfaced by pages.
+    return false
   } finally {
     if (isSilent) {
       autoRefreshing.value = false
@@ -160,11 +204,38 @@ async function refreshAll(options: { silent?: boolean } = {}) {
   }
 }
 
+function nextAutoRefreshDelay(hadError: boolean) {
+  if (!shouldAutoRefresh()) {
+    autoRefreshDelayMs = 30000
+    return autoRefreshDelayMs
+  }
+  const activeTasks = Number(stats.value.pending) + Number(stats.value.processing)
+  const baseline = activeTasks > 0 ? 5000 : 15000
+  if (hadError) {
+    autoRefreshDelayMs = Math.min(Math.max(baseline, autoRefreshDelayMs * 2), 60000)
+  } else {
+    autoRefreshDelayMs = baseline
+  }
+  return autoRefreshDelayMs
+}
+
+function scheduleAutoRefresh(hadError = false) {
+  if (timerId) {
+    clearTimeout(timerId)
+  }
+  const delay = nextAutoRefreshDelay(hadError)
+  timerId = window.setTimeout(async () => {
+    const ok = await refreshAll({ silent: true })
+    scheduleAutoRefresh(!ok)
+  }, delay)
+}
+
 function handleVisibilityChange() {
   if (document.visibilityState === 'visible') {
     refreshAll({ silent: true }).catch(() => {
       // ignore visibility refresh error
     })
+    scheduleAutoRefresh()
   }
 }
 
@@ -189,17 +260,13 @@ onMounted(async () => {
     // ignore initial refresh error
   }
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  timerId = window.setInterval(() => {
-    refreshAll({ silent: true }).catch(() => {
-      // ignore auto refresh error
-    })
-  }, 10000)
+  scheduleAutoRefresh()
 })
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   if (timerId) {
-    clearInterval(timerId)
+    clearTimeout(timerId)
     timerId = null
   }
 })

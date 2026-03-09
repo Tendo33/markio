@@ -43,6 +43,7 @@ else:
         cache_setter=_cache_setter if settings.redis_enabled else None,
         max_history=getattr(settings, "task_history_limit", 500),
         state_file_path=getattr(settings, "task_state_file", "data/task_state.json"),
+        state_result_max_chars=getattr(settings, "task_state_result_max_chars", 2048),
         max_auto_retries=getattr(settings, "task_max_auto_retries", 0),
         retry_delay_seconds=getattr(settings, "task_retry_delay_seconds", 0.0),
     )

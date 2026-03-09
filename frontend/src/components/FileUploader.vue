@@ -30,6 +30,17 @@
       <p v-if="maxSize" class="text-xs text-gray-400">最大文件大小: {{ formatFileSize(maxSize) }}</p>
     </div>
 
+    <div v-if="rejectedMessages.length > 0" class="mt-3 space-y-1">
+      <p
+        v-for="(message, idx) in rejectedMessages"
+        :key="idx"
+        class="text-xs text-red-600"
+        role="status"
+      >
+        {{ message }}
+      </p>
+    </div>
+
     <div v-if="files.length > 0" class="mt-4 space-y-2">
       <div
         v-for="(file, index) in files"
@@ -79,6 +90,7 @@ const emit = defineEmits<{
 const fileInput = ref<HTMLInputElement>()
 const files = ref<File[]>([])
 const isDragging = ref(false)
+const rejectedMessages = ref<string[]>([])
 
 const dropzoneClass = computed(() => {
   if (isDragging.value) {
@@ -121,17 +133,64 @@ function onDrop(event: DragEvent) {
 }
 
 function addFiles(newFiles: File[]) {
-  if (props.maxSize) {
-    newFiles = newFiles.filter((file) => file.size <= props.maxSize!)
+  const acceptedFiles: File[] = []
+  const rejects: string[] = []
+
+  for (const file of newFiles) {
+    if (!isAcceptedFile(file)) {
+      rejects.push(`文件类型不支持：${file.name}`)
+      continue
+    }
+    if (props.maxSize && file.size > props.maxSize) {
+      rejects.push(
+        `文件过大：${file.name}（${formatFileSize(file.size)}，上限 ${formatFileSize(props.maxSize)}）`,
+      )
+      continue
+    }
+    acceptedFiles.push(file)
   }
 
+  if (!props.multiple && acceptedFiles.length > 1) {
+    rejects.push('当前仅支持单文件上传，已保留第一个有效文件。')
+  }
+
+  rejectedMessages.value = rejects.slice(0, 3)
+
   if (props.multiple) {
-    files.value = [...files.value, ...newFiles]
+    files.value = [...files.value, ...acceptedFiles]
   } else {
-    files.value = newFiles.slice(0, 1)
+    files.value = acceptedFiles.slice(0, 1)
   }
 
   emit('update:files', files.value)
+}
+
+function isAcceptedFile(file: File): boolean {
+  const accept = props.accept.trim()
+  if (!accept || accept === '*' || accept === '*/*') {
+    return true
+  }
+
+  const fileName = file.name.toLowerCase()
+  const mimeType = (file.type || '').toLowerCase()
+  const patterns = accept
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+
+  return patterns.some((pattern) => {
+    if (pattern === '*' || pattern === '*/*') {
+      return true
+    }
+    if (pattern.startsWith('.')) {
+      return fileName.endsWith(pattern)
+    }
+    if (pattern.endsWith('/*')) {
+      const prefix = pattern.slice(0, -1)
+      return mimeType.startsWith(prefix)
+    }
+    return mimeType === pattern
+  })
 }
 
 function removeFile(index: number) {
@@ -142,6 +201,7 @@ function removeFile(index: number) {
 defineExpose({
   clearFiles: () => {
     files.value = []
+    rejectedMessages.value = []
     emit('update:files', files.value)
   },
 })

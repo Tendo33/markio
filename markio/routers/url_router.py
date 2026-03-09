@@ -15,7 +15,7 @@ from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Query
 
-from markio.parsers.url_parser import url_parse_main
+from markio.parsers.url_parser import URLFetchError, URLSecurityError, url_parse_main
 from markio.routers._request_guards import resolve_parser_output_dir
 from markio.services.sync_parse_service import execute_parse_request
 from markio.settings import settings
@@ -83,6 +83,16 @@ async def parse_html_url_endpoint(
         source_name=url,
         started_at=started_at,
         logger=logger,
+        handled_errors={
+            URLSecurityError: lambda error: HTTPException(
+                status_code=400,
+                detail=str(error),
+            ),
+            URLFetchError: lambda error: HTTPException(
+                status_code=502,
+                detail="Failed to fetch URL content",
+            ),
+        },
     )
 
 

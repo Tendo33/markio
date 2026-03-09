@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from fastapi import HTTPException
 
 from markio.parsers import pdf_parser
 
@@ -74,3 +75,35 @@ async def test_vlm_warmup_failure_does_not_mark_backend_ready(monkeypatch):
     assert result[2] == "vlm"
     assert attempts["count"] == 2
     assert "vlm-auto-engine" in pdf_parser._VLM_WARMED_KEYS
+
+
+@pytest.mark.asyncio
+async def test_pdf_parse_returns_generic_http_500_error(monkeypatch, tmp_path):
+    pdf_path = tmp_path / "boom.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n%fake")
+
+    async def fake_process_resource_path(resource_path: str, output_dir=None):
+        return resource_path
+
+    def fake_prepare_output_dirs(file_name: str, save_parsed_content: bool, output_dir: str):
+        base_dir = tmp_path / "runtime"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        return base_dir, base_dir / "images", base_dir / "md", None, None
+
+    def fake_run_pipeline(**kwargs):
+        raise RuntimeError("internal parse stack details")
+
+    monkeypatch.setattr(pdf_parser, "process_resource_path", fake_process_resource_path)
+    monkeypatch.setattr(pdf_parser, "_prepare_output_dirs", fake_prepare_output_dirs)
+    monkeypatch.setattr(pdf_parser, "_run_pipeline", fake_run_pipeline)
+
+    with pytest.raises(HTTPException) as exc:
+        await pdf_parser.pdf_parse_main(
+            resource_path=str(pdf_path),
+            backend="pipeline",
+            save_parsed_content=False,
+            output_dir=str(tmp_path),
+        )
+
+    assert exc.value.status_code == 500
+    assert exc.value.detail == "PDF parsing failed"

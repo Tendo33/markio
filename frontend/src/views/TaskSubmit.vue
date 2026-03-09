@@ -21,7 +21,7 @@
         <h2 class="text-base lg:text-lg font-semibold text-gray-900 mb-4">处理参数</h2>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-          <div>
+          <div v-if="isPdfFile">
             <label class="block text-sm font-medium text-gray-700 mb-2">parse_method</label>
             <select v-model="form.parse_method" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
               <option value="auto">auto</option>
@@ -30,7 +30,7 @@
             </select>
           </div>
 
-          <div>
+          <div v-if="isPdfFile">
             <label class="block text-sm font-medium text-gray-700 mb-2">lang</label>
             <select v-model="form.lang" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
               <option value="ch">ch</option>
@@ -60,7 +60,7 @@
             />
           </div>
 
-          <div>
+          <div v-if="isPdfFile">
             <label class="block text-sm font-medium text-gray-700 mb-2">start_page</label>
             <input
               v-model.number="form.start_page"
@@ -70,7 +70,7 @@
             />
           </div>
 
-          <div>
+          <div v-if="isPdfFile">
             <label class="block text-sm font-medium text-gray-700 mb-2">end_page（留空表示最后一页）</label>
             <input
               v-model="form.end_page"
@@ -80,6 +80,9 @@
             />
           </div>
         </div>
+        <p v-if="!isPdfFile" class="mt-3 text-sm text-gray-500">
+          当前文件不是 PDF，已自动隐藏 PDF 专属参数（parse_method/lang/start_page/end_page/save_middle_content）。
+        </p>
         <p v-if="pageRangeError" class="mt-3 text-sm text-red-600">{{ pageRangeError }}</p>
         <p v-if="fileTypeError" class="mt-2 text-sm text-red-600">{{ fileTypeError }}</p>
 
@@ -88,7 +91,7 @@
             <input v-model="form.save_parsed_content" type="checkbox" class="w-4 h-4 text-primary-600 border-gray-300 rounded" />
             <span class="ml-2 text-sm text-gray-700">保存解析内容</span>
           </label>
-          <label class="flex items-center">
+          <label v-if="isPdfFile" class="flex items-center">
             <input v-model="form.save_middle_content" type="checkbox" class="w-4 h-4 text-primary-600 border-gray-300 rounded" />
             <span class="ml-2 text-sm text-gray-700">保存中间结果</span>
           </label>
@@ -186,8 +189,24 @@ const canSubmit = computed(() => {
   return files.value.length > 0 && !pageRangeError.value && !fileTypeError.value
 })
 
+const currentFileExtension = computed(() => {
+  if (files.value.length === 0) {
+    return ''
+  }
+  return getFileExtension(files.value[0].name)
+})
+
+const isPdfFile = computed(() => currentFileExtension.value === '.pdf')
+
 function onFilesChange(nextFiles: File[]) {
   files.value = nextFiles
+  if (!isPdfFile.value) {
+    form.parse_method = 'auto'
+    form.lang = 'ch'
+    form.start_page = 0
+    form.end_page = ''
+    form.save_middle_content = false
+  }
 }
 
 async function submit() {

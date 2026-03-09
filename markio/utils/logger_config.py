@@ -42,6 +42,8 @@ def setup_logger(
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
+    debug_mode = str(log_level).strip().upper() == "DEBUG"
+
     # Clear default log handlers
     logger.remove()
 
@@ -51,8 +53,8 @@ def setup_logger(
         format=format_str,
         level=log_level,
         colorize=True,
-        backtrace=True,
-        diagnose=True,
+        backtrace=debug_mode,
+        diagnose=debug_mode,
     )
 
     # File log handler
@@ -63,8 +65,8 @@ def setup_logger(
         compression=compression,
         format=format_str,
         level="DEBUG",
-        backtrace=True,
-        diagnose=True,
+        backtrace=debug_mode,
+        diagnose=debug_mode,
     )
 
     # Error logs stored separately
@@ -75,8 +77,8 @@ def setup_logger(
         compression=compression,
         format=format_str,
         level="ERROR",
-        backtrace=True,
-        diagnose=True,
+        backtrace=debug_mode,
+        diagnose=debug_mode,
     )
 
     logger.debug(f"Logger initialized for project: {project_name}")

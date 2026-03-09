@@ -25,9 +25,10 @@ import os
 from datetime import datetime
 from typing import Any, Dict
 
-from fastapi import APIRouter, Body, FastAPI, File, UploadFile
+from fastapi import APIRouter, Body, Depends, FastAPI, File, Response, UploadFile
 from fastapi_mcp import FastApiMCP
 
+from markio.auth import require_auth_user
 from markio.parsers import (
     doc_parser,
     docx_parser,
@@ -55,6 +56,14 @@ from markio.settings import settings
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
+
+
+DEPRECATION_HEADERS = {
+    "Deprecation": "true",
+    "Sunset": "Wed, 30 Jun 2027 00:00:00 GMT",
+    "Link": '</v1/mcp>; rel="successor-version"',
+    "X-Markio-Deprecated": "Use /v1/mcp/* endpoints",
+}
 
 
 class MarkioMCP:
@@ -141,10 +150,17 @@ class MarkioMCP:
         parser_func, _ = self.FILE_PARSERS[file_extension]
         return parser_func
 
+    @staticmethod
+    def _mark_legacy_endpoint(response: Response) -> None:
+        for key, value in DEPRECATION_HEADERS.items():
+            response.headers[key] = value
+
     async def _parse_document(
         self, file_path: str, file_extension: str, config: BaseParserConfig
     ) -> str:
         """Parse document using the appropriate parser with configuration."""
+        parser_kwargs = config.model_dump(exclude_none=True)
+
         if file_extension == ".pdf":
             # For PDF files, select parser based on environment variables
             pdf_parse_engine = settings.pdf_parse_engine
@@ -154,15 +170,13 @@ class MarkioMCP:
                 # Use pipeline parser
                 return await pdf_parser.pdf_parse_main(
                     resource_path=file_path,
-                    save_parsed_content=config.save_parsed_content,
-                    output_dir=config.output_dir,
+                    **parser_kwargs,
                 )
             elif pdf_parse_engine in ["vlm-vllm-engine", "vlm-vllm-client"]:
                 # Use VLM parser with vLLM backend
                 return await pdf_parser_vlm.pdf_parse_vlm_main(
                     resource_path=file_path,
-                    save_parsed_content=config.save_parsed_content,
-                    output_dir=config.output_dir,
+                    **parser_kwargs,
                 )
             else:
                 error_msg = f"Invalid PDF_PARSE_ENGINE value: {pdf_parse_engine}. Must be 'pipeline', 'vlm-vllm-engine', or 'vlm-vllm-client'"
@@ -171,44 +185,26 @@ class MarkioMCP:
         else:
             # For other file types, use default parser
             parser_func = self._get_parser_function(file_extension)
-            return await parser_func(file_path, config)
+            return await parser_func(
+                resource_path=file_path,
+                **parser_kwargs,
+            )
 
     def setup_mcp(self):
         """Setup MCP endpoints and tools for document parsing (Best Practice)."""
-        router = APIRouter()
-
-        @router.post(
-            "/mcp/convert_document",
-            operation_id="convert_document",
-            tags=["MCP Tools"],
-            response_model=dict[str, Any],
+        secure_router = APIRouter(
+            prefix="/v1",
+            dependencies=[Depends(require_auth_user)],
         )
-        async def convert_document(
-            file: UploadFile = File(
-                ...,
-                description="Convert uploaded document files (supports PDF, DOC, DOCX, EPUB, PPT, PPTX, XLSX, HTML, HTM, PNG, JPG, JPEG) to Markdown",
-            ),
-        ):
-            """
-            Upload document and automatically convert to Markdown.
+        legacy_router = APIRouter(dependencies=[Depends(require_auth_user)])
 
-            Parameters:
-                file (UploadFile): The uploaded document file.
-            Returns:
-                status (str): "success" or "error"
-                result (str, optional): Parsed Markdown content
-                message (str, optional): Error message
-                file_type (str): Detected file type
-                parsed_at (str): Parsing completion timestamp
-            Example:
-                >>> multipart/form-data upload PDF file
-            """
+        async def _convert_document_core(file: UploadFile) -> dict[str, Any]:
             import shutil
             import tempfile
 
             try:
                 # 1. Save uploaded file to temporary directory
-                suffix = os.path.splitext(file.filename)[1].lower()
+                suffix = os.path.splitext(file.filename or "")[1].lower()
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                     shutil.copyfileobj(file.file, tmp)
                     tmp_path = tmp.name
@@ -230,21 +226,21 @@ class MarkioMCP:
                     "file_type": file_extension,
                     "parsed_at": datetime.now().isoformat(),
                 }
-            except ValueError as ve:
+            except ValueError as exc:
                 logger.error(
-                    f"Validation error for uploaded file {file.filename}: {str(ve)}"
+                    f"Validation error for uploaded file {file.filename}: {exc}"
                 )
                 return {
                     "status": "error",
-                    "message": str(ve),
+                    "message": str(exc),
                     "file_type": suffix if "suffix" in locals() else "unknown",
                     "parsed_at": datetime.now().isoformat(),
                 }
-            except Exception as e:
-                logger.error(f"Error parsing uploaded file {file.filename}: {str(e)}")
+            except Exception:
+                logger.exception(f"Error parsing uploaded file {file.filename}")
                 return {
                     "status": "error",
-                    "message": f"Parsing failed: {str(e)}",
+                    "message": "Parsing failed",
                     "file_type": suffix if "suffix" in locals() else "unknown",
                     "parsed_at": datetime.now().isoformat(),
                 }
@@ -256,19 +252,37 @@ class MarkioMCP:
                 except Exception:
                     pass
 
-        @router.post(
-            "/mcp/parse_url",
-            operation_id="parse_url",
+        @secure_router.post(
+            "/mcp/convert_document",
+            operation_id="v1_convert_document",
             tags=["MCP Tools"],
             response_model=dict[str, Any],
         )
-        async def parse_url(
-            url: str = Body(
+        async def convert_document(
+            file: UploadFile = File(
                 ...,
-                embed=True,
-                description="Convert web URL to Markdown",
+                description="Convert uploaded document files (supports PDF, DOC, DOCX, EPUB, PPT, PPTX, XLSX, HTML, HTM, PNG, JPG, JPEG) to Markdown",
             ),
         ):
+            return await _convert_document_core(file)
+
+        @legacy_router.post(
+            "/mcp/convert_document",
+            operation_id="legacy_convert_document",
+            tags=["MCP Tools"],
+            response_model=dict[str, Any],
+        )
+        async def legacy_convert_document(
+            response: Response,
+            file: UploadFile = File(
+                ...,
+                description="Convert uploaded document files (supports PDF, DOC, DOCX, EPUB, PPT, PPTX, XLSX, HTML, HTM, PNG, JPG, JPEG) to Markdown",
+            ),
+        ):
+            self._mark_legacy_endpoint(response)
+            return await _convert_document_core(file)
+
+        async def _parse_url_core(url: str) -> dict[str, Any]:
             """
             Parse web content and convert to Markdown.
 
@@ -290,7 +304,9 @@ class MarkioMCP:
                     raise ValueError("URL must start with http:// or https://")
                 logger.info(f"Starting to parse URL: {url}")
                 result = await url_parse_main(
-                    url=url, save_parsed_content=False, output_dir="output"
+                    url=url,
+                    save_parsed_content=False,
+                    output_dir=settings.output_dir,
                 )
                 if isinstance(result, str):
                     logger.info(f"Successfully parsed URL: {url}")
@@ -300,34 +316,64 @@ class MarkioMCP:
                         "file_type": "url",
                         "parsed_at": datetime.now().isoformat(),
                     }
-                else:
-                    error_detail = (
-                        result.body.decode() if hasattr(result, "body") else str(result)
-                    )
-                    logger.error(f"Failed to parse URL {url}: {error_detail}")
-                    return {
-                        "status": "error",
-                        "message": f"URL parsing failed: {error_detail}",
-                        "file_type": "url",
-                        "parsed_at": datetime.now().isoformat(),
-                    }
-            except ValueError as ve:
-                logger.error(f"Validation error for URL {url}: {str(ve)}")
+
+                logger.error(f"Failed to parse URL {url}: parser returned non-string")
                 return {
                     "status": "error",
-                    "message": str(ve),
+                    "message": "URL parsing failed",
                     "file_type": "url",
                     "parsed_at": datetime.now().isoformat(),
                 }
-            except Exception as e:
-                logger.error(f"Error parsing URL {url}: {str(e)}")
+            except ValueError as exc:
+                logger.error(f"Validation error for URL {url}: {exc}")
                 return {
                     "status": "error",
-                    "message": f"URL parsing failed: {str(e)}",
+                    "message": str(exc),
+                    "file_type": "url",
+                    "parsed_at": datetime.now().isoformat(),
+                }
+            except Exception:
+                logger.exception(f"Error parsing URL {url}")
+                return {
+                    "status": "error",
+                    "message": "URL parsing failed",
                     "file_type": "url",
                     "parsed_at": datetime.now().isoformat(),
                 }
 
-        self.app.include_router(router)
+        @secure_router.post(
+            "/mcp/parse_url",
+            operation_id="v1_parse_url",
+            tags=["MCP Tools"],
+            response_model=dict[str, Any],
+        )
+        async def parse_url(
+            url: str = Body(
+                ...,
+                embed=True,
+                description="Convert web URL to Markdown",
+            ),
+        ):
+            return await _parse_url_core(url)
+
+        @legacy_router.post(
+            "/mcp/parse_url",
+            operation_id="legacy_parse_url",
+            tags=["MCP Tools"],
+            response_model=dict[str, Any],
+        )
+        async def legacy_parse_url(
+            response: Response,
+            url: str = Body(
+                ...,
+                embed=True,
+                description="Convert web URL to Markdown",
+            ),
+        ):
+            self._mark_legacy_endpoint(response)
+            return await _parse_url_core(url)
+
+        self.app.include_router(secure_router)
+        self.app.include_router(legacy_router)
         self.mcp.setup_server()
         logger.info("Markio MCP server mounted successfully")

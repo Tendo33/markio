@@ -82,6 +82,15 @@ class FakeRedis:
             self.zsets[key].pop(member, None)
         return items
 
+    async def zrangebyscore(self, key, min_score, max_score):
+        items = [
+            (member, score)
+            for member, score in self.zsets.get(key, {}).items()
+            if float(min_score) <= score <= float(max_score)
+        ]
+        items.sort(key=lambda item: (item[1], item[0]))
+        return [member for member, _ in items]
+
     async def incr(self, key):
         self.counters[key] += 1
         return self.counters[key]
@@ -99,7 +108,7 @@ class FakeRedis:
         self.scripts[sha] = script
         return sha
 
-    async def evalsha(self, sha, numkeys, *args):
+    async def evalsha(self, sha, _numkeys, *args):
         script = self.scripts.get(sha)
         if script is None:
             raise RuntimeError("missing script")
@@ -296,6 +305,45 @@ class RedisTaskStoreTests(unittest.IsolatedAsyncioTestCase):
         else:
             self.assertTrue(canceled)
             self.assertEqual(current.status, TaskStatus.canceled)
+
+    async def test_requeue_timeouts_keeps_completed_task_unchanged_when_processing_set_stale(self):
+        request = SubmitTaskRequest(
+            filename="timeout-race.pdf",
+            file_path="/tmp/timeout-race.pdf",
+            owner_id="owner-race",
+        )
+        record = await self.store.submit_task(request)
+        claimed = await self.store.claim_next_task()
+        self.assertIsNotNone(claimed)
+
+        await self.store.mark_completed(record.task_id, "# done")
+
+        # Simulate stale processing-set entry left behind by a race.
+        stale_score = datetime.now(timezone.utc).timestamp() - 10
+        await self.redis.zadd("queue:processing", {record.task_id: stale_score})
+
+        await self.store.requeue_timeouts(timeout_seconds=1, max_auto_retries=2)
+
+        current = await self.store.get_task(record.task_id)
+        self.assertIsNotNone(current)
+        self.assertEqual(current.status, TaskStatus.completed)
+        self.assertEqual(await self.redis.zcard("queue:pending"), 0)
+        self.assertEqual(await self.redis.zcard("queue:processing"), 0)
+
+    async def test_clear_all_removes_task_and_result_keys(self):
+        request = SubmitTaskRequest(filename="cleanup.pdf", file_path="/tmp/cleanup.pdf")
+        record = await self.store.submit_task(request)
+        await self.store.claim_next_task()
+        await self.store.mark_completed(record.task_id, "# cleanup")
+
+        self.assertIn(f"task:{record.task_id}", self.redis.hashes)
+        self.assertIn(f"result:{record.task_id}", self.redis.strings)
+
+        await self.store.clear_all()
+
+        self.assertNotIn(f"task:{record.task_id}", self.redis.hashes)
+        self.assertNotIn(f"result:{record.task_id}", self.redis.strings)
+        self.assertEqual(await self.redis.zcard("task:created"), 0)
 
 
 if __name__ == "__main__":

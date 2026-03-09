@@ -59,9 +59,3 @@ def api_endpoints():
         "epub": f"{API_PREFIX}/parse_epub_file",
         "image": f"{API_PREFIX}/parse_image_file",
     }
-
-
-@pytest.fixture
-def parser_config():
-    """Default parser configuration"""
-    return {"save_parsed_content": False, "output_dir": None}

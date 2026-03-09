@@ -44,6 +44,7 @@ class AsyncTaskManager(BaseTaskManager):
         cache_setter: CacheSetter | None = None,
         max_history: int = 500,
         state_file_path: str | None = None,
+        state_result_max_chars: int = 2048,
         max_auto_retries: int = 0,
         retry_delay_seconds: float = 0.0,
     ) -> None:
@@ -56,6 +57,7 @@ class AsyncTaskManager(BaseTaskManager):
         self.worker_count = max(1, worker_count)
         self.max_history = max(20, max_history)
         self.state_file_path = state_file_path
+        self.state_result_max_chars = max(0, int(state_result_max_chars))
         self.max_auto_retries = max(0, max_auto_retries)
         self.retry_delay_seconds = max(0.0, retry_delay_seconds)
 
@@ -507,7 +509,9 @@ class AsyncTaskManager(BaseTaskManager):
 
         payload = {
             "paused": self._paused,
-            "records": [self._record_to_dict(item) for item in self._records.values()],
+            "records": [
+                self._record_to_persist_dict(item) for item in self._records.values()
+            ],
             "requests": {
                 task_id: asdict(request)
                 for task_id, request in self._requests.items()
@@ -581,6 +585,19 @@ class AsyncTaskManager(BaseTaskManager):
         payload["completed_at"] = (
             record.completed_at.isoformat() if record.completed_at else None
         )
+        return payload
+
+    def _record_to_persist_dict(self, record: TaskRecord) -> dict:
+        payload = self._record_to_dict(record)
+        result = payload.get("result")
+        if result is None:
+            return payload
+
+        max_chars = self.state_result_max_chars
+        if max_chars <= 0:
+            payload["result"] = None
+        elif isinstance(result, str) and len(result) > max_chars:
+            payload["result"] = result[:max_chars]
         return payload
 
     @staticmethod
