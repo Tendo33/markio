@@ -44,7 +44,7 @@ class AsyncTaskManager(BaseTaskManager):
         cache_setter: CacheSetter | None = None,
         max_history: int = 500,
         state_file_path: str | None = None,
-        state_result_max_chars: int = 2048,
+        state_result_max_chars: int = 0,
         max_auto_retries: int = 0,
         retry_delay_seconds: float = 0.0,
     ) -> None:

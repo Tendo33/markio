@@ -7,6 +7,7 @@ The console frontend is adapted from `mineru-tianshu`, then trimmed to fit Marki
 - Keep only task-related views (Dashboard, Task List, Submit, Detail, Queue)
 - Align strictly with Markio `/v1/tasks/*` APIs
 - Serve static assets via FastAPI at `/console`
+- Default to same-origin API access (`VITE_API_BASE_URL=""`, requests go to `/v1/*`)
 
 ## Route Map
 
@@ -53,6 +54,10 @@ npm run build
 ```
 
 Build output target: `markio/webapp`
+
+Environment defaults:
+- `frontend/.env.development`: `VITE_API_BASE_URL=`
+- `frontend/.env.production`: `VITE_API_BASE_URL=`
 
 After backend startup, open:
 

@@ -25,7 +25,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict
 
-from fastapi import APIRouter, Body, Depends, FastAPI, File, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, FastAPI, File, HTTPException, Response, UploadFile
 from fastapi_mcp import FastApiMCP
 
 from markio.auth import require_auth_user
@@ -52,6 +52,7 @@ from markio.schemas.parsers_schemas import (
     PPTXParserConfig,
     XLSXParserConfig,
 )
+from markio.routers._request_guards import enforce_upload_size
 from markio.settings import settings
 from markio.utils.logger_config import get_logger
 
@@ -199,14 +200,24 @@ class MarkioMCP:
         legacy_router = APIRouter(dependencies=[Depends(require_auth_user)])
 
         async def _convert_document_core(file: UploadFile) -> dict[str, Any]:
-            import shutil
             import tempfile
 
+            max_upload_size = int(settings.task_max_upload_size_bytes)
             try:
                 # 1. Save uploaded file to temporary directory
                 suffix = os.path.splitext(file.filename or "")[1].lower()
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                    shutil.copyfileobj(file.file, tmp)
+                    bytes_written = 0
+                    while True:
+                        chunk = await file.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        bytes_written += len(chunk)
+                        enforce_upload_size(
+                            bytes_written=bytes_written,
+                            max_bytes=max_upload_size,
+                        )
+                        tmp.write(chunk)
                     tmp_path = tmp.name
                 # 2. Validate file type
                 file_extension = self._validate_file_type(tmp_path)
@@ -236,6 +247,9 @@ class MarkioMCP:
                     "file_type": suffix if "suffix" in locals() else "unknown",
                     "parsed_at": datetime.now().isoformat(),
                 }
+            except HTTPException:
+                logger.warning(f"Uploaded file {file.filename} rejected by request guard")
+                raise
             except Exception:
                 logger.exception(f"Error parsing uploaded file {file.filename}")
                 return {

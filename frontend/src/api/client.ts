@@ -3,6 +3,7 @@ import axios, { AxiosError } from 'axios'
 const envBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
 const envApiToken = (import.meta.env.VITE_API_TOKEN as string | undefined)?.trim() ?? ''
 export const API_TOKEN_STORAGE_KEY = 'markio_api_token'
+const TOKEN_CHANGE_EVENT = 'markio:token-change'
 
 function resolveStoredToken(): string {
   if (typeof window === 'undefined') {
@@ -20,10 +21,53 @@ export function setApiToken(token: string) {
   } else {
     window.sessionStorage.removeItem(API_TOKEN_STORAGE_KEY)
   }
+  window.dispatchEvent(new Event(TOKEN_CHANGE_EVENT))
 }
 
 export function getApiToken(): string {
   return resolveStoredToken()
+}
+
+function decodeBase64Url(input: string): string | null {
+  if (!input) return null
+  const normalized = input.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4)
+  try {
+    if (typeof window !== 'undefined' && typeof window.atob === 'function') {
+      return window.atob(padded)
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+export function getApiTokenRole(defaultRole: string = 'user'): string {
+  const token = resolveStoredToken()
+  if (!token) return defaultRole
+  const [, payloadSegment] = token.split('.')
+  if (!payloadSegment) return defaultRole
+  const payloadRaw = decodeBase64Url(payloadSegment)
+  if (!payloadRaw) return defaultRole
+  try {
+    const payload = JSON.parse(payloadRaw) as { role?: unknown }
+    if (typeof payload.role === 'string' && payload.role.trim()) {
+      return payload.role.trim().toLowerCase()
+    }
+  } catch {
+    return defaultRole
+  }
+  return defaultRole
+}
+
+export function onApiTokenChange(handler: () => void): () => void {
+  if (typeof window === 'undefined') {
+    return () => {}
+  }
+  window.addEventListener(TOKEN_CHANGE_EVENT, handler)
+  return () => {
+    window.removeEventListener(TOKEN_CHANGE_EVENT, handler)
+  }
 }
 
 const apiClient = axios.create({

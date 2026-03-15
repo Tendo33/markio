@@ -99,8 +99,12 @@ Open:
 ### Run with Docker Compose
 
 ```bash
+export AUTH_JWT_SECRET="<strong-random-secret>"
+export REDIS_PASSWORD="<redis-password>"
 docker compose up -d
 ```
+
+Compose defaults are aligned to backend same-origin hosting: API at `/v1/*`, console at `/console`, Redis only exposed inside the compose network.
 
 ### Run Frontend in Dev Mode (Optional)
 
@@ -242,19 +246,25 @@ Core settings come from environment variables (`.env`, see `.env.example`).
 | `TASK_QUEUE_BACKEND` | `memory` | `memory` or `redis` |
 | `TASK_WORKER_COUNT` | `2` | Background workers |
 | `TASK_MAX_UPLOAD_SIZE_BYTES` | `52428800` | Upload cap (`413` on overflow) |
+| `TASK_STATE_RESULT_MAX_CHARS` | `0` | Max chars persisted into task state file (`0` disables result persistence) |
 | `TASK_MAX_AUTO_RETRIES` | `0` | Auto-retry limit |
 | `TASK_PROCESSING_TIMEOUT_SECONDS` | `0` | Requeue timeout for processing tasks |
 | `RATE_LIMIT_ENABLED` | `true` | Lightweight per-IP + route limiter |
+| `CORS_ALLOW_ORIGINS` | `""` | Comma-separated CORS allowlist; empty means same-origin only |
+| `CORS_ALLOW_CREDENTIALS` | `true` | CORS credentials toggle |
 | `ENABLE_MCP` | `false` | Mount MCP endpoints/tools |
 | `AUTH_JWT_SECRET` | _(required)_ | HS256 secret for `/v1/*` auth |
 | `AUTH_JWT_ALGORITHM` | `HS256` | JWT algorithm (`HS256` only) |
 | `MARKIO_API_TOKEN` | `""` | SDK/CLI/Gradio bearer token |
 | `MARKIO_API_BASE_URL` | `""` | SDK/CLI remote API base URL |
+| `MARKIO_API_PREFIX` | `"/v1"` | Gradio remote API prefix |
+| `MARKIO_API_DOCS_URL` | `"<MARKIO_API_BASE_URL>/docs"` | Gradio docs/health URL override |
 
 Redis details: [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
 
 JWT claim requirements:
 - required: `sub`
+- required: `exp` (numeric expiration timestamp)
 - `role=admin` required for `/v1/tasks/queue/pause` and `/v1/tasks/queue/resume`
 
 ## Project Structure

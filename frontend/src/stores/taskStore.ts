@@ -6,7 +6,8 @@ import type { DashboardPayload, SubmitTaskRequest, TaskRecord, TaskStatus } from
 
 export const useTaskStore = defineStore('task', () => {
   const tasks = ref<TaskRecord[]>([])
-  const currentTask = ref<TaskRecord | null>(null)
+  const currentTaskSummary = ref<TaskRecord | null>(null)
+  const currentTaskResult = ref<string | null>(null)
   const dashboard = ref<DashboardPayload | null>(null)
 
   const page = ref(1)
@@ -14,7 +15,9 @@ export const useTaskStore = defineStore('task', () => {
   const total = ref(0)
   const statusFilter = ref<TaskStatus | ''>('')
 
-  const loading = ref(false)
+  const dashboardLoading = ref(false)
+  const listLoading = ref(false)
+  const detailLoading = ref(false)
   const submitting = ref(false)
   const dashboardError = ref('')
   const listError = ref('')
@@ -23,10 +26,30 @@ export const useTaskStore = defineStore('task', () => {
   const error = computed(() =>
     detailError.value || listError.value || dashboardError.value || submitError.value
   )
+  const loading = computed(
+    () => dashboardLoading.value || listLoading.value || detailLoading.value || submitting.value
+  )
+  const currentTask = computed<TaskRecord | null>(() => {
+    if (!currentTaskSummary.value) {
+      return null
+    }
+    return {
+      ...currentTaskSummary.value,
+      result: currentTaskResult.value,
+    }
+  })
 
   const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
+  function toTaskSummary(record: TaskRecord): TaskRecord {
+    return {
+      ...record,
+      result: null,
+    }
+  }
+
   async function loadDashboard(recentLimit: number = 8) {
+    dashboardLoading.value = true
     dashboardError.value = ''
     try {
       dashboard.value = await taskApi.getDashboard(recentLimit)
@@ -34,11 +57,13 @@ export const useTaskStore = defineStore('task', () => {
     } catch (err: any) {
       dashboardError.value = err?.message || '加载仪表盘失败'
       throw err
+    } finally {
+      dashboardLoading.value = false
     }
   }
 
   async function loadTasks(nextPage: number = page.value) {
-    loading.value = true
+    listLoading.value = true
     listError.value = ''
 
     try {
@@ -47,7 +72,7 @@ export const useTaskStore = defineStore('task', () => {
         pageSize.value,
         statusFilter.value || undefined
       )
-      tasks.value = response.items
+      tasks.value = response.items.map((item) => toTaskSummary(item))
       total.value = response.total
       page.value = response.page
       return response
@@ -55,7 +80,7 @@ export const useTaskStore = defineStore('task', () => {
       listError.value = err?.message || '加载任务列表失败'
       throw err
     } finally {
-      loading.value = false
+      listLoading.value = false
     }
   }
 
@@ -70,24 +95,35 @@ export const useTaskStore = defineStore('task', () => {
     taskId: string,
     options: { includeResult?: boolean; maxResultChars?: number } = {}
   ) {
-    loading.value = true
+    detailLoading.value = true
     detailError.value = ''
 
     try {
-      currentTask.value = await taskApi.getTaskDetail(taskId, {
+      const detail = await taskApi.getTaskDetail(taskId, {
         includeResult: options.includeResult,
         maxResultChars: options.maxResultChars,
       })
+      const summary = toTaskSummary(detail)
+      const previousTaskId = currentTaskSummary.value?.task_id
+      currentTaskSummary.value = summary
+      if (options.includeResult) {
+        currentTaskResult.value = detail.result ?? null
+      } else if (previousTaskId !== detail.task_id || detail.status !== 'completed') {
+        currentTaskResult.value = null
+      }
       const index = tasks.value.findIndex((item) => item.task_id === taskId)
       if (index >= 0) {
-        tasks.value[index] = currentTask.value
+        tasks.value[index] = summary
       }
-      return currentTask.value
+      return {
+        ...summary,
+        result: currentTaskResult.value,
+      }
     } catch (err: any) {
       detailError.value = err?.message || '加载任务详情失败'
       throw err
     } finally {
-      loading.value = false
+      detailLoading.value = false
     }
   }
 
@@ -97,7 +133,7 @@ export const useTaskStore = defineStore('task', () => {
 
     try {
       const result = await taskApi.submitTask(request)
-      tasks.value.unshift(result)
+      tasks.value.unshift(toTaskSummary(result))
       total.value += 1
       return result
     } catch (err: any) {
@@ -134,12 +170,17 @@ export const useTaskStore = defineStore('task', () => {
   return {
     tasks,
     currentTask,
+    currentTaskSummary,
+    currentTaskResult,
     dashboard,
     page,
     pageSize,
     total,
     maxPage,
     statusFilter,
+    dashboardLoading,
+    listLoading,
+    detailLoading,
     loading,
     submitting,
     dashboardError,

@@ -1,16 +1,16 @@
 <template>
-  <div class="min-h-screen bg-[#f7f7f8]">
-    <nav class="bg-white/90 backdrop-blur-md border-b border-[#ececf1] sticky top-0 z-40">
+  <div class="min-h-screen bg-subtle">
+    <nav class="relative bg-white/90 backdrop-blur-md border-b border-subtle sticky top-0 z-40">
       <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
         <div class="flex flex-wrap lg:flex-nowrap justify-between items-center min-h-16 py-2 gap-3">
           <div class="flex items-center min-w-0 flex-1">
             <router-link to="/" class="flex items-center gap-3 group">
-              <div class="h-9 w-9 rounded-xl bg-[#202123] text-white font-semibold text-xs tracking-wide flex items-center justify-center">
+              <div class="h-9 w-9 rounded-xl text-white font-semibold text-xs tracking-wide flex items-center justify-center bg-[color:var(--text-primary)]">
                 MK
               </div>
               <div>
-                <div class="text-lg font-semibold text-[#202123]">Markio Console</div>
-                <div class="text-xs text-[#6e6e80]">OpenAI 风格轻量任务控制台</div>
+                <div class="text-lg font-semibold text-primary">Markio Console</div>
+                <div class="text-xs text-secondary">OpenAI 风格轻量任务控制台</div>
               </div>
             </router-link>
           </div>
@@ -30,7 +30,7 @@
 
           <div class="flex items-center gap-2">
             <button
-              class="inline-flex lg:hidden px-2 py-1.5 text-xs rounded-lg border border-[#d9d9e3] text-[#4a4a62] hover:bg-[#f4f4f5]"
+              class="inline-flex lg:hidden px-2 py-1.5 text-xs rounded-lg border border-default text-tertiary hover:bg-hover"
               type="button"
               @click="showMobileTokenPanel = !showMobileTokenPanel"
               :aria-expanded="showMobileTokenPanel ? 'true' : 'false'"
@@ -42,37 +42,40 @@
               <input
                 v-model="apiToken"
                 type="password"
-                class="w-52 px-2 py-1.5 text-xs rounded-lg border border-[#d9d9e3] bg-white text-[#202123]"
+                class="w-52 px-2 py-1.5 text-xs rounded-lg border border-default bg-surface text-primary"
                 placeholder="JWT Token"
                 aria-label="API JWT Token"
                 @keyup.enter="saveToken"
               />
               <button
                 @click="saveToken"
-                class="px-2 py-1.5 text-xs rounded-lg border border-[#d9d9e3] text-[#4a4a62] hover:bg-[#f4f4f5]"
+                class="px-2 py-1.5 text-xs rounded-lg border border-default text-tertiary hover:bg-hover"
                 aria-label="保存 API Token"
               >
                 保存
               </button>
               <button
                 @click="clearToken"
-                class="px-2 py-1.5 text-xs rounded-lg border border-[#d9d9e3] text-[#4a4a62] hover:bg-[#f4f4f5]"
+                class="px-2 py-1.5 text-xs rounded-lg border border-default text-tertiary hover:bg-hover"
                 aria-label="清除 API Token"
               >
                 清除
               </button>
             </div>
-            <div class="hidden md:flex items-center gap-3 px-3 py-1.5 bg-[#f7f7f8] rounded-lg border border-[#ececf1]">
+            <div class="hidden md:flex items-center gap-3 px-3 py-1.5 bg-subtle rounded-lg border border-subtle">
               <div class="flex items-center gap-1.5 text-xs">
-                <div class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
-                <span class="text-[#6e6e80]">处理中</span>
-                <span class="font-semibold text-amber-700">{{ stats.processing }}</span>
+                <div
+                  class="w-2 h-2 rounded-full bg-[color:var(--status-warning-text)]"
+                  :class="stats.processing > 0 ? 'animate-pulse' : ''"
+                ></div>
+                <span class="text-secondary">处理中</span>
+                <span class="font-semibold text-warning">{{ stats.processing }}</span>
               </div>
-              <div class="w-px h-3 bg-[#d9d9e3]"></div>
+              <div class="w-px h-3 bg-[color:var(--border-default)]"></div>
               <div class="flex items-center gap-1.5 text-xs">
-                <div class="w-2 h-2 rounded-full bg-slate-400"></div>
-                <span class="text-[#6e6e80]">等待</span>
-                <span class="font-semibold text-[#4a4a62]">{{ stats.pending }}</span>
+                <div class="w-2 h-2 rounded-full bg-[color:var(--border-strong)]"></div>
+                <span class="text-secondary">等待</span>
+                <span class="font-semibold text-tertiary">{{ stats.pending }}</span>
               </div>
             </div>
 
@@ -80,7 +83,7 @@
               @click="refreshAll"
               :disabled="refreshing || autoRefreshing"
               aria-label="刷新仪表盘和队列状态"
-              class="p-2 text-[#6e6e80] hover:text-primary-600 hover:bg-[#f4f4f5] rounded-lg transition-all duration-200"
+              class="icon-btn text-secondary hover:text-primary-600 hover:bg-hover"
               title="刷新"
             >
               <RefreshCw :class="{ 'animate-spin': refreshing || autoRefreshing }" class="w-5 h-5" />
@@ -88,32 +91,33 @@
           </div>
         </div>
       </div>
+      <div class="absolute inset-x-0 bottom-0 h-[2px] bg-[color:var(--accent)] opacity-50"></div>
     </nav>
 
     <section
       id="mobile-token-panel"
       v-if="showMobileTokenPanel"
-      class="lg:hidden px-4 sm:px-6 py-3 border-b border-[#ececf1] bg-white"
+      class="lg:hidden px-4 sm:px-6 py-3 border-b border-subtle bg-surface"
     >
       <div class="flex items-center gap-2">
         <input
           v-model="apiToken"
           type="password"
-          class="flex-1 px-2 py-2 text-xs rounded-lg border border-[#d9d9e3] bg-white text-[#202123]"
+          class="flex-1 px-2 py-2 text-xs rounded-lg border border-default bg-surface text-primary"
           placeholder="JWT Token"
           aria-label="移动端 API JWT Token"
           @keyup.enter="saveToken"
         />
         <button
           @click="saveToken"
-          class="px-2 py-2 text-xs rounded-lg border border-[#d9d9e3] text-[#4a4a62] hover:bg-[#f4f4f5]"
+          class="px-2 py-2 text-xs rounded-lg border border-default text-tertiary hover:bg-hover"
           aria-label="保存移动端 API Token"
         >
           保存
         </button>
         <button
           @click="clearToken"
-          class="px-2 py-2 text-xs rounded-lg border border-[#d9d9e3] text-[#4a4a62] hover:bg-[#f4f4f5]"
+          class="px-2 py-2 text-xs rounded-lg border border-default text-tertiary hover:bg-hover"
           aria-label="清除移动端 API Token"
         >
           清除
@@ -154,8 +158,8 @@ const navItems = [
   { path: '/queue', label: '队列管理', icon: Settings },
 ]
 
-const activeClass = 'bg-[#ececf1] text-[#202123]'
-const inactiveClass = 'text-[#6e6e80] hover:text-[#202123] hover:bg-[#f4f4f5]'
+const activeClass = 'bg-accent-soft text-accent-strong'
+const inactiveClass = 'text-secondary hover:text-primary hover:bg-hover'
 
 const stats = computed(() => {
   return (

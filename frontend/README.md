@@ -32,8 +32,9 @@ npm run build
 
 前端通过 `VITE_API_BASE_URL` 配置后端地址：
 
-- 同源部署（推荐）：留空
-- 本地联调示例：`VITE_API_BASE_URL=http://127.0.0.1:8000`
+- 同源部署（默认、推荐）：留空（`/v1` 由同源路径直连）
+- 本地开发（Vite 代理）：留空（`vite.config.ts` 已代理 `/v1 -> http://localhost:8000`）
+- 显式跨域联调：`VITE_API_BASE_URL=http://127.0.0.1:8000`（需后端 `CORS_ALLOW_ORIGINS` 放行）
 
 参考：`frontend/.env.example`
 
@@ -55,5 +56,5 @@ frontend/
 
 ## 已知边界
 
-- 当前以任务管理为核心，不包含用户体系与权限管理
+- 当前基于 JWT 声明做最小权限感知（队列控制仅在 `role=admin` 显示），后端仍是最终鉴权来源
 - 暂未接入前端 E2E 自动化测试

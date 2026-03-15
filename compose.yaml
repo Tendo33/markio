@@ -3,16 +3,18 @@ services:
   markio:
     build: .
     container_name: markio
+    command: ["python", "markio/main.py"]
     ports:
       - "8000:8000"
-      - "7860:7860"
     volumes:
-      - ./uploads:/app/uploads
-      - ./outputs:/app/outputs
+      - ./uploads:/workspace/uploads
+      - ./outputs:/workspace/outputs
     environment:
       - PYTHONPATH=/app
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:?AUTH_JWT_SECRET is required}
       - REDIS_HOST=redis
       - REDIS_ENABLED=true
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     depends_on:
       - redis
     restart: unless-stopped
@@ -20,11 +22,13 @@ services:
   redis:
     image: redis:7-alpine
     container_name: markio-redis
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
     restart: unless-stopped
 
 volumes:

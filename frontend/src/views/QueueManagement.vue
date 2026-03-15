@@ -1,13 +1,13 @@
 <template>
-  <div>
+  <div :aria-busy="queueStore.loading ? 'true' : 'false'">
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">队列管理</h1>
-      <p class="mt-1 text-sm text-gray-600">暂停/恢复队列，并监控 worker 运行状态</p>
+      <h1 class="page-title">队列管理</h1>
+      <p class="mt-1 page-subtitle">暂停/恢复队列，并监控 worker 运行状态</p>
     </div>
 
     <div class="space-y-6">
       <div>
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">队列状态</h2>
+        <h2 class="section-title mb-4">队列状态</h2>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard title="队列长度" :value="queueStore.health.queued" subtitle="等待执行任务" :icon="Clock" color="gray" />
           <StatCard title="处理中" :value="queueStore.health.processing" subtitle="正在运行任务" :icon="Loader" color="yellow" />
@@ -17,13 +17,29 @@
       </div>
 
       <div class="card">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">管理操作</h2>
+        <h2 class="section-title mb-4">管理操作</h2>
+        <div class="mb-3 text-sm text-secondary">
+          当前角色：<span class="font-medium text-primary">{{ currentRole }}</span>
+        </div>
+        <div v-if="!canManageQueue" class="mb-3 text-sm text-warning bg-warning border-warning rounded-lg p-3 break-words" dir="auto">
+          当前 JWT 角色不是 <code>admin</code>，已隐藏暂停/恢复操作入口。
+        </div>
         <div class="flex flex-wrap gap-3">
-          <button @click="pause" :disabled="actionLocked" class="btn btn-secondary flex items-center">
+          <button
+            v-if="canManageQueue"
+            @click="pause"
+            :disabled="actionLocked"
+            class="btn btn-secondary flex items-center"
+          >
             <Pause class="w-4 h-4 mr-2" />
             暂停队列
           </button>
-          <button @click="resume" :disabled="actionLocked" class="btn btn-primary flex items-center">
+          <button
+            v-if="canManageQueue"
+            @click="resume"
+            :disabled="actionLocked"
+            class="btn btn-primary flex items-center"
+          >
             <Play class="w-4 h-4 mr-2" />
             恢复队列
           </button>
@@ -36,16 +52,17 @@
 
       <div class="card">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-gray-900">操作日志</h2>
-          <button @click="logs = []" class="text-sm text-gray-600 hover:text-gray-900">清空</button>
+          <h2 class="section-title">操作日志</h2>
+          <button @click="logs = []" class="text-sm text-secondary hover:text-primary">清空</button>
         </div>
-        <div v-if="logs.length === 0" class="text-sm text-gray-500">暂无日志</div>
+        <div v-if="logs.length === 0" class="text-sm text-secondary">暂无日志</div>
         <div v-else class="space-y-2">
           <div
             v-for="(log, index) in logs"
             :key="index"
-            class="p-3 rounded-lg text-sm"
-            :class="log.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-gray-50 text-gray-700'"
+            class="p-3 rounded-lg text-sm break-words"
+            :class="log.type === 'error' ? 'bg-danger text-danger' : 'bg-muted text-tertiary'"
+            dir="auto"
           >
             {{ formatDateTime(log.time) }} | {{ log.message }}
           </div>
@@ -56,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   Clock,
   Cpu,
@@ -68,6 +85,7 @@ import {
 } from 'lucide-vue-next'
 
 import StatCard from '@/components/StatCard.vue'
+import { getApiTokenRole, onApiTokenChange } from '@/api/client'
 import { useQueueStore } from '@/stores'
 import { formatDateTime } from '@/utils/format'
 import { toast } from '@/utils/toast'
@@ -76,6 +94,13 @@ const queueStore = useQueueStore()
 
 const logs = ref<Array<{ time: string; message: string; type: 'info' | 'error' }>>([])
 const actionLocked = ref(false)
+const currentRole = ref('user')
+const canManageQueue = computed(() => currentRole.value === 'admin')
+let unsubscribeTokenChange: (() => void) | null = null
+
+function syncRole() {
+  currentRole.value = getApiTokenRole('user')
+}
 
 function addLog(message: string, type: 'info' | 'error' = 'info') {
   logs.value.unshift({
@@ -104,6 +129,12 @@ async function refresh() {
 }
 
 async function pause() {
+  if (!canManageQueue.value) {
+    const message = '当前角色无权限执行队列暂停'
+    addLog(message, 'error')
+    toast.error(message)
+    return
+  }
   if (actionLocked.value) return
   actionLocked.value = true
   try {
@@ -121,6 +152,12 @@ async function pause() {
 }
 
 async function resume() {
+  if (!canManageQueue.value) {
+    const message = '当前角色无权限执行队列恢复'
+    addLog(message, 'error')
+    toast.error(message)
+    return
+  }
   if (actionLocked.value) return
   actionLocked.value = true
   try {
@@ -138,6 +175,15 @@ async function resume() {
 }
 
 onMounted(async () => {
+  syncRole()
+  unsubscribeTokenChange = onApiTokenChange(syncRole)
   await refresh()
+})
+
+onUnmounted(() => {
+  if (unsubscribeTokenChange) {
+    unsubscribeTokenChange()
+    unsubscribeTokenChange = null
+  }
 })
 </script>

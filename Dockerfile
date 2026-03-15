@@ -94,4 +94,4 @@ RUN chmod +x /workspace/start_services.sh
 
 # 设置入口点
 ENTRYPOINT ["/bin/bash", "-c", "source /workspace/.venv/bin/activate && exec \"$@\"", "--"]
-
+CMD ["python", "markio/main.py"]

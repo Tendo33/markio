@@ -1,13 +1,13 @@
 <template>
   <div>
     <div class="mb-4 lg:mb-6">
-      <h1 class="text-xl lg:text-2xl font-bold text-gray-900">提交任务</h1>
-      <p class="mt-1 text-sm text-gray-600">保持 Markio 轻量能力：docling + MinerU</p>
+      <h1 class="page-title">提交任务</h1>
+      <p class="mt-1 page-subtitle">保持 Markio 轻量能力：docling + MinerU</p>
     </div>
 
     <div class="max-w-5xl mx-auto">
       <div class="card mb-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">上传文件</h2>
+        <h2 class="section-title mb-4">上传文件</h2>
         <FileUploader
           ref="fileUploader"
           :multiple="false"
@@ -18,12 +18,12 @@
       </div>
 
       <div class="card mb-6">
-        <h2 class="text-base lg:text-lg font-semibold text-gray-900 mb-4">处理参数</h2>
+        <h2 class="section-title mb-4">处理参数</h2>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
           <div v-if="isPdfFile">
-            <label class="block text-sm font-medium text-gray-700 mb-2">parse_method</label>
-            <select v-model="form.parse_method" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+            <label class="block text-sm font-medium text-tertiary mb-2">parse_method</label>
+            <select v-model="form.parse_method" class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
               <option value="auto">auto</option>
               <option value="txt">txt</option>
               <option value="ocr">ocr</option>
@@ -31,8 +31,8 @@
           </div>
 
           <div v-if="isPdfFile">
-            <label class="block text-sm font-medium text-gray-700 mb-2">lang</label>
-            <select v-model="form.lang" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+            <label class="block text-sm font-medium text-tertiary mb-2">lang</label>
+            <select v-model="form.lang" class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
               <option value="ch">ch</option>
               <option value="en">en</option>
               <option value="japan">japan</option>
@@ -41,59 +41,59 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">priority</label>
+            <label class="block text-sm font-medium text-tertiary mb-2">priority</label>
             <input
               v-model.number="form.priority"
               type="number"
               min="-10"
               max="100"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">output_dir</label>
+            <label class="block text-sm font-medium text-tertiary mb-2">output_dir</label>
             <input
               v-model="form.output_dir"
               type="text"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           <div v-if="isPdfFile">
-            <label class="block text-sm font-medium text-gray-700 mb-2">start_page</label>
+            <label class="block text-sm font-medium text-tertiary mb-2">start_page</label>
             <input
               v-model.number="form.start_page"
               type="number"
               min="0"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           <div v-if="isPdfFile">
-            <label class="block text-sm font-medium text-gray-700 mb-2">end_page（留空表示最后一页）</label>
+            <label class="block text-sm font-medium text-tertiary mb-2">end_page（留空表示最后一页）</label>
             <input
               v-model="form.end_page"
               type="number"
               min="0"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
         </div>
-        <p v-if="!isPdfFile" class="mt-3 text-sm text-gray-500">
+        <p v-if="!isPdfFile" class="mt-3 text-sm text-secondary">
           当前文件不是 PDF，已自动隐藏 PDF 专属参数（parse_method/lang/start_page/end_page/save_middle_content）。
         </p>
-        <p v-if="pageRangeError" class="mt-3 text-sm text-red-600">{{ pageRangeError }}</p>
-        <p v-if="fileTypeError" class="mt-2 text-sm text-red-600">{{ fileTypeError }}</p>
+        <p v-if="pageRangeError" class="mt-3 text-sm text-danger break-words" dir="auto">{{ pageRangeError }}</p>
+        <p v-if="fileTypeError" class="mt-2 text-sm text-danger break-words" dir="auto">{{ fileTypeError }}</p>
 
         <div class="mt-4 space-y-2">
           <label class="flex items-center">
-            <input v-model="form.save_parsed_content" type="checkbox" class="w-4 h-4 text-primary-600 border-gray-300 rounded" />
-            <span class="ml-2 text-sm text-gray-700">保存解析内容</span>
+            <input v-model="form.save_parsed_content" type="checkbox" class="w-4 h-4 text-primary-600 border-default rounded" />
+            <span class="ml-2 text-sm text-tertiary">保存解析内容</span>
           </label>
           <label v-if="isPdfFile" class="flex items-center">
-            <input v-model="form.save_middle_content" type="checkbox" class="w-4 h-4 text-primary-600 border-gray-300 rounded" />
-            <span class="ml-2 text-sm text-gray-700">保存中间结果</span>
+            <input v-model="form.save_middle_content" type="checkbox" class="w-4 h-4 text-primary-600 border-default rounded" />
+            <span class="ml-2 text-sm text-tertiary">保存中间结果</span>
           </label>
         </div>
 
@@ -111,8 +111,8 @@
       </div>
 
       <div class="card">
-        <h2 class="text-base lg:text-lg font-semibold text-gray-900 mb-4">提交结果</h2>
-        <pre class="bg-gray-900 text-gray-100 text-xs p-4 rounded-lg overflow-auto min-h-32">{{ resultText }}</pre>
+        <h2 class="section-title mb-4">提交结果</h2>
+        <pre class="bg-code text-code text-xs p-4 rounded-lg overflow-auto min-h-32 whitespace-pre-wrap break-words" dir="auto">{{ resultText }}</pre>
       </div>
     </div>
   </div>

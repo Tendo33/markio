@@ -114,6 +114,7 @@ def create_temporary_file(suffix="", delete=False):
         suffix: Suffix for temporary file
         delete: Whether to automatically delete file after use
     """
+    temp_file = None
     try:
         temp_file = NamedTemporaryFile(
             delete=delete,
@@ -124,7 +125,11 @@ def create_temporary_file(suffix="", delete=False):
         logger.error(f"Error creating temporary file: {e}")
         raise
     finally:
-        if not delete and os.path.exists(temp_file.name):
+        if (
+            temp_file is not None
+            and not delete
+            and os.path.exists(temp_file.name)
+        ):
             try:
                 temp_file.close()
                 os.unlink(temp_file.name)

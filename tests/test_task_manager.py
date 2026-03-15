@@ -304,6 +304,7 @@ class TaskManagerTests(unittest.IsolatedAsyncioTestCase):
             worker_count=1,
             parser_func=fake_parser,
             state_file_path=str(state_file),
+            state_result_max_chars=4096,
         )
         await manager1.start()
 
@@ -320,6 +321,7 @@ class TaskManagerTests(unittest.IsolatedAsyncioTestCase):
             worker_count=1,
             parser_func=fake_parser,
             state_file_path=str(state_file),
+            state_result_max_chars=4096,
         )
         await manager2.start()
         loaded = await manager2.get_task(task.task_id)

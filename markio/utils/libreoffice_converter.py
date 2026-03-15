@@ -23,7 +23,7 @@ def check_libreoffice_installed() -> bool:
             stderr=subprocess.DEVNULL,
         )
         return True
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
 

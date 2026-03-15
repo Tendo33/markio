@@ -27,22 +27,22 @@ const statusText = computed(() => {
 
 const badgeClass = computed(() => {
   const classMap: Record<TaskStatus, string> = {
-    pending: 'bg-gray-100 text-gray-800',
-    processing: 'bg-yellow-100 text-yellow-800',
-    completed: 'bg-green-100 text-green-800',
-    failed: 'bg-red-100 text-red-800',
-    canceled: 'bg-slate-100 text-slate-700',
+    pending: 'bg-muted text-tertiary',
+    processing: 'bg-warning text-warning',
+    completed: 'bg-success text-success',
+    failed: 'bg-danger text-danger',
+    canceled: 'bg-muted text-secondary',
   }
   return classMap[props.status]
 })
 
 const dotClass = computed(() => {
   const classMap: Record<TaskStatus, string> = {
-    pending: 'bg-gray-400',
-    processing: 'bg-yellow-400 animate-pulse',
-    completed: 'bg-green-500',
-    failed: 'bg-red-500',
-    canceled: 'bg-slate-500',
+    pending: 'bg-[color:var(--border-strong)]',
+    processing: 'bg-[color:var(--status-warning-text)] animate-pulse',
+    completed: 'bg-[color:var(--status-success-text)]',
+    failed: 'bg-[color:var(--status-danger-text)]',
+    canceled: 'bg-[color:var(--text-tertiary)]',
   }
   return classMap[props.status]
 })

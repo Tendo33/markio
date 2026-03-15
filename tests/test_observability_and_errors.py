@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from markio.main import app
+from markio.middlewares import error_handlers
 from markio.middlewares.error_handlers import add_error_handlers
 from markio.middlewares.rate_limit_middleware import add_rate_limit_middleware
 from markio.middlewares.trace_middleware import add_trace_middleware
@@ -80,6 +81,36 @@ async def test_parse_url_internal_error_uses_generic_message(monkeypatch):
     payload = response.json()
     assert payload["error"]["message"] == "Internal server error"
     assert "implementation detail" not in payload["detail"]
+
+
+@pytest.mark.asyncio
+async def test_unexpected_error_is_logged_with_generic_response(monkeypatch):
+    captured_messages: list[str] = []
+
+    class _LoggerStub:
+        def exception(self, message: str):
+            captured_messages.append(message)
+
+    monkeypatch.setattr(error_handlers, "logger", _LoggerStub(), raising=False)
+
+    test_app = FastAPI()
+    add_error_handlers(test_app)
+
+    @test_app.get("/boom")
+    async def boom():
+        raise RuntimeError("boom detail should not leak")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=test_app, raise_app_exceptions=False),
+        base_url="http://testserver",
+    ) as async_client:
+        response = await async_client.get("/boom")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert payload["error"]["message"] == "Internal server error"
+    assert "boom detail should not leak" not in payload["detail"]
+    assert captured_messages
 
 
 @pytest.mark.asyncio

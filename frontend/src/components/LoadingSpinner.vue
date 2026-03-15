@@ -1,7 +1,14 @@
 <template>
-  <div :class="containerClass" class="flex items-center justify-center">
-    <div :class="spinnerClass" class="animate-spin rounded-full border-t-2 border-b-2"></div>
+  <div
+    :class="containerClass"
+    class="flex items-center justify-center"
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+  >
+    <div :class="spinnerClass" class="animate-spin rounded-full border-t-2 border-b-2" aria-hidden="true"></div>
     <p v-if="text" :class="textClass" class="ml-3">{{ text }}</p>
+    <span v-else class="sr-only">Loading</span>
   </div>
 </template>
 
@@ -17,12 +24,12 @@ const props = withDefaults(defineProps<{
   fullscreen: false
 })
 
-const containerClass = computed(() => {
-  if (props.fullscreen) {
-    return 'fixed inset-0 bg-white bg-opacity-75 z-50'
-  }
-  return ''
-})
+  const containerClass = computed(() => {
+    if (props.fullscreen) {
+      return 'fixed inset-0 bg-surface bg-opacity-75 z-50'
+    }
+    return ''
+  })
 
 const spinnerClass = computed(() => {
   const sizeMap = {
@@ -33,12 +40,12 @@ const spinnerClass = computed(() => {
   return sizeMap[props.size]
 })
 
-const textClass = computed(() => {
-  const sizeMap = {
-    sm: 'text-sm text-gray-600',
-    md: 'text-base text-gray-700',
-    lg: 'text-lg text-gray-800',
-  }
-  return sizeMap[props.size]
-})
+  const textClass = computed(() => {
+    const sizeMap = {
+      sm: 'text-sm text-secondary',
+      md: 'text-base text-tertiary',
+      lg: 'text-lg text-primary',
+    }
+    return sizeMap[props.size]
+  })
 </script>

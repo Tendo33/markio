@@ -7,8 +7,14 @@ from gradio.exceptions import Error as gr_Error
 from gradio_pdf import PDF
 
 # Configuration
-BASE_URL = "http://0.0.0.0:8000"
-API_BASE_URL = f"{BASE_URL}/v1"
+BASE_URL = (os.getenv("MARKIO_API_BASE_URL", "http://127.0.0.1:8000") or "").strip().rstrip("/")
+if not BASE_URL:
+    BASE_URL = "http://127.0.0.1:8000"
+API_PREFIX = (os.getenv("MARKIO_API_PREFIX", "/v1") or "/v1").strip()
+if not API_PREFIX.startswith("/"):
+    API_PREFIX = f"/{API_PREFIX}"
+API_BASE_URL = f"{BASE_URL}{API_PREFIX}"
+API_DOCS_URL = (os.getenv("MARKIO_API_DOCS_URL", f"{BASE_URL}/docs") or f"{BASE_URL}/docs").strip()
 SUPPORTED_FORMATS = [
     ".pdf",
     ".docx",
@@ -64,7 +70,7 @@ class MarkioFrontend:
     def check_api(self) -> bool:
         """Check if API is available"""
         try:
-            response = self.session.get(f"{BASE_URL}/docs", timeout=5)
+            response = self.session.get(API_DOCS_URL, timeout=5)
             return response.status_code == 200
         except Exception:
             return False
@@ -298,7 +304,7 @@ def create_simple_interface():
 
         # Help section
         with gr.Accordion("❓ Help", open=False):
-            gr.Markdown("""
+            gr.Markdown(f"""
             ## 📖 Usage Instructions
             
             **File Conversion**:
@@ -333,7 +339,7 @@ def create_simple_interface():
             - ⚙️ Support Multiple PDF Parsing Engine Configurations
             - 📋 Support Copy Raw Content
             
-            **API Documentation**: http://localhost:9086/docs
+            **API Documentation**: {API_DOCS_URL}
             """)
 
         # Event handlers

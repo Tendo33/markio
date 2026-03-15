@@ -283,6 +283,78 @@ class RedisTaskStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(listed.items[0].task_id, task.task_id)
         self.assertEqual(await self.redis.zcard(owner_key), 1)
 
+    async def test_owner_status_index_is_maintained_on_status_transition(self):
+        task = await self.store.submit_task(
+            SubmitTaskRequest(
+                filename="owner-status.pdf",
+                file_path="/tmp/owner-status.pdf",
+                owner_id="owner-a",
+            )
+        )
+        pending_key = "task:owner:owner-a:status:pending"
+        processing_key = "task:owner:owner-a:status:processing"
+        failed_key = "task:owner:owner-a:status:failed"
+
+        self.assertIn(task.task_id, self.redis.zsets[pending_key])
+
+        claimed = await self.store.claim_next_task()
+        self.assertIsNotNone(claimed)
+        self.assertNotIn(task.task_id, self.redis.zsets[pending_key])
+        self.assertIn(task.task_id, self.redis.zsets[processing_key])
+
+        await self.store.mark_failed(task.task_id, "boom")
+        self.assertNotIn(task.task_id, self.redis.zsets[processing_key])
+        self.assertIn(task.task_id, self.redis.zsets[failed_key])
+
+    async def test_owner_status_index_rebuilds_for_legacy_records(self):
+        task = await self.store.submit_task(
+            SubmitTaskRequest(
+                filename="legacy-owner-status.pdf",
+                file_path="/tmp/legacy-owner-status.pdf",
+                owner_id="owner-legacy",
+            )
+        )
+        owner_status_key = "task:owner:owner-legacy:status:pending"
+        await self.redis.zrem(owner_status_key, task.task_id)
+        self.assertEqual(await self.redis.zcard(owner_status_key), 0)
+
+        listed = await self.store.list_tasks(
+            owner_id="owner-legacy",
+            status=TaskStatus.pending,
+            page=1,
+            page_size=10,
+        )
+        self.assertEqual(listed.total, 1)
+        self.assertEqual(listed.items[0].task_id, task.task_id)
+        self.assertEqual(await self.redis.zcard(owner_status_key), 1)
+
+    async def test_get_stats_uses_owner_status_index_with_lazy_rebuild(self):
+        task = await self.store.submit_task(
+            SubmitTaskRequest(
+                filename="stats-owner.pdf",
+                file_path="/tmp/stats-owner.pdf",
+                owner_id="owner-stats",
+            )
+        )
+        owner_pending_key = "task:owner:owner-stats:status:pending"
+        owner_failed_key = "task:owner:owner-stats:status:failed"
+
+        claimed = await self.store.claim_next_task()
+        self.assertIsNotNone(claimed)
+        await self.store.mark_failed(task.task_id, "failed")
+        self.assertEqual(await self.redis.zcard(owner_pending_key), 0)
+        self.assertEqual(await self.redis.zcard(owner_failed_key), 1)
+
+        await self.redis.zrem(owner_failed_key, task.task_id)
+        self.assertEqual(await self.redis.zcard(owner_failed_key), 0)
+
+        stats = await self.store.get_stats(owner_id="owner-stats")
+        self.assertEqual(stats.pending, 0)
+        self.assertEqual(stats.processing, 0)
+        self.assertEqual(stats.completed, 0)
+        self.assertEqual(stats.failed, 1)
+        self.assertEqual(await self.redis.zcard(owner_failed_key), 1)
+
     async def test_claim_and_cancel_race_keeps_consistent_status(self):
         request = SubmitTaskRequest(
             filename="race.pdf",

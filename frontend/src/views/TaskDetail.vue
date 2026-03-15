@@ -1,72 +1,78 @@
 <template>
-  <div>
+  <div :aria-busy="taskStore.detailLoading ? 'true' : 'false'">
     <div class="mb-4">
-      <button @click="$router.back()" class="text-sm text-gray-600 hover:text-gray-900 flex items-center">
+      <button @click="$router.back()" class="text-sm text-secondary hover:text-primary flex items-center">
         <ArrowLeft class="w-4 h-4 mr-1" />
         返回
       </button>
     </div>
 
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">任务详情</h1>
-      <p class="mt-1 text-sm text-gray-600">跟踪任务执行状态与解析输出</p>
+      <h1 class="page-title">任务详情</h1>
+      <p class="mt-1 page-subtitle">跟踪任务执行状态与解析输出</p>
     </div>
 
-    <div v-if="taskStore.loading && !task" class="text-center py-12">
+    <div
+      v-if="taskStore.detailLoading && !task"
+      class="text-center py-12"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
       <LoadingSpinner size="lg" text="加载中" />
     </div>
 
-    <div v-else-if="taskStore.detailError" class="card bg-red-50 border-red-200 text-red-700">
+    <div v-else-if="taskStore.detailError" class="card bg-danger border-danger text-danger break-words" dir="auto">
       {{ taskStore.detailError }}
     </div>
 
     <div v-else-if="task" class="space-y-6">
       <div class="card">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-gray-900">基本信息</h2>
+          <h2 class="section-title">基本信息</h2>
           <StatusBadge :status="task.status" />
         </div>
 
         <dl class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div>
-            <dt class="text-gray-500">任务ID</dt>
-            <dd class="mt-1 text-gray-900 font-mono break-all">{{ task.task_id }}</dd>
+            <dt class="text-secondary">任务ID</dt>
+            <dd class="mt-1 text-primary font-mono break-all">{{ task.task_id }}</dd>
           </div>
           <div>
-            <dt class="text-gray-500">文件名</dt>
-            <dd class="mt-1 text-gray-900">{{ task.filename }}</dd>
+            <dt class="text-secondary">文件名</dt>
+            <dd class="mt-1 text-primary break-words" dir="auto">{{ task.filename }}</dd>
           </div>
           <div>
-            <dt class="text-gray-500">parse_method</dt>
-            <dd class="mt-1 text-gray-900">{{ task.parse_method }}</dd>
+            <dt class="text-secondary">parse_method</dt>
+            <dd class="mt-1 text-primary">{{ task.parse_method }}</dd>
           </div>
           <div>
-            <dt class="text-gray-500">lang</dt>
-            <dd class="mt-1 text-gray-900">{{ task.lang }}</dd>
+            <dt class="text-secondary">lang</dt>
+            <dd class="mt-1 text-primary">{{ task.lang }}</dd>
           </div>
           <div>
-            <dt class="text-gray-500">优先级</dt>
-            <dd class="mt-1 text-gray-900">{{ task.priority }}</dd>
+            <dt class="text-secondary">优先级</dt>
+            <dd class="mt-1 text-primary">{{ task.priority }}</dd>
           </div>
           <div>
-            <dt class="text-gray-500">重试次数</dt>
-            <dd class="mt-1 text-gray-900">{{ task.retry_count }}</dd>
+            <dt class="text-secondary">重试次数</dt>
+            <dd class="mt-1 text-primary">{{ task.retry_count }}</dd>
           </div>
           <div>
-            <dt class="text-gray-500">创建时间</dt>
-            <dd class="mt-1 text-gray-900">{{ formatDateTime(task.created_at) }}</dd>
+            <dt class="text-secondary">创建时间</dt>
+            <dd class="mt-1 text-primary">{{ formatDateTime(task.created_at) }}</dd>
           </div>
           <div>
-            <dt class="text-gray-500">开始时间</dt>
-            <dd class="mt-1 text-gray-900">{{ formatDateTime(task.started_at) }}</dd>
+            <dt class="text-secondary">开始时间</dt>
+            <dd class="mt-1 text-primary">{{ formatDateTime(task.started_at) }}</dd>
           </div>
           <div>
-            <dt class="text-gray-500">完成时间</dt>
-            <dd class="mt-1 text-gray-900">{{ formatDateTime(task.completed_at) }}</dd>
+            <dt class="text-secondary">完成时间</dt>
+            <dd class="mt-1 text-primary">{{ formatDateTime(task.completed_at) }}</dd>
           </div>
           <div>
-            <dt class="text-gray-500">处理时长</dt>
-            <dd class="mt-1 text-gray-900">
+            <dt class="text-secondary">处理时长</dt>
+            <dd class="mt-1 text-primary">
               {{ task.processing_duration_ms !== null && task.processing_duration_ms !== undefined
                 ? `${task.processing_duration_ms} ms`
                 : formatDuration(task.started_at, task.completed_at) }}
@@ -74,7 +80,7 @@
           </div>
         </dl>
 
-        <div v-if="task.error_message" class="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div v-if="task.error_message" class="mt-4 rounded-lg border border-danger bg-danger p-3 text-sm text-danger break-words" dir="auto">
           {{ task.error_message }}
         </div>
 
@@ -103,11 +109,11 @@
       </div>
 
       <div class="card">
-        <h2 class="text-lg font-semibold text-gray-900 mb-3">解析结果</h2>
-        <div v-if="task.result" class="bg-gray-900 text-gray-100 text-xs rounded-lg p-4 overflow-auto max-h-[480px]">
-          <pre class="whitespace-pre-wrap">{{ task.result }}</pre>
+        <h2 class="section-title mb-3">解析结果</h2>
+        <div v-if="task.result" class="bg-code text-code text-xs rounded-lg p-4 overflow-auto max-h-[480px]" dir="auto">
+          <pre class="whitespace-pre-wrap break-words">{{ task.result }}</pre>
         </div>
-        <div v-else class="text-sm text-gray-500">暂无结果输出</div>
+        <div v-else class="text-sm text-secondary">暂无结果输出</div>
       </div>
     </div>
 
@@ -200,6 +206,7 @@ async function cancel() {
       await taskStore.cancel(taskId.value)
       toast.success('任务已取消')
       await refresh()
+      schedulePoll()
     },
   }
 }
@@ -214,6 +221,7 @@ async function retry() {
       await taskStore.retry(taskId.value)
       toast.success('任务已重新提交')
       await refresh()
+      schedulePoll()
     },
   }
 }
@@ -248,6 +256,10 @@ function schedulePoll(hadError = false) {
   if (timerId) {
     clearTimeout(timerId)
   }
+  if (!shouldPollCurrentTask()) {
+    timerId = null
+    return
+  }
   timerId = window.setTimeout(async () => {
     const ok = await refresh({ silent: true })
     schedulePoll(!ok)
@@ -260,13 +272,20 @@ function handleVisibilityChange() {
       // ignore visibility-triggered refresh errors
     })
     schedulePoll()
+    return
+  }
+  if (timerId) {
+    clearTimeout(timerId)
+    timerId = null
   }
 }
 
 onMounted(async () => {
   await refresh()
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  schedulePoll()
+  if (shouldPollCurrentTask()) {
+    schedulePoll()
+  }
 })
 
 onUnmounted(() => {

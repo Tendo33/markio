@@ -85,6 +85,18 @@ class ApplicationConfig(BaseModel):
         alias="PORT",
     )
 
+    cors_allow_origins: str = Field(
+        default="",
+        description="Comma-separated CORS allowlist origins. Empty value disables cross-origin access.",
+        alias="CORS_ALLOW_ORIGINS",
+    )
+
+    cors_allow_credentials: bool = Field(
+        default=True,
+        description="Whether to allow credentials in CORS responses.",
+        alias="CORS_ALLOW_CREDENTIALS",
+    )
+
     # MCP configuration
     enable_mcp: bool = Field(
         default=False,
@@ -172,7 +184,7 @@ class ApplicationConfig(BaseModel):
     )
 
     task_state_result_max_chars: int = Field(
-        default=2048,
+        default=0,
         description="Maximum result chars persisted in task state file. 0 disables result persistence.",
         alias="TASK_STATE_RESULT_MAX_CHARS",
     )

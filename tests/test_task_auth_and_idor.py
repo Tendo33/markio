@@ -98,6 +98,17 @@ async def test_v1_auth_rejects_missing_invalid_and_expired_token(monkeypatch):
         )
         assert expired.status_code == 401
 
+        no_exp_token = _build_jwt(
+            secret=secret,
+            sub="user-a",
+            exp_offset_seconds=None,
+        )
+        no_exp = await client.get(
+            "/v1/tasks/queue",
+            headers=_auth_headers(no_exp_token),
+        )
+        assert no_exp.status_code == 401
+
 
 @pytest.mark.asyncio
 async def test_non_admin_cannot_pause_or_resume_queue(monkeypatch):

@@ -8,6 +8,9 @@ from fastapi.responses import JSONResponse
 from starlette.status import HTTP_422_UNPROCESSABLE_CONTENT, HTTP_500_INTERNAL_SERVER_ERROR
 
 from markio.middlewares.trace_middleware.ctx import TraceCtx
+from markio.utils.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def _request_id() -> str:
@@ -64,6 +67,7 @@ def add_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception("Unhandled server exception")
         return JSONResponse(
             status_code=HTTP_500_INTERNAL_SERVER_ERROR,
             content=_error_payload(

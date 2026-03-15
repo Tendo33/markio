@@ -1,8 +1,8 @@
 <template>
   <div>
     <div class="mb-6 lg:mb-10">
-      <h1 class="text-2xl lg:text-3xl xl:text-4xl font-bold text-gray-900 tracking-tight">仪表盘</h1>
-      <p class="mt-2 lg:mt-3 text-base lg:text-lg text-gray-600">实时监控异步文档任务状态</p>
+      <h1 class="page-title">仪表盘</h1>
+      <p class="mt-2 lg:mt-3 page-subtitle">实时监控异步文档任务状态</p>
     </div>
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
@@ -12,7 +12,7 @@
       <StatCard title="失败" :value="stats.failed" subtitle="需要重试" :icon="XCircle" color="red" />
     </div>
 
-    <div v-if="taskStore.dashboardError" class="card mb-6 border-red-200 bg-red-50 text-sm text-red-700">
+    <div v-if="taskStore.dashboardError" class="card mb-6 border-danger bg-danger text-sm text-danger break-words" dir="auto">
       {{ taskStore.dashboardError }}
     </div>
 
@@ -24,7 +24,7 @@
 
     <div class="mb-6 lg:mb-8">
       <div class="card">
-        <h2 class="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">快捷操作</h2>
+        <h2 class="section-title mb-3 lg:mb-4">快捷操作</h2>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-3">
           <router-link to="/tasks/submit" class="btn btn-primary flex items-center justify-center">
             <Upload class="w-4 h-4 mr-2" />
@@ -44,41 +44,49 @@
 
     <div class="card">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <h2 class="text-base lg:text-lg font-semibold text-gray-900">最近任务</h2>
-        <button @click="refresh" :disabled="taskStore.loading" class="text-sm text-primary-600 hover:text-primary-700 flex items-center">
-          <RefreshCw :class="{ 'animate-spin': taskStore.loading }" class="w-4 h-4 mr-1" />
+        <h2 class="section-title">最近任务</h2>
+        <button @click="refresh" :disabled="taskStore.dashboardLoading" class="text-sm text-primary-600 hover:text-primary-700 flex items-center">
+          <RefreshCw :class="{ 'animate-spin': taskStore.dashboardLoading }" class="w-4 h-4 mr-1" />
           刷新
         </button>
       </div>
 
-      <div v-if="taskStore.loading && recentTasks.length === 0" class="text-center py-8">
+      <div
+        v-if="taskStore.dashboardLoading && recentTasks.length === 0"
+        class="text-center py-8"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
         <LoadingSpinner text="加载中" />
       </div>
 
-      <div v-else-if="recentTasks.length === 0" class="text-center py-8 text-gray-500">
-        <FileQuestion class="w-12 h-12 mx-auto mb-2 text-gray-400" />
+      <div v-else-if="recentTasks.length === 0" class="text-center py-8 text-secondary">
+        <FileQuestion class="w-12 h-12 mx-auto mb-2 text-tertiary" />
         <p>暂无任务</p>
       </div>
 
       <div v-else class="overflow-x-auto -mx-4 sm:-mx-6 lg:-mx-8">
         <div class="inline-block min-w-full align-middle px-4 sm:px-6 lg:px-8">
-          <table class="min-w-full divide-y divide-gray-200">
+          <table class="min-w-full divide-y divide-[color:var(--border-subtle)]">
             <thead>
-              <tr class="bg-gray-50">
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文件名</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">优先级</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">创建时间</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+              <tr class="bg-muted">
+                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">文件名</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">状态</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">优先级</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">创建时间</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">操作</th>
               </tr>
             </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="task in recentTasks" :key="task.task_id" class="hover:bg-gray-50">
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate">{{ task.filename }}</td>
+            <tbody class="bg-surface divide-y divide-[color:var(--border-subtle)]">
+              <tr v-for="task in recentTasks" :key="task.task_id" class="hover:bg-muted">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-primary max-w-xs truncate" :title="task.filename" dir="auto">
+                  {{ task.filename }}
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap"><StatusBadge :status="task.status" /></td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ task.priority }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatRelativeTime(task.created_at) }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">{{ task.priority }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">{{ formatRelativeTime(task.created_at) }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
                   <router-link :to="`/tasks/${task.task_id}`" class="text-primary-600 hover:text-primary-700 flex items-center">
                     <Eye class="w-4 h-4 mr-1" />
                     详情

@@ -78,11 +78,12 @@ def _verify_hs256(token: str, secret: str, expected_alg: str) -> dict:
         raise ValueError("JWT signature verification failed")
 
     exp = payload.get("exp")
-    if exp is not None:
-        if not isinstance(exp, (int, float)):
-            raise ValueError("JWT exp must be numeric")
-        if time.time() >= float(exp):
-            raise ValueError("JWT has expired")
+    if exp is None:
+        raise ValueError("JWT exp is required")
+    if not isinstance(exp, (int, float)):
+        raise ValueError("JWT exp must be numeric")
+    if time.time() >= float(exp):
+        raise ValueError("JWT has expired")
 
     return payload
 

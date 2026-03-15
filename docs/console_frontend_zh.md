@@ -7,6 +7,7 @@ Markio 控制台基于 `mineru-tianshu` 前端代码重构，保留企业级任�
 - 仅保留文档任务相关页面（仪表盘、任务列表、提交任务、任务详情、队列管理）
 - 与 Markio 后端 `/v1/tasks/*` 完整对齐
 - 保持静态部署到 FastAPI `/console`
+- 默认同源调用 API（`VITE_API_BASE_URL=""`，直接请求 `/v1/*`）
 
 ## 页面与信息架构
 
@@ -64,6 +65,10 @@ npm run build
 ```
 
 构建产物输出到：`markio/webapp`
+
+默认环境变量：
+- `frontend/.env.development`: `VITE_API_BASE_URL=`
+- `frontend/.env.production`: `VITE_API_BASE_URL=`
 
 ### 3) 访问控制台
 

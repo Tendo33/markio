@@ -22,20 +22,21 @@
         aria-label="选择上传文件"
       />
 
-      <Upload class="mx-auto h-12 w-12 text-gray-400" />
-      <p class="mt-2 text-sm text-gray-600">
+      <Upload class="mx-auto h-12 w-12 text-tertiary" />
+      <p class="mt-2 text-sm text-secondary">
         <span class="font-semibold text-primary-600">点击上传</span> 或拖拽文件到这里
       </p>
-      <p class="mt-1 text-xs text-gray-500">{{ acceptHint }}</p>
-      <p v-if="maxSize" class="text-xs text-gray-400">最大文件大小: {{ formatFileSize(maxSize) }}</p>
+      <p class="mt-1 text-xs text-secondary">{{ acceptHint }}</p>
+      <p v-if="maxSize" class="text-xs text-tertiary">最大文件大小: {{ formatFileSize(maxSize) }}</p>
     </div>
 
     <div v-if="rejectedMessages.length > 0" class="mt-3 space-y-1">
       <p
         v-for="(message, idx) in rejectedMessages"
         :key="idx"
-        class="text-xs text-red-600"
+        class="text-xs text-danger break-words"
         role="status"
+        dir="auto"
       >
         {{ message }}
       </p>
@@ -45,18 +46,18 @@
       <div
         v-for="(file, index) in files"
         :key="index"
-        class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+        class="flex items-center justify-between p-3 bg-muted rounded-lg"
       >
         <div class="flex items-center flex-1 min-w-0">
-          <FileText class="w-5 h-5 text-gray-400 flex-shrink-0" />
+          <FileText class="w-5 h-5 text-tertiary flex-shrink-0" />
           <div class="ml-3 flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-900 truncate">{{ file.name }}</p>
-            <p class="text-xs text-gray-500">{{ formatFileSize(file.size) }}</p>
+            <p class="text-sm font-medium text-primary truncate" :title="file.name" dir="auto">{{ file.name }}</p>
+            <p class="text-xs text-secondary">{{ formatFileSize(file.size) }}</p>
           </div>
         </div>
         <button
           @click="removeFile(index)"
-          class="ml-2 p-1 text-gray-400 hover:text-red-600 transition-colors"
+          class="icon-btn ml-2 text-tertiary hover:text-danger"
           :aria-label="`移除文件 ${file.name}`"
         >
           <X class="w-5 h-5" />
@@ -92,12 +93,12 @@ const files = ref<File[]>([])
 const isDragging = ref(false)
 const rejectedMessages = ref<string[]>([])
 
-const dropzoneClass = computed(() => {
-  if (isDragging.value) {
-    return 'border-primary-500 bg-primary-50'
-  }
-  return 'border-gray-300 hover:border-primary-400'
-})
+  const dropzoneClass = computed(() => {
+    if (isDragging.value) {
+      return 'border-primary-500 bg-primary-50'
+    }
+    return 'border-default hover:border-primary-400'
+  })
 
 function openFileDialog() {
   fileInput.value?.click()

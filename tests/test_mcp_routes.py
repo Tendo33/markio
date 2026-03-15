@@ -157,3 +157,32 @@ async def test_mcp_convert_document_non_pdf_passes_parser_signature(monkeypatch,
     assert payload["result"] == "# parsed-docx"
     assert captured["save_parsed_content"] is False
     assert isinstance(captured["resource_path"], str)
+
+
+@pytest.mark.asyncio
+async def test_mcp_convert_document_rejects_oversized_upload(monkeypatch, mcp_app):
+    secret = "mcp-size-limit-secret"
+    monkeypatch.setattr(settings, "auth_jwt_secret", secret, raising=False)
+    monkeypatch.setattr(settings, "auth_jwt_algorithm", "HS256", raising=False)
+    monkeypatch.setattr(settings, "task_max_upload_size_bytes", 4, raising=False)
+    token = _build_jwt(secret)
+    app, _ = mcp_app
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/mcp/convert_document",
+            files={
+                "file": (
+                    "demo.docx",
+                    b"abcdef",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 413
+    assert "Maximum allowed size" in response.text
