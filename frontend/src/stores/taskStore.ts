@@ -160,6 +160,24 @@ export const useTaskStore = defineStore('task', () => {
     await Promise.all([loadTasks(page.value), loadDashboard(8)])
   }
 
+  function resetState() {
+    tasks.value = []
+    currentTaskSummary.value = null
+    currentTaskResult.value = null
+    dashboard.value = null
+    page.value = 1
+    pageSize.value = 20
+    total.value = 0
+    statusFilter.value = ''
+    clearError()
+  }
+
+  function resetCurrentTask() {
+    currentTaskSummary.value = null
+    currentTaskResult.value = null
+    detailError.value = ''
+  }
+
   function clearError(scope: 'dashboard' | 'list' | 'detail' | 'submit' | 'all' = 'all') {
     if (scope === 'dashboard' || scope === 'all') dashboardError.value = ''
     if (scope === 'list' || scope === 'all') listError.value = ''
@@ -195,6 +213,8 @@ export const useTaskStore = defineStore('task', () => {
     submit,
     cancel,
     retry,
+    resetState,
+    resetCurrentTask,
     clearError,
   }
 })

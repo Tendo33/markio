@@ -125,6 +125,12 @@ async def test_non_admin_cannot_pause_or_resume_queue(monkeypatch):
         transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
+        queue = await client.get(
+            "/v1/tasks/queue",
+            headers=_auth_headers(user_token),
+        )
+        assert queue.status_code == 403
+
         pause = await client.post(
             "/v1/tasks/queue/pause",
             headers=_auth_headers(user_token),
@@ -136,6 +142,79 @@ async def test_non_admin_cannot_pause_or_resume_queue(monkeypatch):
             headers=_auth_headers(user_token),
         )
         assert resume.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_dashboard_queue_is_owner_scoped_while_global_queue_is_admin_only(
+    monkeypatch,
+    tmp_path: Path,
+):
+    secret = "test-secret-dashboard-scope"
+    monkeypatch.setattr(settings, "auth_jwt_secret", secret, raising=False)
+    monkeypatch.setattr(settings, "auth_jwt_algorithm", "HS256", raising=False)
+
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return "# done"
+
+    manager = AsyncTaskManager(worker_count=2, parser_func=fake_parser)
+    await manager.start()
+    await manager.pause_queue()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+
+    app = FastAPI()
+    app.include_router(task_router, prefix="/v1")
+
+    admin_headers = _auth_headers(_build_jwt(secret=secret, sub="admin-1", role="admin"))
+    user_a_headers = _auth_headers(_build_jwt(secret=secret, sub="user-a", role="user"))
+    user_b_headers = _auth_headers(_build_jwt(secret=secret, sub="user-b", role="user"))
+
+    file_a = tmp_path / "owner-a.pdf"
+    file_a.write_bytes(b"a")
+    file_b = tmp_path / "owner-b.pdf"
+    file_b.write_bytes(b"b")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        created_a = await client.post(
+            "/v1/tasks/submit",
+            files={"file": ("owner-a.pdf", file_a.read_bytes(), "application/pdf")},
+            headers=user_a_headers,
+        )
+        created_b = await client.post(
+            "/v1/tasks/submit",
+            files={"file": ("owner-b.pdf", file_b.read_bytes(), "application/pdf")},
+            headers=user_b_headers,
+        )
+        assert created_a.status_code == 200
+        assert created_b.status_code == 200
+
+        dashboard_a = await client.get(
+            "/v1/tasks/dashboard?recent_limit=10",
+            headers=user_a_headers,
+        )
+        dashboard_b = await client.get(
+            "/v1/tasks/dashboard?recent_limit=10",
+            headers=user_b_headers,
+        )
+        global_queue = await client.get("/v1/tasks/queue", headers=admin_headers)
+
+        assert dashboard_a.status_code == 200
+        assert dashboard_b.status_code == 200
+        assert global_queue.status_code == 200
+
+        payload_a = dashboard_a.json()
+        payload_b = dashboard_b.json()
+        assert payload_a["stats"]["pending"] == 1
+        assert payload_b["stats"]["pending"] == 1
+        assert payload_a["queue"]["queued"] == 1
+        assert payload_b["queue"]["queued"] == 1
+        assert payload_a["queue"]["processing"] == 0
+        assert payload_b["queue"]["processing"] == 0
+        assert global_queue.json()["queued"] == 2
+
+    await manager.stop()
 
 
 @pytest.mark.asyncio

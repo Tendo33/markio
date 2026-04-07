@@ -25,6 +25,11 @@ def test_healthz_endpoint():
     payload = response.json()
     assert payload["status"] == "ok"
     assert "timestamp" in payload
+    assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["Permissions-Policy"]
+    assert "Content-Security-Policy" in response.headers
 
 
 def test_readyz_endpoint():

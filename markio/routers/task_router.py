@@ -166,7 +166,7 @@ async def get_task_stats(
 
 @router.get("/tasks/queue", tags=["Async Tasks"])
 async def get_queue_health(
-    current_user: AuthUser = Depends(require_auth_user),
+    current_user: AuthUser = Depends(require_admin_user),
 ):
     _ = current_user
     health = await get_task_manager().get_queue_health()

@@ -375,10 +375,26 @@ class RedisTaskStore:
             )
         return stats
 
-    async def get_queue_health(self, worker_count: int, paused: bool) -> QueueHealth:
+    async def get_queue_health(
+        self,
+        worker_count: int,
+        paused: bool,
+        *,
+        owner_id: str | None = None,
+    ) -> QueueHealth:
         redis = self._ensure_redis()
-        queued = int(await redis.zcard(self._queue_pending_key()))
-        processing = int(await redis.zcard(self._queue_processing_key()))
+        if owner_id:
+            queued = int(
+                await redis.zcard(self._owner_status_key(owner_id, TaskStatus.pending))
+            )
+            processing = int(
+                await redis.zcard(
+                    self._owner_status_key(owner_id, TaskStatus.processing)
+                )
+            )
+        else:
+            queued = int(await redis.zcard(self._queue_pending_key()))
+            processing = int(await redis.zcard(self._queue_processing_key()))
         return QueueHealth(
             queued=queued,
             processing=processing,

@@ -1,7 +1,17 @@
 export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'canceled'
 
 export type ParseMethod = 'auto' | 'txt' | 'ocr'
-export type TaskLanguage = 'ch' | 'en' | 'japan' | 'korean'
+export type TaskLanguage =
+  | 'ch'
+  | 'ch_server'
+  | 'ch_lite'
+  | 'chinese_cht'
+  | 'en'
+  | 'korean'
+  | 'japan'
+  | 'ta'
+  | 'te'
+  | 'ka'
 
 export interface SubmitTaskRequest {
   file: File

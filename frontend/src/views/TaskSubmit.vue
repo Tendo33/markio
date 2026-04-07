@@ -6,13 +6,22 @@
     </div>
 
     <div class="max-w-5xl mx-auto">
+      <div
+        v-if="!tokenConfigured"
+        class="card mb-6 border-warning bg-warning text-sm text-warning break-words"
+        dir="auto"
+      >
+        当前未配置 JWT Token，提交页不会调用 `/v1/tasks/submit`。请先在顶部保存 Token，再上传文件并创建任务。
+      </div>
+
       <div class="card mb-6">
         <h2 class="section-title mb-4">上传文件</h2>
         <FileUploader
           ref="fileUploader"
           :multiple="false"
+          :max-size="maxUploadSizeBytes"
           accept=".pdf,.doc,.docx,.ppt,.pptx,.xlsx,.html,.htm,.epub,.png,.jpg,.jpeg"
-          accept-hint="支持常见文档与图片文件"
+          accept-hint="支持常见文档与图片文件，前端会先校验文件大小"
           @update:files="onFilesChange"
         />
       </div>
@@ -23,7 +32,10 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
           <div v-if="isPdfFile">
             <label class="block text-sm font-medium text-tertiary mb-2">parse_method</label>
-            <select v-model="form.parse_method" class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+            <select
+              v-model="form.parse_method"
+              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
               <option value="auto">auto</option>
               <option value="txt">txt</option>
               <option value="ocr">ocr</option>
@@ -32,11 +44,13 @@
 
           <div v-if="isPdfFile">
             <label class="block text-sm font-medium text-tertiary mb-2">lang</label>
-            <select v-model="form.lang" class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
-              <option value="ch">ch</option>
-              <option value="en">en</option>
-              <option value="japan">japan</option>
-              <option value="korean">korean</option>
+            <select
+              v-model="form.lang"
+              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option v-for="language in PDF_LANGUAGES" :key="language" :value="language">
+                {{ language }}
+              </option>
             </select>
           </div>
 
@@ -58,6 +72,9 @@
               type="text"
               class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
+            <p class="mt-2 text-xs text-secondary">
+              仅支持服务端允许的相对目录，最终路径会受后端工作目录与安全校验限制。
+            </p>
           </div>
 
           <div v-if="isPdfFile">
@@ -88,11 +105,19 @@
 
         <div class="mt-4 space-y-2">
           <label class="flex items-center">
-            <input v-model="form.save_parsed_content" type="checkbox" class="w-4 h-4 text-primary-600 border-default rounded" />
+            <input
+              v-model="form.save_parsed_content"
+              type="checkbox"
+              class="w-4 h-4 text-primary-600 border-default rounded"
+            />
             <span class="ml-2 text-sm text-tertiary">保存解析内容</span>
           </label>
           <label v-if="isPdfFile" class="flex items-center">
-            <input v-model="form.save_middle_content" type="checkbox" class="w-4 h-4 text-primary-600 border-default rounded" />
+            <input
+              v-model="form.save_middle_content"
+              type="checkbox"
+              class="w-4 h-4 text-primary-600 border-default rounded"
+            />
             <span class="ml-2 text-sm text-tertiary">保存中间结果</span>
           </label>
         </div>
@@ -112,25 +137,46 @@
 
       <div class="card">
         <h2 class="section-title mb-4">提交结果</h2>
-        <pre class="bg-code text-code text-xs p-4 rounded-lg overflow-auto min-h-32 whitespace-pre-wrap break-words" dir="auto">{{ resultText }}</pre>
+        <pre
+          class="bg-code text-code text-xs p-4 rounded-lg overflow-auto min-h-32 whitespace-pre-wrap break-words"
+          dir="auto"
+        >{{ resultText }}</pre>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { Upload } from 'lucide-vue-next'
 
+import { hasApiToken, onApiTokenChange } from '@/api/client'
+import type { TaskLanguage } from '@/api/types'
 import FileUploader from '@/components/FileUploader.vue'
 import { useTaskStore } from '@/stores'
+import { formatFileSize } from '@/utils/format'
 import { toast } from '@/utils/toast'
 
 const taskStore = useTaskStore()
 const fileUploader = ref<InstanceType<typeof FileUploader> | null>(null)
 
-const files = ref<File[]>([])
-const resultText = ref('等待提交...')
+const DEFAULT_MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
+const maxUploadSizeBytes = Number.parseInt(
+  String(import.meta.env.VITE_TASK_MAX_UPLOAD_SIZE_BYTES ?? DEFAULT_MAX_UPLOAD_SIZE_BYTES),
+  10
+)
+const PDF_LANGUAGES: TaskLanguage[] = [
+  'ch',
+  'ch_server',
+  'ch_lite',
+  'chinese_cht',
+  'en',
+  'korean',
+  'japan',
+  'ta',
+  'te',
+  'ka',
+]
 const SUPPORTED_EXTENSIONS = new Set([
   '.pdf',
   '.doc',
@@ -146,9 +192,16 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.jpeg',
 ])
 
+const tokenConfigured = ref(hasApiToken())
+const files = ref<File[]>([])
+const resultText = ref(
+  `等待提交...${tokenConfigured.value ? '' : '\n\n请先在顶部配置 JWT Token 后再提交任务。'}`
+)
+let unsubscribeTokenChange: (() => void) | null = null
+
 const form = reactive({
   parse_method: 'auto' as 'auto' | 'txt' | 'ocr',
-  lang: 'ch' as 'ch' | 'en' | 'japan' | 'korean',
+  lang: 'ch' as TaskLanguage,
   priority: 0,
   save_parsed_content: false,
   save_middle_content: false,
@@ -161,9 +214,7 @@ const pageRangeError = computed(() => {
   if (form.end_page === '') {
     return ''
   }
-  return Number(form.end_page) < form.start_page
-    ? 'end_page 不能小于 start_page'
-    : ''
+  return Number(form.end_page) < form.start_page ? 'end_page 不能小于 start_page' : ''
 })
 
 function getFileExtension(filename: string): string {
@@ -186,7 +237,7 @@ const fileTypeError = computed(() => {
 })
 
 const canSubmit = computed(() => {
-  return files.value.length > 0 && !pageRangeError.value && !fileTypeError.value
+  return tokenConfigured.value && files.value.length > 0 && !pageRangeError.value && !fileTypeError.value
 })
 
 const currentFileExtension = computed(() => {
@@ -210,6 +261,11 @@ function onFilesChange(nextFiles: File[]) {
 }
 
 async function submit() {
+  if (!tokenConfigured.value) {
+    resultText.value = '请先配置 JWT Token'
+    toast.warning('请先配置 JWT Token')
+    return
+  }
   if (files.value.length === 0) {
     resultText.value = '请先选择文件'
     toast.warning('请先选择文件')
@@ -227,6 +283,12 @@ async function submit() {
   }
 
   const file = files.value[0]
+  if (file.size > maxUploadSizeBytes) {
+    const message = `文件过大：${formatFileSize(file.size)}，上限 ${formatFileSize(maxUploadSizeBytes)}`
+    resultText.value = message
+    toast.warning(message)
+    return
+  }
 
   let result
   try {
@@ -259,4 +321,20 @@ async function submit() {
     toast.warning('任务已提交成功，但仪表盘刷新失败，可稍后手动刷新')
   }
 }
+
+onMounted(() => {
+  unsubscribeTokenChange = onApiTokenChange(() => {
+    tokenConfigured.value = hasApiToken()
+    if (!tokenConfigured.value) {
+      resultText.value = '请先在顶部配置 JWT Token 后再提交任务。'
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (unsubscribeTokenChange) {
+    unsubscribeTokenChange()
+    unsubscribeTokenChange = null
+  }
+})
 </script>

@@ -30,3 +30,18 @@ def test_settings_reload_fails_when_auth_secret_missing(monkeypatch):
             Settings.get_instance()
     finally:
         Settings._instance = original_instance
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("TASK_QUEUE_BACKEND", "invalid"),
+        ("PDF_PARSE_ENGINE", "invalid"),
+        ("URL_FETCH_MODE", "invalid"),
+        ("AUTH_JWT_ALGORITHM", "RS256"),
+        ("MINERU_DEVICE_MODE", "invalid"),
+    ],
+)
+def test_application_config_rejects_invalid_enum_like_values(field, value):
+    with pytest.raises(ValueError):
+        ApplicationConfig.model_validate({field: value})

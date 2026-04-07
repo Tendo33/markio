@@ -28,6 +28,10 @@ export function getApiToken(): string {
   return resolveStoredToken()
 }
 
+export function hasApiToken(): boolean {
+  return resolveStoredToken().length > 0
+}
+
 function decodeBase64Url(input: string): string | null {
   if (!input) return null
   const normalized = input.replace(/-/g, '+').replace(/_/g, '/')

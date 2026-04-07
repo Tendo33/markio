@@ -147,7 +147,7 @@ class AsyncTaskManager(BaseTaskManager):
         if cache_allowed and self.cache_getter and cache_key:
             cached_value = await self._safe_cache_get(cache_key)
             if cached_value:
-                now = datetime.utcnow()
+                now = _utc_now()
                 record = TaskRecord(
                     task_id=task_id,
                     filename=request.filename,
@@ -177,7 +177,7 @@ class AsyncTaskManager(BaseTaskManager):
             status=TaskStatus.pending,
             parse_method=request.parse_method,
             lang=request.lang,
-            created_at=datetime.utcnow(),
+            created_at=_utc_now(),
             priority=request.priority,
         )
 
@@ -262,10 +262,18 @@ class AsyncTaskManager(BaseTaskManager):
                 stats.failed += 1
         return stats
 
-    async def get_queue_health(self) -> QueueHealth:
-        stats = await self.get_stats()
+    async def get_queue_health(self, owner_id: str | None = None) -> QueueHealth:
+        stats = await self.get_stats(owner_id=owner_id)
         async with self._lock:
-            queued = len(self._pending_items)
+            if owner_id:
+                queued = sum(
+                    1
+                    for task_id in self._pending_items
+                    if self._records.get(task_id) is not None
+                    and self._records[task_id].owner_id == owner_id
+                )
+            else:
+                queued = len(self._pending_items)
             paused = self._paused
         return QueueHealth(
             queued=queued,
@@ -276,7 +284,7 @@ class AsyncTaskManager(BaseTaskManager):
 
     async def get_dashboard(self, recent_limit: int = 10, owner_id: str | None = None) -> dict:
         stats = await self.get_stats(owner_id=owner_id)
-        queue_health = await self.get_queue_health()
+        queue_health = await self.get_queue_health(owner_id=owner_id)
         recent = await self.list_tasks(
             page=1,
             page_size=max(1, recent_limit),
@@ -317,7 +325,7 @@ class AsyncTaskManager(BaseTaskManager):
                 return False
 
             record.status = TaskStatus.canceled
-            record.completed_at = datetime.utcnow()
+            record.completed_at = _utc_now()
             record.error_message = "Canceled by user"
 
             self._pending_items.pop(task_id, None)
@@ -378,7 +386,7 @@ class AsyncTaskManager(BaseTaskManager):
                     continue
 
                 record.status = TaskStatus.processing
-                record.started_at = datetime.utcnow()
+                record.started_at = _utc_now()
                 record.processing_duration_ms = None
                 self._persist_state_locked()
 
@@ -431,7 +439,7 @@ class AsyncTaskManager(BaseTaskManager):
             else:
                 record.status = TaskStatus.failed
                 record.error_message = message
-                record.completed_at = datetime.utcnow()
+                record.completed_at = _utc_now()
                 record.processing_duration_ms = self._calculate_duration_ms(
                     record.started_at,
                     record.completed_at,
@@ -452,7 +460,7 @@ class AsyncTaskManager(BaseTaskManager):
             record.status = TaskStatus.completed
             record.result = result
             record.error_message = None
-            record.completed_at = datetime.utcnow()
+            record.completed_at = _utc_now()
             record.processing_duration_ms = self._calculate_duration_ms(
                 record.started_at,
                 record.completed_at,
@@ -602,6 +610,12 @@ class AsyncTaskManager(BaseTaskManager):
 
     @staticmethod
     def _record_from_dict(payload: dict) -> TaskRecord:
+        def _parse_dt(value: str | None) -> datetime | None:
+            if not value:
+                return None
+            parsed = datetime.fromisoformat(value)
+            return _ensure_utc(parsed)
+
         return TaskRecord(
             task_id=payload["task_id"],
             filename=payload["filename"],
@@ -609,17 +623,9 @@ class AsyncTaskManager(BaseTaskManager):
             status=TaskStatus(payload["status"]),
             parse_method=payload["parse_method"],
             lang=payload["lang"],
-            created_at=datetime.fromisoformat(payload["created_at"]),
-            started_at=(
-                datetime.fromisoformat(payload["started_at"])
-                if payload.get("started_at")
-                else None
-            ),
-            completed_at=(
-                datetime.fromisoformat(payload["completed_at"])
-                if payload.get("completed_at")
-                else None
-            ),
+            created_at=_parse_dt(payload["created_at"]),
+            started_at=_parse_dt(payload.get("started_at")),
+            completed_at=_parse_dt(payload.get("completed_at")),
             result=payload.get("result"),
             error_message=payload.get("error_message"),
             cache_hit=bool(payload.get("cache_hit", False)),
@@ -667,3 +673,13 @@ class AsyncTaskManager(BaseTaskManager):
             "p95_ms": sorted_values[p95_index],
             "max_ms": sorted_values[-1],
         }
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)

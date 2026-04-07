@@ -20,8 +20,9 @@ Markio is an API-first service that converts documents and web content into Mark
 - Sync parsing endpoints (`/v1/parse_*`, `/v1/parse_file`, `/v1/parse_url`)
 - Async task queue with retry/cancel/pause/resume (`/v1/tasks/*`)
 - Optional Redis-backed queue/state/cache
-- Vue 3 console at `/console`
+- Vue 3 console at `/console` as the primary web control plane
 - Local SDK + CLI for direct integration
+- Optional Gradio UI for preview/demo-oriented workflows
 
 > **Breaking change:** all `/v1/*` endpoints now require `Authorization: Bearer <JWT>`.
 
@@ -114,6 +115,8 @@ npm install
 npm run dev
 ```
 
+The Vue console remains the primary web UI. Gradio, if enabled locally, should be treated as an optional auxiliary interface rather than the main product workflow.
+
 ## Common Workflows
 
 ### 1) Sync Parse a Local File (Auto Dispatch)
@@ -178,11 +181,11 @@ Base prefix: `/v1`
 - `POST /tasks/submit`
 - `GET /tasks`
 - `GET /tasks/stats`
-- `GET /tasks/queue`
+- `GET /tasks/queue` (`admin` only, global queue health)
 - `GET /tasks/dashboard`
 - `GET /tasks/{task_id}`
-- `POST /tasks/queue/pause`
-- `POST /tasks/queue/resume`
+- `POST /tasks/queue/pause` (`admin` only)
+- `POST /tasks/queue/resume` (`admin` only)
 - `POST /tasks/{task_id}/cancel`
 - `POST /tasks/{task_id}/retry`
 
@@ -255,10 +258,10 @@ Core settings come from environment variables (`.env`, see `.env.example`).
 | `ENABLE_MCP` | `false` | Mount MCP endpoints/tools |
 | `AUTH_JWT_SECRET` | _(required)_ | HS256 secret for `/v1/*` auth |
 | `AUTH_JWT_ALGORITHM` | `HS256` | JWT algorithm (`HS256` only) |
-| `MARKIO_API_TOKEN` | `""` | SDK/CLI/Gradio bearer token |
+| `MARKIO_API_TOKEN` | `""` | SDK/CLI/optional Gradio bearer token |
 | `MARKIO_API_BASE_URL` | `""` | SDK/CLI remote API base URL |
-| `MARKIO_API_PREFIX` | `"/v1"` | Gradio remote API prefix |
-| `MARKIO_API_DOCS_URL` | `"<MARKIO_API_BASE_URL>/docs"` | Gradio docs/health URL override |
+| `MARKIO_API_PREFIX` | `"/v1"` | Optional Gradio remote API prefix |
+| `MARKIO_API_DOCS_URL` | `"<MARKIO_API_BASE_URL>/docs"` | Optional Gradio docs/health URL override |
 
 Redis details: [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
 

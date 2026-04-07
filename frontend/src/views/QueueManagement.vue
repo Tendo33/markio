@@ -5,14 +5,35 @@
       <p class="mt-1 page-subtitle">暂停/恢复队列，并监控 worker 运行状态</p>
     </div>
 
-    <div class="space-y-6">
+    <div v-if="!tokenConfigured" class="card border-warning bg-warning text-sm text-warning break-words" dir="auto">
+      当前未配置 JWT Token，队列管理页不会请求 admin-only 的 `/v1/tasks/queue` 接口。
+    </div>
+
+    <div v-else-if="!canManageQueue" class="space-y-6">
+      <div class="card border-warning bg-warning text-sm text-warning break-words" dir="auto">
+        当前 JWT 角色是 <code>{{ currentRole }}</code>，无权访问全局队列运营接口。普通用户请返回仪表盘查看 owner-scoped 任务概览。
+      </div>
+
+      <div class="card">
+        <h2 class="section-title mb-4">操作日志</h2>
+        <div class="text-sm text-secondary">仅 admin 角色可查看全局队列健康度、暂停或恢复队列。</div>
+      </div>
+    </div>
+
+    <div v-else class="space-y-6">
       <div>
         <h2 class="section-title mb-4">队列状态</h2>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard title="队列长度" :value="queueStore.health.queued" subtitle="等待执行任务" :icon="Clock" color="gray" />
           <StatCard title="处理中" :value="queueStore.health.processing" subtitle="正在运行任务" :icon="Loader" color="yellow" />
           <StatCard title="Worker" :value="queueStore.health.workers" subtitle="工作线程数" :icon="Cpu" color="blue" />
-          <StatCard title="暂停状态" :value="queueStore.health.paused ? '是' : '否'" subtitle="队列是否暂停" :icon="PauseCircle" :color="queueStore.health.paused ? 'red' : 'green'" />
+          <StatCard
+            title="暂停状态"
+            :value="queueStore.health.paused ? '是' : '否'"
+            subtitle="队列是否暂停"
+            :icon="PauseCircle"
+            :color="queueStore.health.paused ? 'red' : 'green'"
+          />
         </div>
       </div>
 
@@ -21,12 +42,8 @@
         <div class="mb-3 text-sm text-secondary">
           当前角色：<span class="font-medium text-primary">{{ currentRole }}</span>
         </div>
-        <div v-if="!canManageQueue" class="mb-3 text-sm text-warning bg-warning border-warning rounded-lg p-3 break-words" dir="auto">
-          当前 JWT 角色不是 <code>admin</code>，已隐藏暂停/恢复操作入口。
-        </div>
         <div class="flex flex-wrap gap-3">
           <button
-            v-if="canManageQueue"
             @click="pause"
             :disabled="actionLocked"
             class="btn btn-secondary flex items-center"
@@ -35,7 +52,6 @@
             暂停队列
           </button>
           <button
-            v-if="canManageQueue"
             @click="resume"
             :disabled="actionLocked"
             class="btn btn-primary flex items-center"
@@ -74,18 +90,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import {
-  Clock,
-  Cpu,
-  Loader,
-  Pause,
-  PauseCircle,
-  Play,
-  RefreshCw,
-} from 'lucide-vue-next'
+import { Clock, Cpu, Loader, Pause, PauseCircle, Play, RefreshCw } from 'lucide-vue-next'
 
+import { getApiTokenRole, hasApiToken, onApiTokenChange } from '@/api/client'
 import StatCard from '@/components/StatCard.vue'
-import { getApiTokenRole, onApiTokenChange } from '@/api/client'
 import { useQueueStore } from '@/stores'
 import { formatDateTime } from '@/utils/format'
 import { toast } from '@/utils/toast'
@@ -95,11 +103,16 @@ const queueStore = useQueueStore()
 const logs = ref<Array<{ time: string; message: string; type: 'info' | 'error' }>>([])
 const actionLocked = ref(false)
 const currentRole = ref('user')
-const canManageQueue = computed(() => currentRole.value === 'admin')
+const tokenConfigured = ref(hasApiToken())
+const canManageQueue = computed(() => tokenConfigured.value && currentRole.value === 'admin')
 let unsubscribeTokenChange: (() => void) | null = null
 
 function syncRole() {
+  tokenConfigured.value = hasApiToken()
   currentRole.value = getApiTokenRole('user')
+  if (!canManageQueue.value) {
+    queueStore.reset()
+  }
 }
 
 function addLog(message: string, type: 'info' | 'error' = 'info') {
@@ -114,7 +127,7 @@ function addLog(message: string, type: 'info' | 'error' = 'info') {
 }
 
 async function refresh() {
-  if (actionLocked.value) return
+  if (!canManageQueue.value || actionLocked.value) return
   actionLocked.value = true
   try {
     await queueStore.fetchHealth()
@@ -130,9 +143,6 @@ async function refresh() {
 
 async function pause() {
   if (!canManageQueue.value) {
-    const message = '当前角色无权限执行队列暂停'
-    addLog(message, 'error')
-    toast.error(message)
     return
   }
   if (actionLocked.value) return
@@ -153,9 +163,6 @@ async function pause() {
 
 async function resume() {
   if (!canManageQueue.value) {
-    const message = '当前角色无权限执行队列恢复'
-    addLog(message, 'error')
-    toast.error(message)
     return
   }
   if (actionLocked.value) return
@@ -176,8 +183,12 @@ async function resume() {
 
 onMounted(async () => {
   syncRole()
-  unsubscribeTokenChange = onApiTokenChange(syncRole)
-  await refresh()
+  unsubscribeTokenChange = onApiTokenChange(() => {
+    syncRole()
+  })
+  if (canManageQueue.value) {
+    await refresh()
+  }
 })
 
 onUnmounted(() => {

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Markio is a high-performance document conversion API platform that parses various file formats (PDF, Office documents, HTML, EPUB, images) and converts them to Markdown. The project provides multiple interfaces: REST API, CLI, Python SDK, and web UI (Gradio).
+Markio is a high-performance document conversion API platform that parses various file formats (PDF, Office documents, HTML, EPUB, images) and converts them to Markdown. The project provides multiple interfaces: REST API, CLI, Python SDK, a primary Vue console served at `/console`, and an optional Gradio UI for preview/demo-oriented workflows.
 
 ## Development Environment
 
@@ -28,13 +28,13 @@ uv venv && uv pip install -e .
 
 #### Running the Application
 ```bash
-# Start both API and web interface
+# Start backend API
 ./start_services.sh
 
 # Start API only
 python markio/main.py
 
-# Start web interface only
+# Start optional Gradio preview UI only
 python markio/web/gradio_frontend.py
 
 # Docker deployment
@@ -89,6 +89,7 @@ mypy markio/
 3. **API Routers** (`markio/routers/`): REST API endpoints for each document type
 4. **SDK** (`markio/sdk/`): Python SDK and CLI interface
 5. **Configuration** (`markio/settings/`): Environment-based configuration system
+6. **Console frontend** (`frontend/`): Vue 3 + Vite app compiled into `markio/webapp` and served by FastAPI at `/console`
 
 ### Key Design Patterns
 
@@ -96,7 +97,7 @@ mypy markio/
 - **Async/await throughout**: All parsing operations are asynchronous
 - **Model management**: Centralized model initialization with safe error handling
 - **Configuration via environment**: All settings through environment variables with Pydantic validation
-- **Middleware stack**: CORS, GZIP, tracing middleware for production readiness
+- **Middleware stack**: CORS, GZIP, tracing, and security headers for production readiness
 
 ### Configuration System
 
@@ -153,5 +154,6 @@ Key libraries and their purposes:
 - **MinerU**: PDF parsing with layout analysis and OCR
 - **docling**: Office document and HTML parsing
 - **Typer**: CLI framework with rich help text
-- **Gradio**: Web interface for document preview
+- **Vue 3 console**: Primary operator/user control plane for `/v1/tasks/*`
+- **Gradio**: Optional web interface for lightweight preview/demo flows
 - **Pydantic**: Data validation and configuration management

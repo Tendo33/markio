@@ -42,6 +42,11 @@ export const useQueueStore = defineStore('queue', () => {
     return result
   }
 
+  function reset() {
+    health.value = { ...DEFAULT_HEALTH }
+    error.value = ''
+  }
+
   return {
     health,
     loading,
@@ -49,5 +54,6 @@ export const useQueueStore = defineStore('queue', () => {
     fetchHealth,
     pause,
     resume,
+    reset,
   }
 })

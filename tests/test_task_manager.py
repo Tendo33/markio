@@ -649,6 +649,32 @@ class TaskManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(len(dashboard["recent_tasks"]), 2)
         await manager.stop()
 
+    async def test_cache_key_ignores_owner_and_filename(self):
+        file_path = self.tmp_dir / "same-content.pdf"
+        file_path.write_text("demo", encoding="utf-8")
+
+        manager = AsyncTaskManager(worker_count=1)
+
+        request_a = SubmitTaskRequest(
+            filename="first-name.pdf",
+            file_path=str(file_path),
+            owner_id="user-a",
+            parse_method="auto",
+            lang="ch",
+        )
+        request_b = SubmitTaskRequest(
+            filename="second-name.pdf",
+            file_path=str(file_path),
+            owner_id="user-b",
+            parse_method="auto",
+            lang="ch",
+        )
+
+        self.assertEqual(
+            manager._build_cache_key(request_a),
+            manager._build_cache_key(request_b),
+        )
+
     async def test_stop_while_paused_does_not_hang(self):
         async def parser(path: str, request: SubmitTaskRequest) -> str:
             return "# ok"

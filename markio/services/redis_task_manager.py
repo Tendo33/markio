@@ -151,12 +151,16 @@ class RedisTaskManager(BaseTaskManager):
     async def get_stats(self, owner_id: str | None = None) -> TaskStats:
         return await self.store.get_stats(owner_id=owner_id)
 
-    async def get_queue_health(self) -> QueueHealth:
-        return await self.store.get_queue_health(self.worker_count, self._paused)
+    async def get_queue_health(self, owner_id: str | None = None) -> QueueHealth:
+        return await self.store.get_queue_health(
+            self.worker_count,
+            self._paused,
+            owner_id=owner_id,
+        )
 
     async def get_dashboard(self, recent_limit: int = 10, owner_id: str | None = None) -> dict:
         stats = await self.get_stats(owner_id=owner_id)
-        queue_health = await self.get_queue_health()
+        queue_health = await self.get_queue_health(owner_id=owner_id)
         recent = await self.list_tasks(
             page=1,
             page_size=max(1, recent_limit),

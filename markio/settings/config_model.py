@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -28,7 +28,7 @@ class ApplicationConfig(BaseModel):
     )
 
     # PDF parsing engine configuration
-    pdf_parse_engine: str = Field(
+    pdf_parse_engine: Literal["pipeline", "vlm-vllm-engine", "vlm-vllm-client"] = Field(
         default="pipeline",
         description="PDF parsing engine selection, options: 'pipeline', 'vlm-vllm-engine', 'vlm-vllm-client'",
         alias="PDF_PARSE_ENGINE",
@@ -48,13 +48,13 @@ class ApplicationConfig(BaseModel):
         alias="MINERU_MIN_BATCH_INFERENCE_SIZE",
     )
 
-    mineru_device_mode: str = Field(
+    mineru_device_mode: Literal["cuda", "cpu", "mps"] = Field(
         default="cuda",
         description="MINERU model device mode, such as 'cuda' or 'cpu'",
         alias="MINERU_DEVICE_MODE",
     )
 
-    mineru_model_source: str = Field(
+    mineru_model_source: Literal["local", "remote"] = Field(
         default="local",
         description="MINERU model source, such as 'local' or 'remote'",
         alias="MINERU_MODEL_SOURCE",
@@ -165,7 +165,7 @@ class ApplicationConfig(BaseModel):
         alias="TASK_WORKER_COUNT",
     )
 
-    task_queue_backend: str = Field(
+    task_queue_backend: Literal["memory", "redis"] = Field(
         default="memory",
         description="Task queue backend: 'memory' or 'redis'",
         alias="TASK_QUEUE_BACKEND",
@@ -243,7 +243,7 @@ class ApplicationConfig(BaseModel):
         alias="RATE_LIMIT_MAX_BUCKETS",
     )
 
-    url_fetch_mode: str = Field(
+    url_fetch_mode: Literal["direct", "jina_proxy"] = Field(
         default="direct",
         description="URL fetch mode: 'direct' or 'jina_proxy'",
         alias="URL_FETCH_MODE",
@@ -291,7 +291,7 @@ class ApplicationConfig(BaseModel):
         alias="AUTH_JWT_SECRET",
     )
 
-    auth_jwt_algorithm: str = Field(
+    auth_jwt_algorithm: Literal["HS256"] = Field(
         default="HS256",
         description="JWT signing algorithm (currently HS256)",
         alias="AUTH_JWT_ALGORITHM",

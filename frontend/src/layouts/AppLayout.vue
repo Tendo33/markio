@@ -1,6 +1,16 @@
 <template>
   <div class="min-h-screen bg-subtle">
-    <nav class="relative bg-white/90 backdrop-blur-md border-b border-subtle sticky top-0 z-40">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:text-primary"
+    >
+      跳转到主要内容
+    </a>
+
+    <nav
+      class="relative bg-white/90 backdrop-blur-md border-b border-subtle sticky top-0 z-40"
+      aria-label="主导航"
+    >
       <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
         <div class="flex flex-wrap lg:flex-nowrap justify-between items-center min-h-16 py-2 gap-3">
           <div class="flex items-center min-w-0 flex-1">
@@ -125,7 +135,16 @@
       </div>
     </section>
 
-    <main class="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-4 lg:py-6">
+    <section
+      v-if="!tokenConfigured"
+      class="mx-4 mt-4 rounded-2xl border border-warning bg-warning p-4 text-sm text-warning sm:mx-6 lg:mx-8 xl:mx-12"
+      role="status"
+      aria-live="polite"
+    >
+      当前尚未配置 JWT Token，控制台不会主动请求 `/v1/*` 接口。请在顶部保存 Token 后再访问仪表盘、任务或队列能力。
+    </section>
+
+    <main id="main-content" class="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-4 lg:py-6">
       <router-view />
     </main>
   </div>
@@ -136,7 +155,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { LayoutDashboard, ListTodo, RefreshCw, Settings, Upload } from 'lucide-vue-next'
 
-import { getApiToken, setApiToken } from '@/api/client'
+import { getApiToken, getApiTokenRole, hasApiToken, onApiTokenChange, setApiToken } from '@/api/client'
 import { useQueueStore, useTaskStore } from '@/stores'
 import { toast } from '@/utils/toast'
 
@@ -148,8 +167,11 @@ const refreshing = ref(false)
 const autoRefreshing = ref(false)
 const showMobileTokenPanel = ref(false)
 const apiToken = ref(getApiToken())
+const currentRole = ref(getApiTokenRole('user'))
+const tokenConfigured = ref(hasApiToken())
 let timerId: number | null = null
 let autoRefreshDelayMs = 5000
+let unsubscribeTokenChange: (() => void) | null = null
 
 const navItems = [
   { path: '/', label: '仪表盘', icon: LayoutDashboard },
@@ -160,6 +182,7 @@ const navItems = [
 
 const activeClass = 'bg-accent-soft text-accent-strong'
 const inactiveClass = 'text-secondary hover:text-primary hover:bg-hover'
+const isAdmin = computed(() => currentRole.value === 'admin')
 
 const stats = computed(() => {
   return (
@@ -180,12 +203,23 @@ function isActive(path: string) {
 }
 
 function shouldAutoRefresh() {
-  return document.visibilityState === 'visible' && route.name !== 'task-detail'
+  return tokenConfigured.value && document.visibilityState === 'visible' && route.name !== 'task-detail'
+}
+
+function syncTokenContext() {
+  apiToken.value = getApiToken()
+  currentRole.value = getApiTokenRole('user')
+  tokenConfigured.value = hasApiToken()
 }
 
 async function refreshAll(options: { silent?: boolean } = {}) {
   const isSilent = options.silent ?? false
   if ((refreshing.value || autoRefreshing.value) || (isSilent && !shouldAutoRefresh())) {
+    return true
+  }
+  if (!tokenConfigured.value) {
+    taskStore.resetState()
+    queueStore.reset()
     return true
   }
   if (isSilent) {
@@ -194,7 +228,13 @@ async function refreshAll(options: { silent?: boolean } = {}) {
     refreshing.value = true
   }
   try {
-    await Promise.all([taskStore.loadDashboard(8), queueStore.fetchHealth()])
+    const operations: Array<Promise<unknown>> = [taskStore.loadDashboard(8)]
+    if (isAdmin.value) {
+      operations.push(queueStore.fetchHealth())
+    } else {
+      queueStore.reset()
+    }
+    await Promise.all(operations)
     return true
   } catch {
     // Errors are stored in Pinia stores and surfaced by pages.
@@ -245,6 +285,7 @@ function handleVisibilityChange() {
 
 function saveToken() {
   setApiToken(apiToken.value)
+  syncTokenContext()
   toast.success('Token 已保存')
   refreshAll().catch(() => {
     // ignore refresh error after token save
@@ -254,10 +295,15 @@ function saveToken() {
 function clearToken() {
   apiToken.value = ''
   setApiToken('')
+  syncTokenContext()
+  taskStore.resetState()
+  queueStore.reset()
   toast.info('Token 已清除')
 }
 
 onMounted(async () => {
+  syncTokenContext()
+  unsubscribeTokenChange = onApiTokenChange(syncTokenContext)
   try {
     await refreshAll()
   } catch {
@@ -269,6 +315,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  if (unsubscribeTokenChange) {
+    unsubscribeTokenChange()
+    unsubscribeTokenChange = null
+  }
   if (timerId) {
     clearTimeout(timerId)
     timerId = null

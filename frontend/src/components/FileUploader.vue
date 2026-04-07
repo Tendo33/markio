@@ -104,6 +104,12 @@ function openFileDialog() {
   fileInput.value?.click()
 }
 
+function resetNativeInput() {
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+}
+
 function onKeyDown(event: KeyboardEvent) {
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
@@ -116,6 +122,7 @@ function onFileChange(event: Event) {
   if (target.files) {
     addFiles(Array.from(target.files))
   }
+  resetNativeInput()
 }
 
 function onDragOver() {
@@ -196,6 +203,7 @@ function isAcceptedFile(file: File): boolean {
 
 function removeFile(index: number) {
   files.value.splice(index, 1)
+  resetNativeInput()
   emit('update:files', files.value)
 }
 
@@ -203,6 +211,7 @@ defineExpose({
   clearFiles: () => {
     files.value = []
     rejectedMessages.value = []
+    resetNativeInput()
     emit('update:files', files.value)
   },
 })
