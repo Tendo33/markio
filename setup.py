@@ -1,8 +1,10 @@
 from setuptools import find_packages, setup
 
+from markio import __version__
+
 setup(
     name="markio",
-    version="0.1.0",
+    version=__version__,
     packages=find_packages(),
     install_requires=[
         "mineru[all]",

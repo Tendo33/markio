@@ -14,6 +14,6 @@ Usage:
 3. Or use provided script: python tests/run_tests.py
 """
 
-__version__ = "1.0.0"
+from markio import __version__
 __author__ = "Markio Team"
 __description__ = "Markio API Test Suite"

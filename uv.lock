@@ -2561,7 +2561,6 @@ wheels = [
 
 [[package]]
 name = "markio"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

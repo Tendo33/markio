@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "markio"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Markio Document Parser CLI and API"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -52,6 +52,9 @@ markio = "markio.sdk.markio_cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["markio"]
+
+[tool.hatch.version]
+path = "markio/__init__.py"
 
 
 [[tool.uv.index]]

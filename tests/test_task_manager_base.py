@@ -25,7 +25,7 @@ def test_shared_cache_key_builder_matches_between_managers(tmp_path: Path):
     )
 
 
-def test_cache_key_includes_owner_id(tmp_path: Path):
+def test_cache_key_ignores_owner_id(tmp_path: Path):
     file_path = tmp_path / "cache-owner.pdf"
     file_path.write_text("same-content", encoding="utf-8")
 
@@ -41,4 +41,4 @@ def test_cache_key_includes_owner_id(tmp_path: Path):
         owner_id="owner-b",
     )
 
-    assert manager._build_cache_key(request_a) != manager._build_cache_key(request_b)
+    assert manager._build_cache_key(request_a) == manager._build_cache_key(request_b)

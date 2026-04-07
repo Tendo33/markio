@@ -26,7 +26,7 @@ Markio is an API-first service that converts documents and web content into Mark
 
 > **Breaking change:** all `/v1/*` endpoints now require `Authorization: Bearer <JWT>`.
 
-This repository is currently in **alpha** (`0.1.0`) and focuses on practical parsing workflows over heavy platform features.
+This repository is currently in **alpha** (`0.1.1`) and focuses on practical parsing workflows over heavy platform features.
 
 ## Highlights
 
