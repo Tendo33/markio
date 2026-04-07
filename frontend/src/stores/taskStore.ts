@@ -23,12 +23,6 @@ export const useTaskStore = defineStore('task', () => {
   const listError = ref('')
   const detailError = ref('')
   const submitError = ref('')
-  const error = computed(() =>
-    detailError.value || listError.value || dashboardError.value || submitError.value
-  )
-  const loading = computed(
-    () => dashboardLoading.value || listLoading.value || detailLoading.value || submitting.value
-  )
   const currentTask = computed<TaskRecord | null>(() => {
     if (!currentTaskSummary.value) {
       return null
@@ -188,8 +182,6 @@ export const useTaskStore = defineStore('task', () => {
   return {
     tasks,
     currentTask,
-    currentTaskSummary,
-    currentTaskResult,
     dashboard,
     page,
     pageSize,
@@ -199,13 +191,11 @@ export const useTaskStore = defineStore('task', () => {
     dashboardLoading,
     listLoading,
     detailLoading,
-    loading,
     submitting,
     dashboardError,
     listError,
     detailError,
     submitError,
-    error,
     loadDashboard,
     loadTasks,
     setFilters,

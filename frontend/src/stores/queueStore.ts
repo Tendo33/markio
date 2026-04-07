@@ -14,16 +14,13 @@ const DEFAULT_HEALTH: QueueHealth = {
 export const useQueueStore = defineStore('queue', () => {
   const health = ref<QueueHealth>({ ...DEFAULT_HEALTH })
   const loading = ref(false)
-  const error = ref('')
 
   async function fetchHealth() {
     loading.value = true
-    error.value = ''
     try {
       health.value = await queueApi.getQueueHealth()
       return health.value
     } catch (err: any) {
-      error.value = err?.message || '加载队列状态失败'
       throw err
     } finally {
       loading.value = false
@@ -44,13 +41,11 @@ export const useQueueStore = defineStore('queue', () => {
 
   function reset() {
     health.value = { ...DEFAULT_HEALTH }
-    error.value = ''
   }
 
   return {
     health,
     loading,
-    error,
     fetchHealth,
     pause,
     resume,

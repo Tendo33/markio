@@ -76,10 +76,6 @@
     background-color: var(--surface-hover);
   }
 
-  .bg-accent {
-    background-color: var(--accent);
-  }
-
   .bg-accent-soft {
     background-color: var(--accent-soft);
   }
@@ -132,10 +128,6 @@
     color: var(--status-info-text);
   }
 
-  .text-accent {
-    color: var(--accent);
-  }
-
   .text-accent-strong {
     color: var(--accent-strong);
   }
@@ -144,16 +136,8 @@
     border-color: var(--status-warning-border);
   }
 
-  .border-success {
-    border-color: var(--status-success-border);
-  }
-
   .border-danger {
     border-color: var(--status-danger-border);
-  }
-
-  .border-info {
-    border-color: var(--status-info-border);
   }
 
   .text-code {
@@ -166,14 +150,6 @@
 
   .border-default {
     border-color: var(--border-default);
-  }
-
-  .border-strong {
-    border-color: var(--border-strong);
-  }
-
-  .border-accent {
-    border-color: var(--accent);
   }
 
   .page-title {
@@ -244,15 +220,6 @@
     border-color: var(--border-subtle);
   }
 
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-
   input[type="text"],
   input[type="email"],
   input[type="password"],
@@ -290,10 +257,6 @@
   table tbody td {
     @apply px-4 py-3 border-b text-sm;
     border-color: var(--border-subtle);
-  }
-
-  .badge {
-    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium;
   }
 
   a {

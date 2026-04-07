@@ -23,15 +23,6 @@ export function formatDateTime(date: string | null | undefined): string {
 }
 
 /**
- * 格式化日期（简化版，用于用户信息等场景）
- */
-export function formatDate(date: string | null | undefined): string {
-  if (!date) return '-'
-  // 后端返回的是 UTC 时间，需要转换为本地时间
-  return dayjs.utc(date).local().format('YYYY-MM-DD HH:mm:ss')
-}
-
-/**
  * 格式化相对时间
  */
 export function formatRelativeTime(date: string | null | undefined): string {
@@ -75,17 +66,4 @@ export function formatDuration(startTime: string | null, endTime: string | null)
     const minutes = Math.floor((seconds % 3600) / 60)
     return `${hours}小时${minutes}分`
   }
-}
-
-/**
- * 格式化 Backend 名称
- */
-export function formatBackendName(backend: string): string {
-  const backendNames: Record<string, string> = {
-    'pipeline': 'MinerU Pipeline',
-    'paddleocr-vl': 'PaddleOCR-VL',
-    'vlm-transformers': 'VLM Transformers',
-    'vlm-vllm-engine': 'VLM vLLM Engine',
-  }
-  return backendNames[backend] || backend
 }
