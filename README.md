@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/image.png" alt="Markio Logo" height="240">
   <h1>Markio</h1>
-  <p><strong>Unified document parsing platform built with FastAPI + Docling + MinerU</strong></p>
+  <p><strong>API-first document parsing platform built with FastAPI, Docling, and MinerU</strong></p>
   <p>
     <a href="https://www.python.org/"><img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-blue"></a>
     <a href="https://fastapi.tiangolo.com/"><img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-API-009688"></a>
@@ -15,70 +15,65 @@
 
 ## Overview
 
-Markio is an API-first service that converts documents and web content into Markdown/structured text, with:
+Markio converts documents and web content into Markdown or structured text through four delivery surfaces:
 
-- Sync parsing endpoints (`/v1/parse_*`, `/v1/parse_file`, `/v1/parse_url`)
-- Async task queue with retry/cancel/pause/resume (`/v1/tasks/*`)
-- Optional Redis-backed queue/state/cache
-- Vue 3 console at `/console` as the primary web control plane
-- Local SDK + CLI for direct integration
-- Optional Gradio UI for preview/demo-oriented workflows
+- FastAPI sync parsing endpoints under `/v1/parse_*`
+- FastAPI async task queue endpoints under `/v1/tasks/*`
+- Local Python SDK and CLI
+- Vue 3 console served by FastAPI at `/console`
 
-> **Breaking change:** all `/v1/*` endpoints now require `Authorization: Bearer <JWT>`.
+The project is currently **alpha** (`0.1.2`). It is suitable for internal environments, staged rollouts, and integration work, but it is not positioned as a fully hardened GA platform yet.
 
-This repository is currently in **alpha** (`0.1.1`) and focuses on practical parsing workflows over heavy platform features.
+## Current Product Shape
 
-## Highlights
+- **Primary web UI**: Vue console at `/console`
+- **Optional auxiliary UI**: Gradio preview/demo workflow
+- **Auth model**: every `/v1/*` route requires `Authorization: Bearer <JWT>`
+- **Task backend**: in-memory by default, Redis optional
+- **URL parsing**: local parser, SDK local mode, and remote `/v1/parse_url` now share the same URL safety model
 
-- **Unified parse contract** with `parsed_content`, `parser`, `source_type`, `request_id`, and `duration_ms`
-- **Broad format coverage**: Office files, PDF, HTML, EPUB, image OCR, URL, FASTA, GenBank
-- **Queue observability**: task stats, queue health, dashboard, per-task processing latency
-- **Operational safety**: upload size limits, strict output directory guard, consistent JSON error model, request ID tracing, rate limiting
-- **Flexible deployment**: local Python, Docker Compose, optional Redis backend
-- **Developer ergonomics**: typed FastAPI routes, SDK/CLI, and comprehensive pytest suite
+### What Is Supported
 
-## Architecture (Simplified)
+| Input | Dedicated endpoint | Auto-dispatch via `/v1/parse_file` |
+|---|---|---|
+| PDF | `/v1/parse_pdf_file` | Yes |
+| DOC / DOCX | `/v1/parse_doc_file`, `/v1/parse_docx_file` | Yes |
+| PPT / PPTX | `/v1/parse_ppt_file`, `/v1/parse_pptx_file` | Yes |
+| XLSX | `/v1/parse_xlsx_file` | Yes |
+| HTML / HTM | `/v1/parse_html_file` | Yes |
+| EPUB | `/v1/parse_epub_file` | Yes |
+| Image OCR | `/v1/parse_image_file` | Yes |
+| URL | `/v1/parse_url` | No |
+| FASTA | `/v1/parse_fasta_file` | No |
+| GenBank | `/v1/parse_genbank_file` | No |
+
+## Architecture
 
 ```mermaid
 flowchart LR
-    A["Clients (API / CLI / SDK / Console)"] --> B["FastAPI App"]
+    A["Clients (REST / SDK / CLI / Console)"] --> B["FastAPI App"]
     B --> C["Sync Parse Routers"]
     B --> D["Async Task Router"]
-    C --> E["Parser Registry + Guards"]
-    E --> F["Docling / MinerU Parsers"]
-    D --> G["Task Manager (Memory or Redis)"]
-    G --> F
-    G --> H["Redis Cache / Task Store (optional)"]
-    B --> I["Middlewares (trace, rate-limit, gzip, cors)"]
+    B --> E["Static Console Mount (/console)"]
+    C --> F["Parser Registry + Request Guards"]
+    F --> G["Docling / MinerU / URL / Bio Parsers"]
+    D --> H["Task Manager (memory or Redis)"]
+    H --> G
+    H --> I["Redis Task Store / Cache (optional)"]
 ```
-
-## Supported Inputs
-
-| Type | Extensions / Source | Dedicated Endpoint | Supported by `/v1/parse_file` |
-|---|---|---|---|
-| PDF | `.pdf` | `/v1/parse_pdf_file` | ✅ |
-| Word | `.doc`, `.docx` | `/v1/parse_doc_file`, `/v1/parse_docx_file` | ✅ |
-| PowerPoint | `.ppt`, `.pptx` | `/v1/parse_ppt_file`, `/v1/parse_pptx_file` | ✅ |
-| Excel | `.xlsx` | `/v1/parse_xlsx_file` | ✅ |
-| HTML File | `.html`, `.htm` | `/v1/parse_html_file` | ✅ |
-| EPUB | `.epub` | `/v1/parse_epub_file` | ✅ |
-| Image OCR | `.png`, `.jpg`, `.jpeg` | `/v1/parse_image_file` | ✅ |
-| URL | `http(s)://...` | `/v1/parse_url` | ❌ |
-| FASTA | `.fasta`, `.fa`, `.fna`, `.faa`, `.ffn`, `.fsa`, `.fas`, `.txt` | `/v1/parse_fasta_file` | ❌ |
-| GenBank | `.gb`, `.gbk`, `.genbank`, `.gbff`, `.txt` | `/v1/parse_genbank_file` | ❌ |
 
 ## Quick Start
 
 ### Prerequisites
 
 - Python `3.11+`
-- [`uv`](https://docs.astral.sh/uv/) (recommended)
-- Node.js `18+` (for frontend development)
+- [`uv`](https://docs.astral.sh/uv/) recommended
+- Node.js `18+` for frontend development and console builds
 - Optional: Docker + Docker Compose
-- Optional: Redis (`TASK_QUEUE_BACKEND=redis` + `REDIS_ENABLED=true`)
-- Optional: LibreOffice (`.doc` and `.ppt` conversion support)
+- Optional: LibreOffice for `.doc` and `.ppt`
+- Optional: Redis when using `TASK_QUEUE_BACKEND=redis`
 
-### Run Backend Locally
+### Local backend setup
 
 ```bash
 git clone https://github.com/Tendo33/markio.git
@@ -91,13 +86,33 @@ cp .env.example .env
 python markio/main.py
 ```
 
+Required before the app can start:
+
+- set `AUTH_JWT_SECRET` in `.env`
+
 Open:
 
 - API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Console: [http://localhost:8000/console](http://localhost:8000/console)
 - Health: [http://localhost:8000/healthz](http://localhost:8000/healthz)
 
-### Run with Docker Compose
+### Build the console
+
+The backend serves the Vue SPA only when the built frontend assets exist in `markio/webapp`.
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+Then open:
+
+- Console: [http://localhost:8000/console](http://localhost:8000/console)
+
+If the build output is missing, `/console` intentionally returns a helper fallback page instead of a broken SPA shell.
+
+### Docker Compose
 
 ```bash
 export AUTH_JWT_SECRET="<strong-random-secret>"
@@ -105,21 +120,11 @@ export REDIS_PASSWORD="<redis-password>"
 docker compose up -d
 ```
 
-Compose defaults are aligned to backend same-origin hosting: API at `/v1/*`, console at `/console`, Redis only exposed inside the compose network.
-
-### Run Frontend in Dev Mode (Optional)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The Vue console remains the primary web UI. Gradio, if enabled locally, should be treated as an optional auxiliary interface rather than the main product workflow.
+Compose keeps Redis internal-only and aligns with same-origin hosting: API at `/v1/*`, console at `/console`.
 
 ## Common Workflows
 
-### 1) Sync Parse a Local File (Auto Dispatch)
+### Sync parse a file
 
 ```bash
 curl -X POST "http://localhost:8000/v1/parse_file" \
@@ -127,89 +132,51 @@ curl -X POST "http://localhost:8000/v1/parse_file" \
   -F "file=@./sample.docx"
 ```
 
-### 2) Parse a URL
+### Parse a URL
 
 ```bash
 curl -X POST "http://localhost:8000/v1/parse_url?url=https://example.com" \
   -H "Authorization: Bearer <YOUR_JWT>"
 ```
 
-### 3) Submit an Async Task + Query Progress
+### Submit an async task
 
 ```bash
-# submit
 curl -X POST "http://localhost:8000/v1/tasks/submit" \
   -H "Authorization: Bearer <YOUR_JWT>" \
   -F "file=@./sample.pdf" \
   -F "parse_method=auto" \
   -F "lang=ch" \
   -F "priority=5"
+```
 
-# list
+### Query task state
+
+```bash
 curl -H "Authorization: Bearer <YOUR_JWT>" \
   "http://localhost:8000/v1/tasks?page=1&page_size=20"
 
-# dashboard
 curl -H "Authorization: Bearer <YOUR_JWT>" \
   "http://localhost:8000/v1/tasks/dashboard"
 ```
 
-> `task_id` is expected to be a 32-char lowercase hex string.
+## CLI and SDK
 
-## API Surface
-
-Base prefix: `/v1`
-
-### Sync Parse Endpoints
-
-- `POST /parse_file` (extension-based dispatch)
-- `POST /parse_pdf_file`
-- `POST /parse_doc_file`
-- `POST /parse_docx_file`
-- `POST /parse_ppt_file`
-- `POST /parse_pptx_file`
-- `POST /parse_xlsx_file`
-- `POST /parse_html_file`
-- `POST /parse_epub_file`
-- `POST /parse_image_file`
-- `POST /parse_url`
-- `POST /parse_fasta_file`
-- `POST /parse_genbank_file`
-
-### Async Task Endpoints
-
-- `POST /tasks/submit`
-- `GET /tasks`
-- `GET /tasks/stats`
-- `GET /tasks/queue` (`admin` only, global queue health)
-- `GET /tasks/dashboard`
-- `GET /tasks/{task_id}`
-- `POST /tasks/queue/pause` (`admin` only)
-- `POST /tasks/queue/resume` (`admin` only)
-- `POST /tasks/{task_id}/cancel`
-- `POST /tasks/{task_id}/retry`
-
-### Service Endpoints
-
-- `GET /healthz`
-- `GET /readyz`
-- `GET /` (redirect to `/docs`)
-- `GET /console` (frontend static app / fallback page)
-
-## CLI & SDK
-
-After editable installation, CLI entrypoint is available as `markio`.
+Editable install exposes the `markio` CLI.
 
 ```bash
 markio pdf ./sample.pdf --method auto
 markio docx ./sample.docx --save
-markio image ./sample.png
-
-# optional remote API mode + JWT
-markio --api-base-url http://localhost:8000 --token <YOUR_JWT> url https://example.com
+markio url https://example.com
 ```
 
-Python SDK example:
+Remote mode:
+
+```bash
+markio --api-base-url http://localhost:8000 --token <YOUR_JWT> pdf ./sample.pdf --save
+```
+
+Python SDK:
 
 ```python
 import asyncio
@@ -223,7 +190,8 @@ async def main():
 asyncio.run(main())
 ```
 
-Remote SDK mode (JWT auto-attached):
+Remote SDK mode:
+
 ```python
 sdk = MarkioSDK(
     output_dir="outputs",
@@ -232,77 +200,92 @@ sdk = MarkioSDK(
 )
 ```
 
-More:
+## Security Baseline
 
-- CLI guide: [docs/cli_usage.md](docs/cli_usage.md)
-- SDK guide: [docs/sdk_usage.md](docs/sdk_usage.md)
+### API auth
+
+- All `/v1/*` routes require JWT auth
+- `role=admin` is required for queue pause/resume routes
+- The console currently keeps the token in frontend-managed state; that tradeoff is intentionally preserved in the current phase
+
+### URL parsing and download safety
+
+URL fetching is constrained by one shared implementation in `markio/parsers/url_parser.py`:
+
+- only `http` and `https`
+- optional domain allowlist via `URL_ALLOWED_DOMAINS`
+- private, loopback, link-local, multicast, reserved, and unspecified addresses blocked by default
+- timeout, payload-size, and redirect limits
+- redirect targets revalidated before follow
+- validated IPs pinned into the actual connection layer for direct fetch mode
+
+Relevant environment variables:
+
+- `URL_FETCH_MODE`
+- `URL_PROXY_BASE`
+- `URL_REQUEST_TIMEOUT_SECONDS`
+- `URL_MAX_RESPONSE_BYTES`
+- `URL_BLOCK_PRIVATE_NETWORKS`
+- `URL_ALLOWED_DOMAINS`
+- `URL_MAX_REDIRECTS`
 
 ## Configuration
 
-Core settings come from environment variables (`.env`, see `.env.example`).
+Core configuration comes from `.env` and `markio/settings/config_model.py`.
 
-| Variable | Default | Notes |
+| Variable | Default | Purpose |
 |---|---|---|
-| `PDF_PARSE_ENGINE` | `pipeline` | `pipeline`, `vlm-vllm-engine`, `vlm-vllm-client` |
-| `MINERU_DEVICE_MODE` | `cuda` | `cuda`, `cpu`, `mps` |
-| `REDIS_ENABLED` | `false` | Enables Redis cache and Redis task backend |
+| `AUTH_JWT_SECRET` | `""` | Required JWT secret for all `/v1/*` routes |
+| `AUTH_JWT_ALGORITHM` | `HS256` | JWT signing algorithm |
+| `CORS_ALLOW_ORIGINS` | `""` | Empty means same-origin only |
+| `REDIS_ENABLED` | `false` | Enables Redis features |
 | `TASK_QUEUE_BACKEND` | `memory` | `memory` or `redis` |
-| `TASK_WORKER_COUNT` | `2` | Background workers |
-| `TASK_MAX_UPLOAD_SIZE_BYTES` | `52428800` | Upload cap (`413` on overflow) |
-| `TASK_STATE_RESULT_MAX_CHARS` | `0` | Max chars persisted into task state file (`0` disables result persistence) |
-| `TASK_MAX_AUTO_RETRIES` | `0` | Auto-retry limit |
-| `TASK_PROCESSING_TIMEOUT_SECONDS` | `0` | Requeue timeout for processing tasks |
-| `RATE_LIMIT_ENABLED` | `true` | Lightweight per-IP + route limiter |
-| `CORS_ALLOW_ORIGINS` | `""` | Comma-separated CORS allowlist; empty means same-origin only |
-| `CORS_ALLOW_CREDENTIALS` | `true` | CORS credentials toggle |
-| `ENABLE_MCP` | `false` | Mount MCP endpoints/tools |
-| `AUTH_JWT_SECRET` | _(required)_ | HS256 secret for `/v1/*` auth |
-| `AUTH_JWT_ALGORITHM` | `HS256` | JWT algorithm (`HS256` only) |
-| `MARKIO_API_TOKEN` | `""` | SDK/CLI/optional Gradio bearer token |
-| `MARKIO_API_BASE_URL` | `""` | SDK/CLI remote API base URL |
-| `MARKIO_API_PREFIX` | `"/v1"` | Optional Gradio remote API prefix |
-| `MARKIO_API_DOCS_URL` | `"<MARKIO_API_BASE_URL>/docs"` | Optional Gradio docs/health URL override |
+| `TASK_WORKER_COUNT` | `2` | Async task workers |
+| `TASK_MAX_UPLOAD_SIZE_BYTES` | `52428800` | Max async upload size |
+| `RATE_LIMIT_ENABLED` | `true` | Lightweight per-route rate limiting |
+| `ENABLE_MCP` | `false` | Mount MCP endpoints |
+| `MARKIO_API_BASE_URL` | `""` | SDK/CLI remote mode |
+| `MARKIO_API_TOKEN` | `""` | SDK/CLI remote Bearer token |
 
-Redis details: [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
+Redis-specific details: [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
 
-JWT claim requirements:
-- required: `sub`
-- required: `exp` (numeric expiration timestamp)
-- `role=admin` required for `/v1/tasks/queue/pause` and `/v1/tasks/queue/resume`
+## Documentation Map
 
-## Project Structure
-
-```text
-markio/
-├── markio/          # FastAPI app, routers, parsers, services, SDK/CLI
-├── frontend/        # Vue 3 + Vite console
-├── tests/           # pytest suites and fixtures
-├── docs/            # usage docs and design plans
-├── scripts/         # helper scripts
-├── data/ logs/ outputs/
-├── compose.yaml
-└── .env.example
-```
+- CLI guide: [docs/cli_usage.md](docs/cli_usage.md)
+- SDK guide: [docs/sdk_usage.md](docs/sdk_usage.md)
+- Console guide: [docs/console_frontend.md](docs/console_frontend.md)
+- Biological parsing guide: [docs/biological_data_parsing.md](docs/biological_data_parsing.md)
+- Redis guide: [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
+- Test guide: [tests/README.md](tests/README.md)
 
 ## Testing
 
-```bash
-# default suite (excludes live tests by marker)
-uv run pytest
+Primary commands:
 
-# tests requiring external running service
+```bash
+uv run pytest
 uv run pytest -m live
+cd frontend && npm run build
 ```
 
-## Documentation Index
+The repository currently uses pytest as the source of truth. Legacy helper scripts under `tests/` still exist, but direct pytest runs are the preferred path.
 
-- CLI: [docs/cli_usage.md](docs/cli_usage.md)
-- SDK: [docs/sdk_usage.md](docs/sdk_usage.md)
-- Console frontend: [docs/console_frontend.md](docs/console_frontend.md)
-- Biological parsing: [docs/biological_data_parsing.md](docs/biological_data_parsing.md)
-- Redis integration: [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
+## Project Layout
 
-## License
+```text
+markio/
+├── markio/         # FastAPI app, parsers, routers, SDK, settings
+├── frontend/       # Vue 3 + Vite console source
+├── docs/           # User and operator documentation
+├── tests/          # Pytest suite and test fixtures
+├── data/           # Runtime task state/uploads
+├── logs/           # Runtime logs
+└── outputs/        # Saved parse outputs
+```
 
-- Project license: [MIT](LICENSE)
-- Frontend third-party notice: [frontend/THIRD_PARTY_NOTICES.md](frontend/THIRD_PARTY_NOTICES.md)
+## Known Boundaries
+
+- The project is still marked alpha, not GA
+- Console auth remains token-based on the frontend side for now
+- There is no first-class CLI or `MarkioSDK` wrapper for FASTA and GenBank yet; use the REST endpoints or parser modules directly
+- The fallback page at `/console` is intentional and only exists to signal missing build assets

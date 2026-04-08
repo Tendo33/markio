@@ -30,6 +30,9 @@ def test_healthz_endpoint():
     assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
     assert response.headers["Permissions-Policy"]
     assert "Content-Security-Policy" in response.headers
+    csp = response.headers["Content-Security-Policy"]
+    assert "unsafe-eval" not in csp
+    assert "connect-src 'self'" in csp
 
 
 def test_readyz_endpoint():

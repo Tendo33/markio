@@ -1,200 +1,117 @@
-# Markio API 测试文档
+# Markio Test Guide
 
-## 概述
+## Overview
 
-本测试套件用于测试 Markio 文档解析服务的 API 功能和并发性能。测试覆盖所有支持的文档格式解析接口，包括功能测试和性能测试。
+The repository uses `pytest` as the primary test runner and source of truth.
 
-## 测试目标
+Default behavior:
 
-- **API功能测试**: 验证所有解析接口的正确性和稳定性
-- **并发性能测试**: 测试服务在高并发场景下的表现
-- **负载测试**: 验证服务在不同负载下的性能
-- **压力测试**: 测试服务的极限处理能力
+- `pytest.ini` excludes `live` tests unless explicitly requested
+- the suite covers sync parsers, task flows, auth boundaries, URL safety, Redis behavior, and console delivery
 
-## 环境要求
+## Main Commands
 
-### 系统要求
-- Python 3.11+
-- 足够的磁盘空间用于测试文件
-- 网络访问权限
-
-### 依赖包
-```bash
-pytest>=7.0.0
-pytest-asyncio>=0.21.0
-httpx>=0.28.1
-```
-
-### 服务要求
-- Markio 服务必须运行在 `http://0.0.0.0:8000`
-- 服务必须包含所有解析器模块
-
-## 测试文件结构
-
-```
-tests/
-├── conftest.py                    # pytest配置和共享fixtures
-├── test_all_parsers.py            # 所有解析接口的功能测试
-├── test_concurrent.py             # 并发性能测试
-├── README.md                      # 本说明文档
-├── run_tests.py                   # 启动测试脚本
-├── run_concurrent_tests.py        # 启动并发测试脚本
-└── test_docs/                     # 测试文档目录
-    ├── test_pdf1.pdf             # PDF测试文件
-    ├── test_doc.doc              # DOC测试文件
-    ├── test_docx.docx            # DOCX测试文件
-    ├── test_ppt.ppt              # PPT测试文件
-    ├── test_pptx.pptx            # PPTX测试文件
-    ├── test_xlsx.xlsx            # XLSX测试文件
-    ├── test_html.html            # HTML测试文件
-    ├── test_epub.epub            # EPUB测试文件
-    └── test_pdf2.pdf             # 额外PDF测试文件
-```
-
-## 支持的API接口
-
-| 文件类型 | 接口路径 | 描述 |
-|---------|---------|------|
-| PDF | `/v1/parse_pdf_file` | PDF文档解析 |
-| DOC | `/v1/parse_doc_file` | DOC文档解析 |
-| DOCX | `/v1/parse_docx_file` | DOCX文档解析 |
-| PPT | `/v1/parse_ppt_file` | PPT演示文稿解析 |
-| PPTX | `/v1/parse_pptx_file` | PPTX演示文稿解析 |
-| XLSX | `/v1/parse_xlsx_file` | XLSX表格解析 |
-| HTML | `/v1/parse_html_file` | HTML文档解析 |
-| EPUB | `/v1/parse_epub_file` | EPUB电子书解析 |
-| 图片 | `/v1/parse_image_file` | 图片文档解析 |
-
-## 运行测试
-
-### 1. 运行所有API功能测试
+### Default suite
 
 ```bash
-# 使用pytest直接运行
-pytest tests/test_all_parsers.py -v
-
-# 使用测试脚本运行
-python tests/run_tests.py
+uv run pytest
 ```
 
-### 2. 运行并发性能测试
+### Quiet mode
 
 ```bash
-# 使用pytest直接运行
-pytest tests/test_concurrent.py -v
-
-# 使用测试脚本运行
-python tests/run_concurrent_tests.py
+uv run pytest -q
 ```
 
-### 3. 运行所有测试
+### Live / external integration tests
 
 ```bash
-# 运行整个测试套件
-pytest tests/ -v
-
-# 生成详细报告
-pytest tests/ -v --tb=long --durations=10
+uv run pytest -m live
 ```
 
-## 测试类型说明
+### Targeted regression runs
 
-### 功能测试 (test_all_parsers.py)
+```bash
+uv run pytest tests/test_url_parser.py tests/test_console_frontend.py -q
+uv run pytest tests/test_task_auth_and_idor.py tests/test_task_router.py -q
+uv run pytest tests/test_redis.py tests/test_redis_task_store.py tests/test_redis_task_manager.py -q
+```
 
-- **健康检查**: 验证服务是否正常运行
-- **文件解析**: 测试各种文件格式的解析功能和转换时间
-- **错误处理**: 测试无效文件、缺失文件等异常情况
-- **大文件处理**: 测试大文件的处理能力和转换时间
+## Test Areas
 
-### 并发测试 (test_concurrent.py)
+### Core parser and API behavior
 
-- **单接口并发**: 测试单个接口同时处理多个文件的转换时间
-- **混合接口并发**: 测试不同接口同时处理不同类型文件的性能
-- **负载测试**: 测试多个小文件同时转换的平均响应时间
-- **压力测试**: 测试多个大文件同时转换的性能表现
+- `test_all_parsers.py`
+- `test_parser_registry_dispatch.py`
+- `test_sync_parse_service.py`
+- `test_sync_response_contract.py`
+- `test_pdf_parser_runtime.py`
 
-## 测试目标
+### Security and safety
 
-### 接口功能验证
-- **接口连通性**: 验证所有解析接口是否正常响应
-- **返回状态**: 确保接口返回200状态码，表示文件解析成功
-- **响应格式**: 验证返回的JSON格式是否正确
+- `test_parser_route_security.py`
+- `test_task_auth_and_idor.py`
+- `test_url_parser.py`
+- `test_observability_and_errors.py`
+- `test_rate_limit_middleware.py`
 
-### 性能测试
-- **转换时间**: 测试每种文件格式的平均转换时间
-- **并发处理**: 测试多个文件同时转换时的性能表现
-- **资源消耗**: 监控服务在高负载下的稳定性
+### Console delivery
 
-### 测试重点
-- 接口是否正常工作（返回200）
-- 各种文件格式的平均转换时间
-- 并发处理能力
+- `test_console_frontend.py`
 
-## 测试结果解读
+This suite validates the `/console` delivery contract against real built frontend assets, not a fake placeholder route.
 
-### 成功标准
-- **接口连通性**: 所有接口返回200状态码
-- **功能正常**: 文件能够成功解析并返回Markdown内容
-- **响应格式**: 返回的JSON包含正确的字段结构
-- **无系统错误**: 服务稳定运行，无崩溃或严重错误
+### Async task system
 
-### 性能关注点
-- **转换时间**: 记录每种文件格式的平均转换时间
-- **并发性能**: 观察多文件同时处理时的响应时间变化
-- **资源使用**: 监控CPU、内存等系统资源的使用情况
+- `test_task_manager.py`
+- `test_task_manager_base.py`
+- `test_task_router.py`
+- `test_task_settings.py`
+- `test_runtime_backend.py`
 
-### 失败分析
-- 检查服务是否正常运行
-- 验证测试文件是否存在
-- 检查网络连接和防火墙设置
-- 查看服务日志获取详细错误信息
+### Redis
 
-## 常见问题
+- `test_redis.py`
+- `test_redis_cache_security.py`
+- `test_redis_task_store.py`
+- `test_redis_task_manager.py`
 
-### 1. 服务连接失败
-- 确认 Markio 服务正在运行
-- 检查服务地址和端口配置
-- 验证网络连接和防火墙设置
+### Biological data parsing
 
-### 2. 测试文件缺失
-- 确认 `test_docs/` 目录存在
-- 检查测试文件是否完整
-- 重新下载或生成测试文件
+- `test_biological_parsers.py`
 
-### 3. 测试超时
-- 增加测试超时时间
-- 检查服务性能是否下降
-- 减少并发用户数量
+## Test Utilities
 
-### 4. 内存不足
-- 减少并发测试规模
-- 使用较小的测试文件
-- 增加系统内存或优化服务配置
+The repository still contains helper scripts such as:
 
-## 持续集成
+- `tests/run_tests.py`
+- `tests/run_concurrent_tests.py`
 
-### 自动化测试
-- 支持 CI/CD 流水线集成
-- 可配置的测试参数
-- 自动生成测试报告
+They are legacy convenience wrappers. Prefer direct `pytest` commands for current development and CI work.
 
-### 测试报告
-- 详细的测试结果记录
-- 性能指标统计
-- 失败用例分析
+## Environment Expectations
 
-## 维护和更新
+Typical local setup:
 
-### 定期更新
-- 根据服务版本更新测试用例
-- 添加新的文件格式支持
-- 优化测试性能和稳定性
+- Python `3.11+`
+- dependencies installed through `uv sync`
+- editable install via `uv pip install -e .`
 
-### 问题反馈
-- 报告测试中发现的问题
-- 提供详细的错误信息
-- 协助问题排查和解决
+Some tests also assume:
 
-## 联系信息
+- `AUTH_JWT_SECRET` is available through test fixtures or environment setup
+- frontend dependencies are installable when console tests need a build
+- Redis is optional; Redis-disabled paths are covered too
 
-如有问题或建议，请联系开发团队或提交 Issue。
+## Writing New Tests
+
+- place new tests near the most relevant existing module
+- prefer small targeted regression coverage over broad slow fixtures
+- include both happy-path and failure-path coverage for new features
+- use `@pytest.mark.live` only for tests that truly require external services
+
+## Practical Notes
+
+- console tests build frontend assets inside fixtures when needed
+- security-sensitive changes should usually add tests in both route-level and lower-level parser/service modules
+- the default suite already gives meaningful release confidence; use narrower commands during development for faster loops

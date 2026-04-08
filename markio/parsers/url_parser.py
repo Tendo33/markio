@@ -4,15 +4,19 @@ import asyncio
 import ipaddress
 import socket
 from pathlib import Path
+from tempfile import gettempdir
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
+from aiohttp.abc import AbstractResolver
 
 from markio.settings import settings
 from markio.utils.file_utils import (
+    extract_filename_from_url,
     func_processing_time,
     md_dump_io,
     resolve_path_within_base,
+    sanitize_filename,
     slugify_path_component,
 )
 from markio.utils.logger_config import get_logger
@@ -33,6 +37,45 @@ class URLSecurityError(ValueError):
 
 class URLFetchError(RuntimeError):
     """Raised when URL fetch fails at transport or protocol layer."""
+
+
+class _PinnedResolver(AbstractResolver):
+    def __init__(self) -> None:
+        self._pinned_hosts: dict[str, tuple[str, ...]] = {}
+
+    def pin(self, hostname: str, ips: set[ipaddress._BaseAddress]) -> None:
+        normalized = hostname.strip().lower().rstrip(".")
+        self._pinned_hosts[normalized] = tuple(
+            sorted(ip.compressed for ip in ips)
+        )
+
+    async def resolve(
+        self,
+        host: str,
+        port: int = 0,
+        family: int = socket.AF_UNSPEC,
+    ) -> list[dict[str, object]]:
+        normalized = host.strip().lower().rstrip(".")
+        if normalized not in self._pinned_hosts:
+            raise OSError(f"Host {host} was not pinned for connection")
+
+        results: list[dict[str, object]] = []
+        for raw_ip in self._pinned_hosts[normalized]:
+            ip = ipaddress.ip_address(raw_ip)
+            results.append(
+                {
+                    "hostname": host,
+                    "host": raw_ip,
+                    "port": port,
+                    "family": socket.AF_INET6 if ip.version == 6 else socket.AF_INET,
+                    "proto": socket.IPPROTO_TCP,
+                    "flags": socket.AI_NUMERICHOST,
+                }
+            )
+        return results
+
+    async def close(self) -> None:
+        self._pinned_hosts.clear()
 
 
 def _normalize_fetch_mode(mode: str) -> str:
@@ -116,7 +159,8 @@ async def _validate_target_host(
     *,
     block_private_networks: bool,
     allowed_domains: set[str],
-) -> None:
+    resolve_for_connection: bool = False,
+) -> set[ipaddress._BaseAddress]:
     parsed = urlparse(target_url)
     hostname = (parsed.hostname or "").strip().lower().rstrip(".")
     if not hostname:
@@ -125,17 +169,21 @@ async def _validate_target_host(
     if not _is_domain_allowed(hostname, allowed_domains):
         raise URLSecurityError("URL host is not in allowed domains")
 
-    if not block_private_networks:
-        return
+    candidate_ips: set[ipaddress._BaseAddress] = set()
 
     try:
         candidate_ips = {ipaddress.ip_address(hostname)}
     except ValueError:
-        candidate_ips = await _resolve_hostname_ips(hostname)
+        if block_private_networks or resolve_for_connection:
+            candidate_ips = await _resolve_hostname_ips(hostname)
+
+    if not block_private_networks:
+        return candidate_ips
 
     for ip in candidate_ips:
         if _is_blocked_ip_address(ip):
             raise URLSecurityError("URL host resolves to blocked network address")
+    return candidate_ips
 
 
 def _build_fetch_url(url: str, mode: str) -> str:
@@ -161,6 +209,18 @@ async def _read_response_limited(response: aiohttp.ClientResponse, max_bytes: in
     return bytes(content).decode(encoding, errors="replace")
 
 
+async def _read_response_bytes_limited(
+    response: aiohttp.ClientResponse,
+    max_bytes: int,
+) -> bytes:
+    content = bytearray()
+    async for chunk in response.content.iter_chunked(64 * 1024):
+        content.extend(chunk)
+        if len(content) > max_bytes:
+            raise URLFetchError("URL response exceeds configured size limit")
+    return bytes(content)
+
+
 async def _fetch_markdown_content(url: str) -> str:
     _validate_url_format(url)
 
@@ -168,11 +228,18 @@ async def _fetch_markdown_content(url: str) -> str:
     allowed_domains = _parse_allowed_domains(settings.url_allowed_domains)
     block_private_networks = bool(settings.url_block_private_networks)
 
-    await _validate_target_host(
+    pinned_resolver: _PinnedResolver | None = None
+    connector: aiohttp.TCPConnector | None = None
+    initial_ips = await _validate_target_host(
         url,
         block_private_networks=block_private_networks,
         allowed_domains=allowed_domains,
+        resolve_for_connection=(fetch_mode == "direct"),
     )
+    if fetch_mode == "direct" and initial_ips:
+        pinned_resolver = _PinnedResolver()
+        pinned_resolver.pin(urlparse(url).hostname or "", initial_ips)
+        connector = aiohttp.TCPConnector(resolver=pinned_resolver)
 
     timeout_seconds = max(1, int(settings.url_request_timeout_seconds))
     max_response_bytes = max(1, int(settings.url_max_response_bytes))
@@ -183,7 +250,7 @@ async def _fetch_markdown_content(url: str) -> str:
     timeout = aiohttp.ClientTimeout(total=timeout_seconds)
 
     try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
             for redirect_hops in range(max_redirects + 1):
                 async with session.get(
                     current_url,
@@ -199,11 +266,14 @@ async def _fetch_markdown_content(url: str) -> str:
                         next_url = urljoin(str(response.url), response.headers["Location"])
                         if fetch_mode == "direct":
                             _validate_url_format(next_url)
-                            await _validate_target_host(
+                            next_ips = await _validate_target_host(
                                 next_url,
                                 block_private_networks=block_private_networks,
                                 allowed_domains=allowed_domains,
+                                resolve_for_connection=True,
                             )
+                            if pinned_resolver is not None:
+                                pinned_resolver.pin(urlparse(next_url).hostname or "", next_ips)
                         current_url = next_url
                         continue
 
@@ -212,13 +282,113 @@ async def _fetch_markdown_content(url: str) -> str:
                     if fetch_mode == "direct":
                         final_url = str(response.url)
                         _validate_url_format(final_url)
-                        await _validate_target_host(
+                        final_ips = await _validate_target_host(
                             final_url,
                             block_private_networks=block_private_networks,
                             allowed_domains=allowed_domains,
+                            resolve_for_connection=True,
                         )
+                        if pinned_resolver is not None:
+                            pinned_resolver.pin(urlparse(final_url).hostname or "", final_ips)
 
                     return await _read_response_limited(response, max_response_bytes)
+    except aiohttp.ClientResponseError as exc:
+        raise URLFetchError(
+            f"Failed to fetch URL content: HTTP {exc.status}"
+        ) from exc
+    except asyncio.TimeoutError as exc:
+        raise URLFetchError("URL fetch timeout") from exc
+    except aiohttp.ClientError as exc:
+        raise URLFetchError("Failed to fetch URL content") from exc
+
+    raise URLFetchError("Failed to fetch URL content")
+
+
+async def download_file_from_url(
+    url: str,
+    output_dir: str | None = None,
+    filename: str | None = None,
+    timeout_seconds: int | None = None,
+) -> str:
+    _validate_url_format(url)
+
+    allowed_domains = _parse_allowed_domains(settings.url_allowed_domains)
+    block_private_networks = bool(settings.url_block_private_networks)
+    initial_ips = await _validate_target_host(
+        url,
+        block_private_networks=block_private_networks,
+        allowed_domains=allowed_domains,
+        resolve_for_connection=True,
+    )
+
+    request_timeout_seconds = max(
+        1,
+        int(timeout_seconds if timeout_seconds is not None else settings.url_request_timeout_seconds),
+    )
+    max_response_bytes = max(1, int(settings.url_max_response_bytes))
+    max_redirects = max(0, int(settings.url_max_redirects))
+    current_url = url
+    headers = {"User-Agent": URL_USER_AGENT}
+    timeout = aiohttp.ClientTimeout(total=request_timeout_seconds)
+    pinned_resolver = _PinnedResolver()
+    pinned_resolver.pin(urlparse(url).hostname or "", initial_ips)
+    connector = aiohttp.TCPConnector(resolver=pinned_resolver)
+
+    safe_filename = sanitize_filename(
+        filename or extract_filename_from_url(url) or "downloaded_file"
+    )
+    base_dir = Path(output_dir or gettempdir()).expanduser().resolve()
+    base_dir.mkdir(parents=True, exist_ok=True)
+    output_path = (base_dir / safe_filename).resolve()
+    try:
+        resolve_path_within_base(base_dir, output_path)
+    except ValueError as exc:
+        raise URLSecurityError("Invalid output path for downloaded URL resource") from exc
+
+    try:
+        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+            for redirect_hops in range(max_redirects + 1):
+                async with session.get(
+                    current_url,
+                    headers=headers,
+                    allow_redirects=False,
+                ) as response:
+                    if (
+                        response.status in URL_REDIRECT_STATUS_CODES
+                        and response.headers.get("Location")
+                    ):
+                        if redirect_hops >= max_redirects:
+                            raise URLFetchError("URL exceeded redirect limit")
+                        next_url = urljoin(str(response.url), response.headers["Location"])
+                        _validate_url_format(next_url)
+                        next_ips = await _validate_target_host(
+                            next_url,
+                            block_private_networks=block_private_networks,
+                            allowed_domains=allowed_domains,
+                            resolve_for_connection=True,
+                        )
+                        pinned_resolver.pin(urlparse(next_url).hostname or "", next_ips)
+                        current_url = next_url
+                        continue
+
+                    response.raise_for_status()
+
+                    final_url = str(response.url)
+                    _validate_url_format(final_url)
+                    final_ips = await _validate_target_host(
+                        final_url,
+                        block_private_networks=block_private_networks,
+                        allowed_domains=allowed_domains,
+                        resolve_for_connection=True,
+                    )
+                    pinned_resolver.pin(urlparse(final_url).hostname or "", final_ips)
+
+                    payload = await _read_response_bytes_limited(
+                        response,
+                        max_response_bytes,
+                    )
+                    output_path.write_bytes(payload)
+                    return str(output_path)
     except aiohttp.ClientResponseError as exc:
         raise URLFetchError(
             f"Failed to fetch URL content: HTTP {exc.status}"

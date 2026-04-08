@@ -1,4 +1,5 @@
 import ipaddress
+import socket
 from pathlib import Path
 
 import aiohttp
@@ -51,9 +52,10 @@ class _FakeResponse:
 
 
 class _FakeSession:
-    def __init__(self, responses: list[_FakeResponse], seen_urls: list[str]):
+    def __init__(self, responses: list[_FakeResponse], seen_urls: list[str], **kwargs):
         self._responses = responses
         self._seen_urls = seen_urls
+        self.kwargs = kwargs
 
     async def __aenter__(self):
         return self
@@ -220,3 +222,82 @@ async def test_url_parse_main_supports_proxy_fetch_mode(monkeypatch):
 
     assert "ok" in content
     assert seen_urls == ["https://r.jina.ai/https://example.com/doc"]
+
+
+@pytest.mark.asyncio
+async def test_download_file_from_url_rejects_redirect_to_blocked_target(monkeypatch, tmp_path: Path):
+    seen_urls: list[str] = []
+    redirect_response = _FakeResponse(
+        status=302,
+        headers={"Location": "http://127.0.0.1/private"},
+        url="https://example.com/start",
+    )
+    monkeypatch.setattr(
+        aiohttp,
+        "ClientSession",
+        lambda *args, **kwargs: _FakeSession([redirect_response], seen_urls),
+    )
+
+    async def _validate_target_host(url: str, **kwargs):
+        if "127.0.0.1" in url:
+            raise url_parser.URLSecurityError("URL host resolves to blocked network address")
+        return {ipaddress.ip_address("93.184.216.34")}
+
+    monkeypatch.setattr(url_parser, "_validate_target_host", _validate_target_host)
+    monkeypatch.setattr(settings, "url_max_redirects", 2, raising=False)
+
+    with pytest.raises(url_parser.URLSecurityError, match="blocked network address"):
+        await url_parser.download_file_from_url(
+            url="https://example.com/start",
+            output_dir=str(tmp_path),
+        )
+
+    assert seen_urls == ["https://example.com/start"]
+
+
+@pytest.mark.asyncio
+async def test_pinned_resolver_returns_only_pinned_addresses():
+    resolver = url_parser._PinnedResolver()
+    resolver.pin("example.com", {ipaddress.ip_address("93.184.216.34")})
+
+    resolved = await resolver.resolve("example.com", 443, socket.AF_UNSPEC)
+
+    assert resolved == [
+        {
+            "hostname": "example.com",
+            "host": "93.184.216.34",
+            "port": 443,
+            "family": socket.AF_INET,
+            "proto": socket.IPPROTO_TCP,
+            "flags": socket.AI_NUMERICHOST,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_download_file_from_url_uses_pinned_resolver(monkeypatch, tmp_path: Path):
+    seen_urls: list[str] = []
+    captured_connector = {}
+
+    response = _FakeResponse(text="ok", url="https://example.com/download.txt")
+
+    def _fake_client_session(*args, **kwargs):
+        captured_connector["connector"] = kwargs.get("connector")
+        return _FakeSession([response], seen_urls, **kwargs)
+
+    async def _fake_validate_target_host(url: str, **kwargs):
+        return {ipaddress.ip_address("93.184.216.34")}
+
+    monkeypatch.setattr(aiohttp, "ClientSession", _fake_client_session)
+    monkeypatch.setattr(url_parser, "_validate_target_host", _fake_validate_target_host)
+
+    output_path = await url_parser.download_file_from_url(
+        url="https://example.com/download.txt",
+        output_dir=str(tmp_path),
+    )
+
+    resolver = captured_connector["connector"]._resolver
+    assert isinstance(resolver, url_parser._PinnedResolver)
+    assert resolver._pinned_hosts["example.com"] == ("93.184.216.34",)
+    assert seen_urls == ["https://example.com/download.txt"]
+    assert Path(output_path).exists()

@@ -1,22 +1,41 @@
 # Redis Integration
 
-This document reflects the current Redis integration in Markio.
+[Back to README](../README.md)
 
-## What Redis Is Used For
+## Role of Redis in Markio
 
-- Cache layer (`markio/utils/redis_utils.py`)
-- Async task backend when:
-  - `TASK_QUEUE_BACKEND=redis`
-  - `REDIS_ENABLED=true`
-- Task state/index storage via `markio/services/redis_task_store.py`
+Redis is optional. The application runs without it by default.
 
-## Current Security Baseline
+When enabled, Redis is used for:
 
-- Redis is internal-only in Compose (`expose: 6379`, no host `ports` mapping).
-- Redis auth is enabled by default in Compose (`--requirepass`).
-- `REDIS_PASSWORD` must be set and shared by `markio` and `redis` services.
+- cache storage
+- task-state persistence
+- Redis-backed async task backend
 
-## Compose Example
+Relevant modules:
+
+- `markio/utils/redis_utils.py`
+- `markio/services/redis_task_store.py`
+- `markio/services/redis_task_manager.py`
+
+## Enable Redis
+
+Redis-backed task execution requires both:
+
+- `REDIS_ENABLED=true`
+- `TASK_QUEUE_BACKEND=redis`
+
+If `TASK_QUEUE_BACKEND=redis` is configured while `REDIS_ENABLED=false`, the runtime falls back to the in-memory backend and logs a warning.
+
+## Compose Security Baseline
+
+The current compose posture assumes Redis is internal infrastructure:
+
+- Redis is not published to the host by default
+- Redis auth is expected through `REDIS_PASSWORD`
+- application and Redis service must use the same password
+
+Example:
 
 ```bash
 export AUTH_JWT_SECRET="<strong-random-secret>"
@@ -24,38 +43,54 @@ export REDIS_PASSWORD="<redis-password>"
 docker compose up -d
 ```
 
-## Required/Important Environment Variables
+## Key Environment Variables
 
-- `REDIS_ENABLED` (`true|false`)
-- `TASK_QUEUE_BACKEND` (`memory|redis`)
-- `REDIS_HOST` (Compose default: `redis`)
-- `REDIS_PORT` (default: `6379`)
-- `REDIS_DB` (default: `0`)
-- `REDIS_PASSWORD` (required for secured Redis deployment)
-- `REDIS_MAX_CONNECTIONS`
-- `REDIS_SOCKET_TIMEOUT`
-- `REDIS_SOCKET_CONNECT_TIMEOUT`
-- `REDIS_DEFAULT_TTL`
+| Variable | Purpose |
+|---|---|
+| `REDIS_ENABLED` | Master on/off switch |
+| `TASK_QUEUE_BACKEND` | `memory` or `redis` |
+| `REDIS_HOST` | Redis host |
+| `REDIS_PORT` | Redis port |
+| `REDIS_DB` | Database index |
+| `REDIS_PASSWORD` | Password for secured deployments |
+| `REDIS_MAX_CONNECTIONS` | Pool size |
+| `REDIS_SOCKET_TIMEOUT` | Command timeout |
+| `REDIS_SOCKET_CONNECT_TIMEOUT` | Connect timeout |
+| `REDIS_DEFAULT_TTL` | Default cache TTL |
 
-## Task Store Indexes
+## Task Store Indexing
 
 `RedisTaskStore` maintains:
 
-- Global timeline index: `task:created`
-- Global status indexes: `task:status:<status>`
-- Owner index: `task:owner:<owner_id>`
-- Owner+status indexes: `task:owner:<owner_id>:status:<status>`
+- `task:created`
+- `task:status:<status>`
+- `task:owner:<owner_id>`
+- `task:owner:<owner_id>:status:<status>`
 
-On status transitions, owner+status indexes are updated synchronously.
-For legacy records, owner/owner+status indexes can be lazily rebuilt during list/stats queries.
+Owner and owner+status indexes are updated on status changes. Legacy owner indexes can be rebuilt lazily during query flows.
 
-## Runtime Notes
+## Operational Notes
 
-- If `TASK_QUEUE_BACKEND=redis` but `REDIS_ENABLED=false`, runtime falls back to memory backend with a warning.
-- Redis failures during app startup are logged; health/readiness should be monitored via `/readyz`.
+- Redis startup failures are logged; readiness should be observed through `/readyz`
+- the app can still run in memory mode even if Redis is unavailable
+- Redis is an optional acceleration and persistence layer, not a startup hard requirement in the default configuration
 
 ## Verification
 
 ```bash
-uv run pytest tests/test_redis.py tests/test_redis_task_store.py tests/test_redis_task_manager.py
+uv run pytest tests/test_redis.py tests/test_redis_task_store.py tests/test_redis_task_manager.py -q
 ```
+
+Additional coverage:
+
+- `tests/test_redis_cache_security.py`
+- `tests/test_runtime_backend.py`
+
+## When Not to Use Redis
+
+Staging or small local setups can stay on:
+
+- `REDIS_ENABLED=false`
+- `TASK_QUEUE_BACKEND=memory`
+
+That remains the simplest default for local development.

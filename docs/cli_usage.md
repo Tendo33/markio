@@ -1,363 +1,196 @@
-# Markio CLI Usage Guide
+# Markio CLI Guide
 
-Developer-friendly CLI for document parsing and conversion.
+[Back to README](../README.md) | [中文版本](cli_usage_zh.md)
 
-[Back to Main README](../README.md) | [中文CLI指南](cli_usage_zh.md)
+## Scope
 
----
+The `markio` CLI is the quickest way to exercise the sync parsing surface from a terminal.
 
-## Why Use Markio CLI?
-- **One command, parse anything:** PDF, Office, HTML, EPUB, Images
-- **Batch & Automation:** Process folders or integrate into pipelines
-- **Flexible Output:** Save as Markdown, control output location
-- **Advanced Engines:** OCR, VLM, text extraction, auto-detection
-- **Production Ready:** Error handling, logging, configuration
+It currently supports:
 
----
+- PDF and PDF VLM
+- DOC / DOCX
+- PPT / PPTX
+- XLSX
+- HTML
+- URL
+- EPUB
+- Image OCR
 
-## Quick Start
+It does **not** currently expose dedicated FASTA or GenBank subcommands.
+
+## Install
 
 ```bash
-# Parse a PDF to Markdown
-markio pdf document.pdf -o result.md
-
-# Parse a DOCX file
-markio docx document.docx --save --output result.md
-
-# Batch process all PDFs in a folder
-for file in *.pdf; do markio pdf "$file" -s -o "${file%.pdf}.md"; done
+uv sync
+uv pip install -e .
 ```
 
-> If you call a running Markio API (`/v1/*`), the server now enforces `Authorization: Bearer <JWT>`.
-
-### Remote API Mode (JWT)
+Then inspect the available commands:
 
 ```bash
-# One-off remote call
-markio --api-base-url http://localhost:8000 --token <YOUR_JWT> pdf ./document.pdf -s
+markio --help
+```
 
-# Or use environment variables
+## Command Catalog
+
+| Command | Purpose |
+|---|---|
+| `markio pdf` | Parse PDF with `auto`, `ocr`, or `txt` |
+| `markio pdf-vlm` | Parse PDF through the VLM backend |
+| `markio docx` | Parse DOCX |
+| `markio doc` | Convert DOC through LibreOffice, then parse |
+| `markio pptx` | Parse PPTX |
+| `markio ppt` | Convert PPT through LibreOffice, then parse |
+| `markio xlsx` | Parse XLSX |
+| `markio html` | Parse local HTML |
+| `markio url` | Parse a remote URL |
+| `markio epub` | Parse EPUB |
+| `markio image` | OCR an image |
+
+## Local Mode
+
+Local mode runs parser modules in-process and writes outputs under the SDK output directory when `--save` is enabled.
+
+```bash
+markio pdf ./sample.pdf --method auto
+markio docx ./report.docx --save
+markio url https://example.com
+markio image ./scan.png --save
+```
+
+### Output behavior
+
+- `--save` asks the parser to persist its normal output/artifacts
+- `--output` writes the CLI command result to a specific file path
+- You can use both when you want normal parser persistence plus a custom final file
+
+Example:
+
+```bash
+markio pdf ./sample.pdf --save --output ./artifacts/sample.md
+```
+
+## Remote API Mode
+
+If `--api-base-url` is set, the CLI stops calling local parser modules and sends requests to the FastAPI server instead.
+
+```bash
+markio --api-base-url http://localhost:8000 --token <YOUR_JWT> pdf ./sample.pdf --save
+markio --api-base-url http://localhost:8000 --token <YOUR_JWT> url https://example.com
+```
+
+Environment-based configuration works too:
+
+```bash
 export MARKIO_API_BASE_URL=http://localhost:8000
 export MARKIO_API_TOKEN=<YOUR_JWT>
-markio url https://example.com -s
+
+markio pdf ./sample.pdf
 ```
 
----
+Important:
 
-## Typical Scenarios
+- every `/v1/*` route requires JWT auth
+- remote `markio url` calls `/v1/parse_url`
+- local `markio url` calls the local URL parser
+- both paths now follow the same URL safety constraints
 
-| Scenario         | Command Example                                  |
-|------------------|--------------------------------------------------|
-| PDF OCR          | markio pdf document.pdf -m ocr                   |
-| VLM Engine       | markio pdf-vlm document.pdf                      |
-| Page Range       | markio pdf document.pdf -st 0 -e 5               |
-| HTML/URL         | markio html page.html / markio url https://...   |
-| Image OCR        | markio image screenshot.png                      |
-| Save to Dir      | markio pdf document.pdf -s -o output_dir/file.md |
-| Legacy Office    | markio doc old.doc -s / markio ppt old.ppt -s    |
-| Batch Processing | markio pdf *.pdf -s -o ./results/               |
+## Common Examples
 
----
+### PDF
 
-## Advanced Usage
-
-### Complete Command Reference
-
-#### PDF Commands
 ```bash
-# Standard PDF parsing
-markio pdf document.pdf
-
-# With OCR method
-markio pdf document.pdf -m ocr
-
-# With page range
-markio pdf document.pdf -st 5 -e 15
-
-# Save intermediate files for debugging
-markio pdf document.pdf -sm -s -o ./debug/
-
-# VLM engine (Vision Language Model)
-markio pdf-vlm document.pdf --save
-
-# VLM with custom server
-markio pdf-vlm document.pdf -s --server http://localhost:30000
+markio pdf ./sample.pdf --method auto
+markio pdf ./sample.pdf --method ocr --save
+markio pdf ./sample.pdf --start 0 --end 9
+markio pdf-vlm ./complex.pdf --save --server http://localhost:30000
 ```
 
-#### Office Document Commands
+### Office documents
+
 ```bash
-# Modern formats
-markio docx report.docx -s
-markio pptx presentation.pptx -s -o ./slides/
-markio xlsx spreadsheet.xlsx -s
-
-# Legacy formats (auto-converts to modern)
-markio doc old_document.doc -s
-markio ppt old_presentation.ppt -s -o ./converted/
+markio docx ./report.docx --save
+markio doc ./legacy.doc --save
+markio pptx ./slides.pptx --save
+markio ppt ./legacy-slides.ppt --save
+markio xlsx ./sheet.xlsx --save
 ```
 
-#### Web Content Commands
+### Web and images
+
 ```bash
-# HTML files
-markio html page.html -s -o ./content/
-
-# URLs (web pages)
-markio url https://example.com -s -o ./web_content/
+markio html ./page.html --save
+markio url https://example.com --save
+markio image ./scan.png --save
+markio epub ./book.epub --save
 ```
 
-#### Other Formats
-```bash
-# EPUB ebooks
-markio epub book.epub -s -o ./books/
+## URL Safety Notes
 
-# Images with OCR
-markio image screenshot.png -s
-markio image diagram.png -s -o ./ocr_results/
-```
+`markio url` intentionally does not behave like a raw downloader. By default it enforces:
 
-### Advanced Operations
+- `http` and `https` only
+- redirect validation
+- private and loopback network blocking
+- response-size limits
+- request timeouts
+- optional domain allowlists
 
-- **Parallel Processing:**
-  ```bash
-  # Using GNU parallel
-  parallel markio pdf {} -s -o "{.}.md" ::: *.pdf
-  
-  # Using xargs
-  ls *.pdf | xargs -I {} markio pdf {} -s -o ./results/
-  
-  # Using find for complex patterns
-  find ./documents -name "*.pdf" -exec markio pdf {} -s -o ./converted/ \;
-  ```
+Relevant environment variables:
 
-- **Batch Processing Scripts:**
-  ```bash
-  # Process all PDFs in directory
-  for file in *.pdf; do
-      markio pdf "$file" -s -o "./results/${file%.pdf}.md"
-  done
-  
-  # Process with different settings per file type
-  for file in *.{pdf,docx,html}; do
-      case "${file##*.}" in
-          pdf) markio pdf "$file" -s ;;
-          docx) markio docx "$file" -s ;;
-          html) markio html "$file" -s ;;
-      esac
-  done
-  ```
-
-- **Python SDK Integration:**
-  ```python
-  from markio.sdk.markio_sdk import MarkioSDK
-  sdk = MarkioSDK()
-  result = await sdk.parse_pdf(file_path="document.pdf", save_parsed_content=True)
-  print(result["content"])
-  ```
-
-- **Debugging:**
-  ```bash
-  export MARKIO_LOG_LEVEL=DEBUG
-  markio pdf document.pdf -s -o debug_output.md
-  
-  # Save intermediate files for analysis
-  markio pdf document.pdf -sm -s -o ./debug_intermediate/
-  ```
-
----
+- `URL_FETCH_MODE`
+- `URL_PROXY_BASE`
+- `URL_REQUEST_TIMEOUT_SECONDS`
+- `URL_MAX_RESPONSE_BYTES`
+- `URL_BLOCK_PRIVATE_NETWORKS`
+- `URL_ALLOWED_DOMAINS`
+- `URL_MAX_REDIRECTS`
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OUTPUT_DIR` | outputs | Default output directory for parsed files |
-| `LOG_LEVEL` | INFO | Logging verbosity (DEBUG, INFO, WARNING, ERROR) |
-| `LOG_DIR` | logs | Directory for log files |
-| `PDF_PARSE_ENGINE` | pipeline | PDF parsing method (pipeline, vlm-sglang-engine) |
-| `MINERU_DEVICE_MODE` | cuda | MinerU device selection (cuda, cpu, mps) |
-| `VLM_SERVER_URL` | - | VLM server endpoint for remote processing |
-| `MINERU_MIN_BATCH_INFERENCE_SIZE` | 256 | MinerU batch size for inference |
-| `MINERU_VIRTUAL_VRAM_SIZE` | 8192 | Virtual VRAM size in MB |
-| `VLM_GPU_MEMORY_UTILIZATION` | 0.9 | vLLM GPU memory utilization (0.1-1.0) |
-| `MARKIO_API_BASE_URL` | `""` | Remote API base URL for CLI passthrough mode |
-| `MARKIO_API_TOKEN` | `""` | JWT bearer token sent as `Authorization` header |
+| Variable | Purpose |
+|---|---|
+| `MARKIO_API_BASE_URL` | Enable remote API mode |
+| `MARKIO_API_TOKEN` | JWT sent as `Authorization: Bearer ...` |
+| `OUTPUT_DIR` | Default local output directory |
+| `LOG_LEVEL` | Logging level |
+| `PDF_PARSE_ENGINE` | Default PDF engine |
+| `MINERU_DEVICE_MODE` | `cuda`, `cpu`, or `mps` |
+| `VLM_SERVER_URL` | Remote VLM server |
 
-### Configuration Examples
+## Troubleshooting
 
-#### Basic Configuration
+### `markio: command not found`
+
 ```bash
-# Set output directory
-export OUTPUT_DIR=~/Documents/markio_output
-
-# Enable debug logging
-export LOG_LEVEL=DEBUG
-export LOG_DIR=./debug_logs
-
-# Use CPU mode (no GPU)
-export MINERU_DEVICE_MODE=cpu
-```
-
-#### Performance Optimization
-```bash
-# GPU acceleration with high memory
-export MINERU_DEVICE_MODE=cuda
-export MINERU_VIRTUAL_VRAM_SIZE=16384
-export MINERU_MIN_BATCH_INFERENCE_SIZE=512
-
-# vLLM client configuration
-export PDF_PARSE_ENGINE=vlm-vllm-client
-export VLM_SERVER_URL=http://localhost:30000
-export VLM_GPU_MEMORY_UTILIZATION=0.9
-```
-
-#### Memory-Constrained Systems
-```bash
-# Conservative memory usage
-export MINERU_DEVICE_MODE=cpu
-export MINERU_MIN_BATCH_INFERENCE_SIZE=128
-export MINERU_VIRTUAL_VRAM_SIZE=4096
-export VLM_GPU_MEMORY_UTILIZATION=0.7
-```
-
----
-
-## FAQ & Troubleshooting
-
-### Common CLI Issues
-
-#### Command Not Found
-**Issue**: `markio: command not found`
-```bash
-# Check if markio is installed
-pip list | grep markio
-
-# Reinstall in development mode
 uv pip install -e .
-
-# Add to PATH (if needed)
-export PATH=$PATH:/path/to/markio/package
 ```
 
-#### Permission Denied
-**Issue**: Permission errors when accessing files
-```bash
-# Check file permissions
-ls -la document.pdf
+### Remote CLI returns `401`
 
-# Use appropriate permissions
-chmod 644 document.pdf
+- confirm `MARKIO_API_TOKEN` or `--token`
+- confirm the server has a valid `AUTH_JWT_SECRET`
+- confirm the token uses the expected `HS256` secret
 
-# Or run with appropriate user
-sudo -u username markio pdf document.pdf
-```
+### `markio url` is rejected
 
-#### Memory Issues
-**Issue**: Processing fails with memory errors
-```bash
-# Reduce memory usage
-export MINERU_MIN_BATCH_INFERENCE_SIZE=128
-export MINERU_VIRTUAL_VRAM_SIZE=4096
+Likely causes:
 
-# Use CPU mode
-export MINERU_DEVICE_MODE=cpu
+- non-HTTP URL
+- redirect to a blocked host
+- private or loopback address
+- response too large
+- host not allowed by `URL_ALLOWED_DOMAINS`
 
-# Process smaller files first
-markio pdf small_file.pdf -s
-```
+### Legacy Office parsing fails
 
-#### VLM Engine Issues
-**Issue**: VLM processing fails
-```bash
-# Check VLM server status
-curl http://localhost:30000/health
+Install LibreOffice and ensure `soffice` is available on `PATH`.
 
-# Verify server configuration
-export VLM_SERVER_URL=http://localhost:30000
-export PDF_PARSE_ENGINE=vlm-sglang-engine
+## What the CLI Does Not Cover
 
-# Test with a simple file first
-markio pdf-vlm simple.pdf --save
-```
+- async task submission and queue management
+- console workflows
+- FASTA and GenBank subcommands
 
-#### Large File Processing
-**Issue**: Large files take too long or fail
-```bash
-# Process with page ranges
-markio pdf large_file.pdf -st 0 -e 50 -s
-markio pdf large_file.pdf -st 51 -e 100 -s
-
-# Save intermediate files for debugging
-markio pdf large_file.pdf -sm -s -o ./debug/
-
-# Use batch processing for multiple large files
-for file in large*.pdf; do
-    markio pdf "$file" -s -o "./results/${file%.pdf}.md"
-done
-```
-
-#### Output Directory Issues
-**Issue**: Cannot save to specified directory
-```bash
-# Create output directory first
-mkdir -p ./results
-
-# Check directory permissions
-ls -la ./results/
-
-# Use absolute path
-markio pdf document.pdf -s -o /home/user/results/output.md
-```
-
-### Performance Tips
-
-#### Batch Processing
-```bash
-# Process multiple files efficiently
-find ./input -name "*.pdf" -print0 | xargs -0 -I {} -P 4 markio pdf {} -s -o ./results/
-
-# Limit parallel processes to avoid memory issues
-parallel -j 2 markio pdf {} -s -o "{.}.md" ::: *.pdf
-```
-
-#### File Organization
-```bash
-# Organize output by file type
-markio pdf document.pdf -s -o ./pdfs/document.md
-markio docx report.docx -s -o ./docs/report.md
-markio html page.html -s -o ./web/page.md
-```
-
-### Getting Help
-
-#### Debug Information
-```bash
-# Enable debug logging
-export LOG_LEVEL=DEBUG
-export LOG_DIR=./debug_logs
-
-# Show help for specific command
-markio pdf --help
-markio pdf-vlm --help
-
-# Check environment variables
-env | grep MARKIO
-env | grep MINERU
-```
-
-#### System Information
-When reporting issues, provide:
-- Operating system and version
-- Python version (`python --version`)
-- Markio version (`pip show markio`)
-- Error messages and stack traces
-- Sample commands that reproduce the issue
-
-### Resources
-- [Project Wiki & FAQ](https://github.com/Tendo33/markio/wiki)
-- [GitHub Issues](https://github.com/Tendo33/markio/issues)
-- [GitHub Discussions](https://github.com/Tendo33/markio/discussions)
-- [Main README](../README.md) for comprehensive documentation
-- [中文CLI指南](cli_usage_zh.md) for Chinese documentation
-- [SDK Usage Guide](sdk_usage.md) for Python SDK documentation
-- [中文SDK指南](sdk_usage_zh.md) for Chinese SDK documentation
-
-**For more information, visit the [Markio Project Documentation](https://github.com/Tendo33/markio)** 
+For those, use the REST API, the console, or lower-level parser modules directly.

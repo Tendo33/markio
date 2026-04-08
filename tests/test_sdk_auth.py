@@ -43,3 +43,26 @@ async def test_sdk_remote_mode_attaches_bearer_token(monkeypatch):
 
     assert result["content"] == "# parsed"
     assert captured_headers["Authorization"] == "Bearer token-123"
+
+
+@pytest.mark.asyncio
+async def test_sdk_local_parse_url_uses_shared_url_parser(monkeypatch, tmp_path):
+    captured = {}
+
+    async def _fake_url_parse_main(url: str, save_parsed_content: bool, output_dir: str) -> str:
+        captured["url"] = url
+        captured["save_parsed_content"] = save_parsed_content
+        captured["output_dir"] = output_dir
+        return "# parsed locally"
+
+    monkeypatch.setattr("markio.sdk.markio_sdk.url_parse_main", _fake_url_parse_main)
+
+    sdk = MarkioSDK(output_dir=str(tmp_path))
+    result = await sdk.parse_url("https://example.com/demo", save_parsed_content=True)
+
+    assert result["content"] == "# parsed locally"
+    assert captured == {
+        "url": "https://example.com/demo",
+        "save_parsed_content": True,
+        "output_dir": str(tmp_path),
+    }

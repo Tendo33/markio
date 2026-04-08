@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/image.png" alt="Markio Logo" height="240">
   <h1>Markio</h1>
-  <p><strong>基于 FastAPI + Docling + MinerU 的统一文档解析平台</strong></p>
+  <p><strong>基于 FastAPI、Docling 与 MinerU 的 API 优先文档解析平台</strong></p>
   <p>
     <a href="https://www.python.org/"><img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-blue"></a>
     <a href="https://fastapi.tiangolo.com/"><img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-API-009688"></a>
@@ -15,56 +15,52 @@
 
 ## 项目简介
 
-Markio 是一个 API 优先的服务，用于将文档与网页内容转换为 Markdown / 结构化文本，提供：
+Markio 提供四种主要交付面：
 
-- 同步解析接口（`/v1/parse_*`、`/v1/parse_file`、`/v1/parse_url`）
-- 支持重试/取消/暂停/恢复的异步任务队列（`/v1/tasks/*`）
-- 可选的 Redis 队列/状态存储/缓存
-- `/console` 下的 Vue 3 控制台
-- 可直接集成的本地 SDK + CLI
+- `/v1/parse_*` 同步解析接口
+- `/v1/tasks/*` 异步任务队列接口
+- 本地 Python SDK 与 CLI
+- 由 FastAPI 托管在 `/console` 的 Vue 3 控制台
 
-> **破坏性变更：** 所有 `/v1/*` 接口现已强制要求 `Authorization: Bearer <JWT>`。
+当前版本为 **alpha**（`0.1.2`）。它已经适合内部环境、staging 与集成开发，但还不应被表述为完全成熟的 GA 平台。
 
-当前仓库版本为 **alpha**（`0.1.1`），重点聚焦实用解析能力，而非重型平台化功能。
+## 当前产品形态
 
-## 核心亮点
+- **主 Web 界面**：`/console` 下的 Vue 控制台
+- **补充界面**：可选的 Gradio 预览界面
+- **鉴权模型**：所有 `/v1/*` 路由都要求 `Authorization: Bearer <JWT>`
+- **任务后端**：默认内存队列，可选 Redis
+- **URL 解析**：本地 parser、本地 SDK URL 模式、远程 `/v1/parse_url` 共用一套 URL 安全策略
 
-- **统一响应协议**：`parsed_content`、`parser`、`source_type`、`request_id`、`duration_ms`
-- **格式覆盖广**：Office、PDF、HTML、EPUB、图片 OCR、URL、FASTA、GenBank
-- **队列可观测**：任务统计、队列健康、仪表盘、任务处理耗时
-- **运行安全性**：上传大小限制、严格输出目录约束、统一 JSON 错误模型、请求 ID 追踪、限流
-- **部署灵活**：本地 Python、Docker Compose、可选 Redis 后端
-- **开发友好**：类型化 FastAPI 路由、SDK/CLI、完整 pytest 测试集
+### 当前支持的输入
 
-## 架构概览（简化）
+| 输入类型 | 专用接口 | `/v1/parse_file` 自动分发 |
+|---|---|---|
+| PDF | `/v1/parse_pdf_file` | 是 |
+| DOC / DOCX | `/v1/parse_doc_file`、`/v1/parse_docx_file` | 是 |
+| PPT / PPTX | `/v1/parse_ppt_file`、`/v1/parse_pptx_file` | 是 |
+| XLSX | `/v1/parse_xlsx_file` | 是 |
+| HTML / HTM | `/v1/parse_html_file` | 是 |
+| EPUB | `/v1/parse_epub_file` | 是 |
+| 图片 OCR | `/v1/parse_image_file` | 是 |
+| URL | `/v1/parse_url` | 否 |
+| FASTA | `/v1/parse_fasta_file` | 否 |
+| GenBank | `/v1/parse_genbank_file` | 否 |
+
+## 架构概览
 
 ```mermaid
 flowchart LR
-    A["客户端 (API / CLI / SDK / 控制台)"] --> B["FastAPI 应用"]
+    A["客户端 (REST / SDK / CLI / Console)"] --> B["FastAPI App"]
     B --> C["同步解析路由"]
     B --> D["异步任务路由"]
-    C --> E["Parser Registry + 请求守卫"]
-    E --> F["Docling / MinerU 解析器"]
-    D --> G["任务管理器 (Memory 或 Redis)"]
-    G --> F
-    G --> H["Redis 缓存 / 任务存储 (可选)"]
-    B --> I["中间件 (trace, rate-limit, gzip, cors)"]
+    B --> E["静态控制台挂载 (/console)"]
+    C --> F["Parser Registry + 请求守卫"]
+    F --> G["Docling / MinerU / URL / 生物解析器"]
+    D --> H["任务管理器 (memory 或 Redis)"]
+    H --> G
+    H --> I["Redis 任务存储 / 缓存 (可选)"]
 ```
-
-## 支持输入类型
-
-| 类型 | 扩展名 / 来源 | 专用接口 | `/v1/parse_file` 是否支持 |
-|---|---|---|---|
-| PDF | `.pdf` | `/v1/parse_pdf_file` | ✅ |
-| Word | `.doc`, `.docx` | `/v1/parse_doc_file`、`/v1/parse_docx_file` | ✅ |
-| PowerPoint | `.ppt`, `.pptx` | `/v1/parse_ppt_file`、`/v1/parse_pptx_file` | ✅ |
-| Excel | `.xlsx` | `/v1/parse_xlsx_file` | ✅ |
-| HTML 文件 | `.html`, `.htm` | `/v1/parse_html_file` | ✅ |
-| EPUB | `.epub` | `/v1/parse_epub_file` | ✅ |
-| 图片 OCR | `.png`, `.jpg`, `.jpeg` | `/v1/parse_image_file` | ✅ |
-| URL | `http(s)://...` | `/v1/parse_url` | ❌ |
-| FASTA | `.fasta`, `.fa`, `.fna`, `.faa`, `.ffn`, `.fsa`, `.fas`, `.txt` | `/v1/parse_fasta_file` | ❌ |
-| GenBank | `.gb`, `.gbk`, `.genbank`, `.gbff`, `.txt` | `/v1/parse_genbank_file` | ❌ |
 
 ## 快速开始
 
@@ -72,10 +68,10 @@ flowchart LR
 
 - Python `3.11+`
 - 推荐使用 [`uv`](https://docs.astral.sh/uv/)
-- Node.js `18+`（前端开发时需要）
+- Node.js `18+`，用于前端开发和 console 构建
 - 可选：Docker + Docker Compose
-- 可选：Redis（`TASK_QUEUE_BACKEND=redis` + `REDIS_ENABLED=true`）
-- 可选：LibreOffice（支持 `.doc` 与 `.ppt` 转换）
+- 可选：LibreOffice，用于 `.doc` 与 `.ppt`
+- 可选：Redis，用于 `TASK_QUEUE_BACKEND=redis`
 
 ### 本地启动后端
 
@@ -90,29 +86,45 @@ cp .env.example .env
 python markio/main.py
 ```
 
-访问：
+启动前必须设置：
+
+- `.env` 中的 `AUTH_JWT_SECRET`
+
+可访问：
 
 - API 文档：[http://localhost:8000/docs](http://localhost:8000/docs)
-- 控制台：[http://localhost:8000/console](http://localhost:8000/console)
 - 健康检查：[http://localhost:8000/healthz](http://localhost:8000/healthz)
 
-### Docker Compose 启动
+### 构建控制台
 
-```bash
-docker compose up -d
-```
-
-### 前端开发模式（可选）
+只有当 Vue 构建产物存在于 `markio/webapp` 时，后端才会把 `/console` 作为 SPA 正常托管。
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run build
+cd ..
 ```
+
+然后访问：
+
+- 控制台：[http://localhost:8000/console](http://localhost:8000/console)
+
+若构建产物缺失，`/console` 会返回提示用的 fallback 页面，而不是一个损坏的 SPA，这属于设计内的保护行为。
+
+### Docker Compose
+
+```bash
+export AUTH_JWT_SECRET="<高强度随机密钥>"
+export REDIS_PASSWORD="<redis-password>"
+docker compose up -d
+```
+
+Compose 默认采用同源部署：API 在 `/v1/*`，console 在 `/console`，Redis 仅在内部网络暴露。
 
 ## 常见工作流
 
-### 1）同步解析本地文件（自动分发）
+### 同步解析本地文件
 
 ```bash
 curl -X POST "http://localhost:8000/v1/parse_file" \
@@ -120,89 +132,51 @@ curl -X POST "http://localhost:8000/v1/parse_file" \
   -F "file=@./sample.docx"
 ```
 
-### 2）解析 URL
+### 解析 URL
 
 ```bash
 curl -X POST "http://localhost:8000/v1/parse_url?url=https://example.com" \
   -H "Authorization: Bearer <YOUR_JWT>"
 ```
 
-### 3）提交异步任务并查询进度
+### 提交异步任务
 
 ```bash
-# 提交任务
 curl -X POST "http://localhost:8000/v1/tasks/submit" \
   -H "Authorization: Bearer <YOUR_JWT>" \
   -F "file=@./sample.pdf" \
   -F "parse_method=auto" \
   -F "lang=ch" \
   -F "priority=5"
+```
 
-# 查询任务列表
+### 查询任务状态
+
+```bash
 curl -H "Authorization: Bearer <YOUR_JWT>" \
   "http://localhost:8000/v1/tasks?page=1&page_size=20"
 
-# 查询仪表盘
 curl -H "Authorization: Bearer <YOUR_JWT>" \
   "http://localhost:8000/v1/tasks/dashboard"
 ```
 
-> `task_id` 需要是 32 位小写十六进制字符串。
-
-## API 概览
-
-基础前缀：`/v1`
-
-### 同步解析接口
-
-- `POST /parse_file`（按扩展名自动分发）
-- `POST /parse_pdf_file`
-- `POST /parse_doc_file`
-- `POST /parse_docx_file`
-- `POST /parse_ppt_file`
-- `POST /parse_pptx_file`
-- `POST /parse_xlsx_file`
-- `POST /parse_html_file`
-- `POST /parse_epub_file`
-- `POST /parse_image_file`
-- `POST /parse_url`
-- `POST /parse_fasta_file`
-- `POST /parse_genbank_file`
-
-### 异步任务接口
-
-- `POST /tasks/submit`
-- `GET /tasks`
-- `GET /tasks/stats`
-- `GET /tasks/queue`
-- `GET /tasks/dashboard`
-- `GET /tasks/{task_id}`
-- `POST /tasks/queue/pause`
-- `POST /tasks/queue/resume`
-- `POST /tasks/{task_id}/cancel`
-- `POST /tasks/{task_id}/retry`
-
-### 服务接口
-
-- `GET /healthz`
-- `GET /readyz`
-- `GET /`（重定向到 `/docs`）
-- `GET /console`（前端静态站点 / 降级提示页）
-
 ## CLI 与 SDK
 
-完成可编辑安装后，可直接使用 `markio` 命令。
+完成可编辑安装后，可直接使用 `markio` CLI。
 
 ```bash
 markio pdf ./sample.pdf --method auto
 markio docx ./sample.docx --save
-markio image ./sample.png
-
-# 可选：远程 API 模式 + JWT
-markio --api-base-url http://localhost:8000 --token <YOUR_JWT> url https://example.com
+markio url https://example.com
 ```
 
-Python SDK 示例：
+远程模式：
+
+```bash
+markio --api-base-url http://localhost:8000 --token <YOUR_JWT> pdf ./sample.pdf --save
+```
+
+Python SDK：
 
 ```python
 import asyncio
@@ -216,7 +190,8 @@ async def main():
 asyncio.run(main())
 ```
 
-远程 SDK 模式（自动附带 JWT）：
+远程 SDK 模式：
+
 ```python
 sdk = MarkioSDK(
     output_dir="outputs",
@@ -225,71 +200,92 @@ sdk = MarkioSDK(
 )
 ```
 
-更多文档：
+## 当前安全基线
 
-- CLI 指南：[docs/cli_usage_zh.md](docs/cli_usage_zh.md)
-- SDK 指南：[docs/sdk_usage_zh.md](docs/sdk_usage_zh.md)
+### API 鉴权
+
+- 所有 `/v1/*` 路由都要求 JWT
+- `role=admin` 才能调用队列暂停/恢复相关接口
+- 当前 console 仍保留前端托管 token 的模式，这一取舍在本阶段是有意保留的
+
+### URL 解析与下载安全
+
+URL 获取统一收敛到 `markio/parsers/url_parser.py`：
+
+- 仅允许 `http` 与 `https`
+- 可通过 `URL_ALLOWED_DOMAINS` 配置域名白名单
+- 默认拦截私网、回环、链路本地、多播、保留和未指定地址
+- 限制超时、响应大小、最大跳转次数
+- redirect 目标会再次校验
+- direct 模式下，已验证 IP 会被 pin 到真实连接层
+
+相关环境变量：
+
+- `URL_FETCH_MODE`
+- `URL_PROXY_BASE`
+- `URL_REQUEST_TIMEOUT_SECONDS`
+- `URL_MAX_RESPONSE_BYTES`
+- `URL_BLOCK_PRIVATE_NETWORKS`
+- `URL_ALLOWED_DOMAINS`
+- `URL_MAX_REDIRECTS`
 
 ## 配置说明
 
-核心配置由环境变量驱动（`.env`，详见 `.env.example`）。
+核心配置来自 `.env` 与 `markio/settings/config_model.py`。
 
-| 变量 | 默认值 | 说明 |
+| 变量 | 默认值 | 作用 |
 |---|---|---|
-| `PDF_PARSE_ENGINE` | `pipeline` | `pipeline`、`vlm-vllm-engine`、`vlm-vllm-client` |
-| `MINERU_DEVICE_MODE` | `cuda` | `cuda`、`cpu`、`mps` |
-| `REDIS_ENABLED` | `false` | 启用 Redis 缓存与 Redis 任务后端 |
+| `AUTH_JWT_SECRET` | `""` | 所有 `/v1/*` 路由必需的 JWT 密钥 |
+| `AUTH_JWT_ALGORITHM` | `HS256` | JWT 算法 |
+| `CORS_ALLOW_ORIGINS` | `""` | 为空时仅允许同源 |
+| `REDIS_ENABLED` | `false` | 启用 Redis 能力 |
 | `TASK_QUEUE_BACKEND` | `memory` | `memory` 或 `redis` |
-| `TASK_WORKER_COUNT` | `2` | 后台 worker 数量 |
-| `TASK_MAX_UPLOAD_SIZE_BYTES` | `52428800` | 上传大小上限（超限返回 `413`） |
-| `TASK_MAX_AUTO_RETRIES` | `0` | 自动重试次数上限 |
-| `TASK_PROCESSING_TIMEOUT_SECONDS` | `0` | 处理中任务的超时回收阈值 |
-| `RATE_LIMIT_ENABLED` | `true` | 按 IP + 路由的轻量限流 |
-| `ENABLE_MCP` | `false` | 挂载 MCP 相关端点/工具 |
-| `AUTH_JWT_SECRET` | _(必填)_ | `/v1/*` 鉴权 HS256 密钥 |
-| `AUTH_JWT_ALGORITHM` | `HS256` | JWT 算法（仅支持 `HS256`） |
-| `MARKIO_API_TOKEN` | `""` | SDK/CLI/Gradio 远程调用时使用的 Bearer Token |
-| `MARKIO_API_BASE_URL` | `""` | SDK/CLI 远程 API 地址 |
+| `TASK_WORKER_COUNT` | `2` | 异步任务 worker 数 |
+| `TASK_MAX_UPLOAD_SIZE_BYTES` | `52428800` | 异步上传大小上限 |
+| `RATE_LIMIT_ENABLED` | `true` | 轻量限流 |
+| `ENABLE_MCP` | `false` | 挂载 MCP 端点 |
+| `MARKIO_API_BASE_URL` | `""` | SDK/CLI 远程模式地址 |
+| `MARKIO_API_TOKEN` | `""` | SDK/CLI 远程 Bearer token |
 
-Redis 详情见：[docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
+Redis 细节见：[docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
 
-JWT claim 要求：
-- 必填：`sub`
-- `role=admin` 才可调用 `/v1/tasks/queue/pause` 与 `/v1/tasks/queue/resume`
+## 文档导航
+
+- CLI 指南：[docs/cli_usage_zh.md](docs/cli_usage_zh.md)
+- SDK 指南：[docs/sdk_usage_zh.md](docs/sdk_usage_zh.md)
+- Console 指南：[docs/console_frontend_zh.md](docs/console_frontend_zh.md)
+- 生物数据解析指南：[docs/biological_data_parsing_zh.md](docs/biological_data_parsing_zh.md)
+- Redis 指南：[docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
+- 测试说明：[tests/README.md](tests/README.md)
+
+## 测试
+
+主要命令：
+
+```bash
+uv run pytest
+uv run pytest -m live
+cd frontend && npm run build
+```
+
+当前以 pytest 为主事实来源。`tests/` 下仍保留部分历史脚本，但推荐直接运行 pytest。
 
 ## 项目结构
 
 ```text
 markio/
-├── markio/          # FastAPI 应用、路由、解析器、服务、SDK/CLI
-├── frontend/        # Vue 3 + Vite 控制台
-├── tests/           # pytest 测试与样例数据
-├── docs/            # 使用文档与设计方案
-├── scripts/         # 辅助脚本
-├── data/ logs/ outputs/
-├── compose.yaml
-└── .env.example
+├── markio/         # FastAPI 应用、解析器、路由、SDK、配置
+├── frontend/       # Vue 3 + Vite 控制台源码
+├── docs/           # 用户与运维文档
+├── tests/          # Pytest 测试与测试样例
+├── data/           # 运行时任务状态与上传文件
+├── logs/           # 运行日志
+└── outputs/        # 解析结果输出
 ```
 
-## 测试
+## 已知边界
 
-```bash
-# 默认测试集（通过 marker 排除 live 测试）
-uv run pytest
-
-# 需要外部服务的 live 测试
-uv run pytest -m live
-```
-
-## 文档索引
-
-- CLI： [docs/cli_usage_zh.md](docs/cli_usage_zh.md)
-- SDK： [docs/sdk_usage_zh.md](docs/sdk_usage_zh.md)
-- 控制台前端： [docs/console_frontend_zh.md](docs/console_frontend_zh.md)
-- 生物数据解析： [docs/biological_data_parsing_zh.md](docs/biological_data_parsing_zh.md)
-- Redis 集成： [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
-
-## License
-
-- 项目许可证：[MIT](LICENSE)
-- 前端三方声明：[frontend/THIRD_PARTY_NOTICES.md](frontend/THIRD_PARTY_NOTICES.md)
+- 项目仍处于 alpha，而非 GA
+- console 仍采用前端 token 模式
+- FASTA 与 GenBank 目前没有一层统一的 CLI 命令或 `MarkioSDK` façade；请使用 REST 接口或 parser 模块
+- `/console` 的 fallback 页面是刻意保留的降级提示，不是主链路

@@ -8,7 +8,6 @@ from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse
 
 import aiofiles
-import aiohttp
 
 from markio.utils.logger_config import get_logger
 
@@ -206,34 +205,18 @@ async def download_file_from_url(
         ValueError: If URL is invalid
         Exception: For download errors
     """
-    if not is_valid_url(url):
-        raise ValueError(f"Invalid URL format: {url}")
-
-    if not filename:
-        filename = extract_filename_from_url(url) or "downloaded_file"
-
-    if output_path:
-        output_path = os.path.join(output_path, filename)
-    else:
-        temp_dir = os.path.dirname(NamedTemporaryFile().name)
-        output_path = os.path.join(temp_dir, filename)
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-
+    _ = timeout
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, timeout=timeout) as response:
-                response.raise_for_status()
+        from markio.parsers.url_parser import download_file_from_url as secure_download
 
-                async with aiofiles.open(output_path, "wb") as f:
-                    async for chunk in response.content.iter_chunked(8192):
-                        await f.write(chunk)
-
-        logger.info(f"Successfully downloaded file from {url} to {output_path}")
-        return output_path
-
+        local_path = await secure_download(
+            url=url,
+            output_dir=output_path,
+            filename=filename,
+            timeout_seconds=timeout,
+        )
+        logger.info(f"Successfully downloaded file from {url} to {local_path}")
+        return local_path
     except Exception as e:
         logger.error(f"Failed to download file from {url}. Error: {e}")
         raise

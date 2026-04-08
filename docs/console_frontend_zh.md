@@ -1,30 +1,56 @@
-# Markio 前端控制台说明（OpenAI UI/UX 风格）
+# Markio Console 前端说明
 
-## 目标
+[返回 README](../README.zh.md) | [English Version](console_frontend.md)
 
-Markio 控制台基于 `mineru-tianshu` 前端代码重构，保留企业级任务管理体验，同时保持 Markio 的轻量范围：
+## 它是什么
 
-- 仅保留文档任务相关页面（仪表盘、任务列表、提交任务、任务详情、队列管理）
-- 与 Markio 后端 `/v1/tasks/*` 完整对齐
-- 保持静态部署到 FastAPI `/console`
-- 默认同源调用 API（`VITE_API_BASE_URL=""`，直接请求 `/v1/*`）
+Console 是 Markio 当前的主浏览器控制台。它是一个基于 Vue 3 + TypeScript + Vite 的 SPA，源码位于 `frontend/`，由 FastAPI 挂载到 `/console`。
 
-## 页面与信息架构
+当前产品定位：
 
-- `/`：仪表盘（任务统计 + 最近任务 + 快捷操作）
-- `/tasks`：任务列表（分页、状态过滤、取消、重试）
-- `/tasks/submit`：任务提交（parse_method/lang/priority/分页范围等）
-- `/tasks/:id`：任务详情（状态、错误、结果内容）
-- `/queue`：队列管理（队列状态、暂停/恢复、操作日志）
+- console 是主 Web 工作流
+- Gradio 只是可选补充
+- 默认且推荐使用同源部署
 
-## API 映射
+## 运行契约
 
-前端 API 适配文件：
+### 构建产物
+
+前端必须构建到 `markio/webapp`。
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+### 后端托管
+
+`markio/main.py` 的托管规则是：
+
+- 当 `markio/webapp/index.html` 存在时，`/console` 返回 SPA
+- 当静态资源缺失时，`/console` 返回 fallback helper page
+
+这个 fallback 页面不是并行产品形态，只是为了明确提示“前端还没有构建”。
+
+## 路由结构
+
+- `/` 仪表盘
+- `/tasks` 任务列表
+- `/tasks/submit` 任务提交
+- `/tasks/:id` 任务详情
+- `/queue` 队列控制
+
+这些都是 `/console` 挂载下的前端路由。
+
+## 后端 API 映射
+
+前端主要通过以下模块调用后端：
 
 - `frontend/src/api/taskApi.ts`
 - `frontend/src/api/queueApi.ts`
 
-映射关系：
+实际使用的后端接口：
 
 - `POST /v1/tasks/submit`
 - `GET /v1/tasks`
@@ -36,18 +62,45 @@ Markio 控制台基于 `mineru-tianshu` 前端代码重构，保留企业级任�
 - `POST /v1/tasks/{task_id}/cancel`
 - `POST /v1/tasks/{task_id}/retry`
 
-## OpenAI 风格设计要点
+## 鉴权与权限
 
-- 中性底色 + 低对比边框 + 清晰层级
-- 控件简洁，减少装饰性动画
-- 信息优先：可读性、留白、状态一致性
-- 语义色精简：中性灰 + 绿色主色 + 状态色
+- console 发起的所有 API 调用仍依赖 JWT
+- 当前前端依旧在浏览器侧持有 token
+- 队列控制是 admin-only，因为后端要求 `role=admin`
+- owner/admin 视图差异只是前端辅助，真正的权限边界仍以后端为准
 
-样式入口：`frontend/src/style.css`。
+## 网络模型
 
-## 本地开发与发布
+默认行为：
 
-### 1) 开发调试
+- `VITE_API_BASE_URL=""`
+- 请求直接走同源 `/v1/*`
+- 本地 Vite 开发时会把 `/v1` 代理到 `http://localhost:8000`
+
+如果需要跨域联调，需要显式配置后端 CORS 白名单。
+
+## 安全头与浏览器策略
+
+后端当前为 console 提供了更收紧的 CSP：
+
+- 已移除 `unsafe-eval`
+- `connect-src` 已收缩到同源默认行为
+
+如果将来扩展 console，请尽量继续使用同源 API，不要随意为了“方便调试”放宽 CSP。
+
+## 测试与交付要求
+
+仓库现在把“真实 SPA 构建产物”视为 console 交付契约的一部分：
+
+- console 路由测试会校验真实构建产物
+- 测试 fixture 会在需要时构建前端
+- 已刻意避免 import-time side effect
+
+相关测试：
+
+- `tests/test_console_frontend.py`
+
+## 开发说明
 
 ```bash
 cd frontend
@@ -55,29 +108,15 @@ npm install
 npm run dev
 ```
 
-默认 Vite 本地地址：`http://localhost:3000`
+常用目录：
 
-### 2) 构建到后端静态目录
+- `frontend/src/views/`
+- `frontend/src/components/`
+- `frontend/src/stores/`
+- `frontend/src/router/`
 
-```bash
-cd frontend
-npm run build
-```
+## 当前边界
 
-构建产物输出到：`markio/webapp`
-
-默认环境变量：
-- `frontend/.env.development`: `VITE_API_BASE_URL=`
-- `frontend/.env.production`: `VITE_API_BASE_URL=`
-
-### 3) 访问控制台
-
-启动后端后访问：
-
-- `http://localhost:8000/console`
-
-## 第三方来源与许可
-
-前端来源与修改声明见：
-
-- `frontend/THIRD_PARTY_NOTICES.md`
+- 还没有独立的前端 E2E 测试套件
+- 前端鉴权仍是 token 模式
+- 只有在真实构建产物存在时，`/console` 才算主链路可用

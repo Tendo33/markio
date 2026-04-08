@@ -1,159 +1,133 @@
-`# CLAUDE.md
+# CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file gives repository-specific guidance to coding agents working in this project.
 
 ## Project Overview
 
-Markio is a high-performance document conversion API platform that parses various file formats (PDF, Office documents, HTML, EPUB, images) and converts them to Markdown. The project provides multiple interfaces: REST API, CLI, Python SDK, a primary Vue console served at `/console`, and an optional Gradio UI for preview/demo-oriented workflows.
+Markio is an API-first document parsing platform. It converts documents and web content into Markdown through:
 
-## Development Environment
+- FastAPI sync parse routes under `/v1/parse_*`
+- FastAPI async task routes under `/v1/tasks/*`
+- a Vue console served at `/console`
+- local Python SDK and CLI entrypoints
+- an optional Gradio UI for preview/demo-style flows
 
-### System Dependencies
-- **Python**: 3.11+ (required)
-- **System packages**: `libreoffice`, `pandoc` (for document conversion)
-- **Package manager**: `uv` (recommended) or pip
+Current status:
 
-### Setup Commands
+- version `0.1.2`
+- development stage: alpha
+- every `/v1/*` route requires JWT auth
+
+## Core Stack
+
+- Python `3.11+`
+- FastAPI
+- Docling
+- MinerU
+- Vue 3 + TypeScript + Vite
+- pytest
+- optional Redis backend for tasks/cache
+
+## Preferred Local Setup
+
 ```bash
-# Install uv package manager
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Clone and setup
-git clone https://github.com/Tendo33/markio.git
-cd markio
-uv venv && uv pip install -e .
+uv sync
+uv pip install -e .
+cp .env.example .env
 ```
 
-### Common Development Commands
+Before starting the app, set:
 
-#### Running the Application
 ```bash
-# Start backend API
-./start_services.sh
+AUTH_JWT_SECRET=<strong-random-secret>
+```
 
-# Start API only
+## Common Commands
+
+### Run backend
+
+```bash
 python markio/main.py
-
-# Start optional Gradio preview UI only
-python markio/web/gradio_frontend.py
-
-# Docker deployment
-docker compose up -d
 ```
 
-#### CLI Usage
+### Run frontend dev server
+
 ```bash
-# Parse documents via CLI
-markio pdf test.pdf -o result.md
-markio docx test.docx --save --output result.md
-markio image test.png --save
+cd frontend
+npm install
+npm run dev
 ```
 
-#### Testing
+### Build console assets
+
 ```bash
-# Run all tests (requires running server)
-python tests/run_tests.py
-
-# Run specific test types
-python tests/run_tests.py --type api
-python tests/run_tests.py --type concurrent
-
-# Run tests with pytest directly
-pytest tests/ -v -s
+cd frontend
+npm run build
 ```
 
-#### Code Quality
+The backend serves `/console` from `markio/webapp` only when those assets exist.
+
+### Run tests
+
 ```bash
-# Format code
-black markio/
-
-# Lint code
-ruff check markio/
-
-# Type checking
-mypy markio/
+uv run pytest
+uv run pytest -q
+uv run pytest -m live
 ```
 
-## Architecture Overview
+### Code quality
 
-### Core Components
+```bash
+black markio tests
+ruff check markio tests
+mypy markio
+```
 
-1. **FastAPI Application** (`markio/main.py`): Main API server with automatic model initialization
-2. **Document Parsers** (`markio/parsers/`): Format-specific parsing modules using different engines:
-   - PDF: MinerU, VLM, OCR
-   - Office documents: docling (DOCX, PPTX, XLSX)
-   - Legacy Office: LibreOffice + docling (DOC, PPT)
-   - Web: jina (URL), docling (HTML)
-   - Other: pandoc (EPUB), MinerU (images)
+## Architecture Notes
 
-3. **API Routers** (`markio/routers/`): REST API endpoints for each document type
-4. **SDK** (`markio/sdk/`): Python SDK and CLI interface
-5. **Configuration** (`markio/settings/`): Environment-based configuration system
-6. **Console frontend** (`frontend/`): Vue 3 + Vite app compiled into `markio/webapp` and served by FastAPI at `/console`
+### Backend
 
-### Key Design Patterns
+- `markio/main.py` wires middleware, routes, readiness endpoints, and the `/console` mount
+- `markio/routers/` exposes type-specific parse routes plus task endpoints
+- `markio/parsers/` contains format-specific parse logic
+- `markio/services/` contains task backends, orchestration, and runtime helpers
+- `markio/settings/` defines env-driven configuration
 
-- **Router-based API structure**: Each document type has its own router with consistent endpoint patterns
-- **Async/await throughout**: All parsing operations are asynchronous
-- **Model management**: Centralized model initialization with safe error handling
-- **Configuration via environment**: All settings through environment variables with Pydantic validation
-- **Middleware stack**: CORS, GZIP, tracing, and security headers for production readiness
+### Frontend
 
-### Configuration System
+- source lives in `frontend/`
+- build output lives in `markio/webapp`
+- same-origin API access is the default deployment model
 
-Environment variables control all aspects of the application:
-- `LOG_LEVEL`: Logging verbosity (DEBUG/INFO/WARNING/ERROR)
-- `OUTPUT_DIR`: Directory for parsed content outputs
-- `PDF_PARSE_ENGINE`: PDF parsing engine selection (`pipeline`/`vlm-vllm-engine`/`vlm-vllm-client`)
-- `MINERU_DEVICE_MODE`: Device selection for MinerU models (`cuda`/`cpu`)
-- `VLM_SERVER_URL`: VLM server endpoint for remote processing
+### URL safety
 
-## Important Implementation Details
+The authoritative URL fetch safety logic lives in:
 
-### Model Initialization
-- Models are initialized safely at startup with error handling
-- Initialization happens in `main.py:initialize_models_safely()`
-- Model manager handles switching between different parsing engines
+- `markio/parsers/url_parser.py`
 
-### File Processing Pipeline
-1. File upload via FastAPI endpoints
-2. Format-specific router handles routing
-3. Parser module processes based on configuration
-4. Results returned as Markdown with metadata
-5. Optional saving to output directory
+When working on URL-related behavior, keep local parser mode, SDK local mode, and remote `/v1/parse_url` behavior aligned.
 
-### Error Handling
-- Comprehensive error handling in all parsing operations
-- Graceful degradation when models fail to initialize
-- Detailed logging for debugging purposes
+## Important Current Constraints
 
-### Testing Strategy
-- Integration tests require running server
-- Test files in `tests/test_docs/` for all supported formats
-- Concurrent performance testing for high-load scenarios
-- Health checks before test execution
+- the console is the primary browser workflow; fallback helper pages are only for missing assets
+- JWT transport is still frontend token-based for now; do not silently redesign auth storage without an explicit scope change
+- Redis is optional and must not become a hard requirement for default local development
+- FASTA and GenBank have dedicated routes/parsers, but no first-class SDK façade or CLI subcommands yet
 
-## Development Notes
+## Testing Guidance
 
-### Adding New Document Formats
-1. Create parser module in `markio/parsers/`
-2. Add router in `markio/routers/`
-3. Register router in `main.py:register_routers()`
-4. Add CLI command in `markio_sdk.py` and `markio_cli.py`
-5. Update tests and documentation
+- prefer direct `pytest` invocations over the legacy helper scripts in `tests/`
+- if a change affects `/console`, verify both frontend build success and `tests/test_console_frontend.py`
+- if a change affects URL fetching or SSRF boundaries, verify `tests/test_url_parser.py`
+- if a change affects auth or task visibility, verify `tests/test_task_auth_and_idor.py`
 
-### Performance Considerations
-- Models are loaded once and cached
-- Async processing for concurrent requests
-- Configurable batch sizes for model inference
-- Memory management for GPU operations
+## Documentation Expectations
 
-### Dependencies
-Key libraries and their purposes:
-- **FastAPI**: Web framework with automatic OpenAPI documentation
-- **MinerU**: PDF parsing with layout analysis and OCR
-- **docling**: Office document and HTML parsing
-- **Typer**: CLI framework with rich help text
-- **Vue 3 console**: Primary operator/user control plane for `/v1/tasks/*`
-- **Gradio**: Optional web interface for lightweight preview/demo flows
-- **Pydantic**: Data validation and configuration management
+If you change behavior in any of these areas, update the matching docs:
+
+- `README.md` / `README.zh.md`
+- `docs/cli_usage*.md`
+- `docs/sdk_usage*.md`
+- `docs/console_frontend*.md`
+- `docs/REDIS_INTEGRATION.md`
+- `tests/README.md`

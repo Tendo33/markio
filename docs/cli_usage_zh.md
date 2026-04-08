@@ -1,237 +1,196 @@
 # Markio CLI 使用指南
 
-一行命令，解析各种文档。
+[返回 README](../README.zh.md) | [English Version](cli_usage.md)
 
-[返回主README](../README.zh.md) | [English CLI Guide](cli_usage.md)
+## 适用范围
 
----
+`markio` CLI 是从终端直接调用同步解析能力的最快方式。
 
-## 为什么用Markio CLI？
-- **一行命令，解析多格式：** PDF、Office、HTML、EPUB、图片
-- **批量与自动化：** 处理文件夹或集成到脚本
-- **灵活输出：** Markdown 格式，控制输出位置
-- **智能引擎：** OCR、VLM、文本提取，自动识别
-- **生产就绪：** 错误处理、日志、配置管理
+当前支持：
 
----
+- PDF 与 PDF VLM
+- DOC / DOCX
+- PPT / PPTX
+- XLSX
+- HTML
+- URL
+- EPUB
+- 图片 OCR
 
-## 快速上手
+当前**不提供** FASTA 与 GenBank 的专用 CLI 子命令。
+
+## 安装
 
 ```bash
-# 解析PDF为Markdown
-markio pdf document.pdf -o result.md
-
-# 解析DOCX文件
-markio docx document.docx --save --output result.md
-
-# 批量处理文件夹下所有PDF
-for file in *.pdf; do markio pdf "$file" -s -o "${file%.pdf}.md"; done
+uv sync
+uv pip install -e .
 ```
 
-> 若 CLI 走远程 Markio API（`/v1/*`），服务端现已强制 `Authorization: Bearer <JWT>`。
-
-### 远程 API 模式（JWT）
+查看命令：
 
 ```bash
-# 单次命令传参
-markio --api-base-url http://localhost:8000 --token <YOUR_JWT> pdf ./document.pdf -s
+markio --help
+```
 
-# 或通过环境变量
+## 命令一览
+
+| 命令 | 作用 |
+|---|---|
+| `markio pdf` | 用 `auto`、`ocr` 或 `txt` 解析 PDF |
+| `markio pdf-vlm` | 使用 VLM 后端解析 PDF |
+| `markio docx` | 解析 DOCX |
+| `markio doc` | 通过 LibreOffice 转换 DOC 后再解析 |
+| `markio pptx` | 解析 PPTX |
+| `markio ppt` | 通过 LibreOffice 转换 PPT 后再解析 |
+| `markio xlsx` | 解析 XLSX |
+| `markio html` | 解析本地 HTML |
+| `markio url` | 解析远程 URL |
+| `markio epub` | 解析 EPUB |
+| `markio image` | 对图片做 OCR |
+
+## 本地模式
+
+本地模式会直接在当前进程内调用 parser 模块；当使用 `--save` 时，解析器会把常规输出写入本地输出目录。
+
+```bash
+markio pdf ./sample.pdf --method auto
+markio docx ./report.docx --save
+markio url https://example.com
+markio image ./scan.png --save
+```
+
+### 输出行为
+
+- `--save`：要求解析器按其常规方式持久化输出或附属资源
+- `--output`：把当前命令的结果额外写到指定文件
+- 两者可以同时使用
+
+示例：
+
+```bash
+markio pdf ./sample.pdf --save --output ./artifacts/sample.md
+```
+
+## 远程 API 模式
+
+只要设置了 `--api-base-url`，CLI 就不再直接调本地 parser，而是向 FastAPI 服务发送请求。
+
+```bash
+markio --api-base-url http://localhost:8000 --token <YOUR_JWT> pdf ./sample.pdf --save
+markio --api-base-url http://localhost:8000 --token <YOUR_JWT> url https://example.com
+```
+
+也可以通过环境变量配置：
+
+```bash
 export MARKIO_API_BASE_URL=http://localhost:8000
 export MARKIO_API_TOKEN=<YOUR_JWT>
-markio url https://example.com -s
+
+markio pdf ./sample.pdf
 ```
 
----
+注意：
 
-## 典型场景
+- 所有 `/v1/*` 路由都要求 JWT
+- 远程 `markio url` 实际调用 `/v1/parse_url`
+- 本地 `markio url` 调用本地 URL parser
+- 两条路径现在共享同一套 URL 安全边界
 
-| 场景         | 命令示例                                         |
-|--------------|--------------------------------------------------|
-| PDF OCR      | markio pdf document.pdf -m ocr                   |
-| VLM引擎      | markio pdf-vlm document.pdf                      |
-| 指定页码     | markio pdf document.pdf -st 0 -e 5               |
-| HTML/URL     | markio html page.html / markio url https://...   |
-| 图片OCR      | markio image screenshot.png                      |
-| 输出到目录   | markio pdf document.pdf -s -o output_dir/file.md |
-| 旧版Office   | markio doc old.doc -s / markio ppt old.ppt -s    |
-| 批量处理     | markio pdf *.pdf -s -o ./results/               |
+## 常见示例
 
----
+### PDF
 
-## 进阶用法
+```bash
+markio pdf ./sample.pdf --method auto
+markio pdf ./sample.pdf --method ocr --save
+markio pdf ./sample.pdf --start 0 --end 9
+markio pdf-vlm ./complex.pdf --save --server http://localhost:30000
+```
 
-- **并行处理：**
-  ```bash
-  parallel markio pdf {} -s -o "{.}.md" ::: *.pdf
-  ```
-- **Python SDK集成：**
-  ```python
-  from markio.sdk.markio_sdk import MarkioSDK
-  sdk = MarkioSDK()
-  result = await sdk.parse_pdf(file_path="document.pdf", save_parsed_content=True)
-  print(result["content"])
-  ```
-- **调试模式：**
-  ```bash
-  export MARKIO_LOG_LEVEL=DEBUG
-  markio pdf document.pdf -s -o debug_output.md
-  ```
+### Office 文档
 
----
+```bash
+markio docx ./report.docx --save
+markio doc ./legacy.doc --save
+markio pptx ./slides.pptx --save
+markio ppt ./legacy-slides.ppt --save
+markio xlsx ./sheet.xlsx --save
+```
+
+### Web 与图片
+
+```bash
+markio html ./page.html --save
+markio url https://example.com --save
+markio image ./scan.png --save
+markio epub ./book.epub --save
+```
+
+## URL 安全说明
+
+`markio url` 不是一个裸下载器。默认会强制：
+
+- 仅允许 `http` 与 `https`
+- redirect 目标再次校验
+- 默认阻断私网、回环、链路本地等地址
+- 限制响应大小
+- 限制请求超时
+- 支持可选域名白名单
+
+相关环境变量：
+
+- `URL_FETCH_MODE`
+- `URL_PROXY_BASE`
+- `URL_REQUEST_TIMEOUT_SECONDS`
+- `URL_MAX_RESPONSE_BYTES`
+- `URL_BLOCK_PRIVATE_NETWORKS`
+- `URL_ALLOWED_DOMAINS`
+- `URL_MAX_REDIRECTS`
 
 ## 环境变量
 
-| 变量名              | 默认值   | 说明                 |
-|---------------------|----------|----------------------|
-| OUTPUT_DIR          | outputs  | 默认输出目录         |
-| LOG_LEVEL           | INFO     | 日志级别             |
-| PDF_PARSE_ENGINE    | pipeline | PDF解析引擎          |
-| MINERU_DEVICE_MODE  | cuda     | MinerU设备选择       |
-| VLM_SERVER_URL      | -        | VLM服务端点          |
-| MARKIO_API_BASE_URL | `""`     | CLI 远程 API 基础地址 |
-| MARKIO_API_TOKEN    | `""`     | 附带到 `Authorization` 的 JWT |
+| 变量 | 作用 |
+|---|---|
+| `MARKIO_API_BASE_URL` | 启用远程 API 模式 |
+| `MARKIO_API_TOKEN` | 作为 `Authorization: Bearer ...` 发送的 JWT |
+| `OUTPUT_DIR` | 默认本地输出目录 |
+| `LOG_LEVEL` | 日志级别 |
+| `PDF_PARSE_ENGINE` | 默认 PDF 引擎 |
+| `MINERU_DEVICE_MODE` | `cuda`、`cpu` 或 `mps` |
+| `VLM_SERVER_URL` | 远程 VLM 服务地址 |
 
----
+## 故障排查
 
-## FAQ与常见问题
+### `markio: command not found`
 
-### 常见CLI问题
-
-#### 命令未找到
-**问题**: `markio: command not found`
 ```bash
-# 检查markio是否安装
-pip list | grep markio
-
-# 重新安装开发模式
 uv pip install -e .
-
-# 添加到PATH（如果需要）
-export PATH=$PATH:/path/to/markio/package
 ```
 
-#### 权限错误
-**问题**: 访问文件时出现权限错误
-```bash
-# 检查文件权限
-ls -la document.pdf
+### 远程 CLI 返回 `401`
 
-# 使用适当权限
-chmod 644 document.pdf
+- 检查 `MARKIO_API_TOKEN` 或 `--token`
+- 检查服务端是否设置了有效的 `AUTH_JWT_SECRET`
+- 检查 token 是否使用相同的 `HS256` 密钥签发
 
-# 或使用适当用户运行
-sudo -u username markio pdf document.pdf
-```
+### `markio url` 被拒绝
 
-#### 内存问题
-**问题**: 处理失败并出现内存错误
-```bash
-# 减少内存使用
-export MINERU_MIN_BATCH_INFERENCE_SIZE=128
-export MINERU_VIRTUAL_VRAM_SIZE=4096
+常见原因：
 
-# 使用CPU模式
-export MINERU_DEVICE_MODE=cpu
+- 不是 HTTP URL
+- redirect 指向被阻断目标
+- 指向私网或回环地址
+- 响应过大
+- 不在 `URL_ALLOWED_DOMAINS` 白名单中
 
-# 先处理小文件
-markio pdf small_file.pdf -s
-```
+### 旧版 Office 解析失败
 
-#### VLM引擎问题
-**问题**: VLM处理失败
-```bash
-# 检查VLM服务器状态
-curl http://localhost:30000/health
+请安装 LibreOffice，并确认 `soffice` 在 `PATH` 中可用。
 
-# 验证服务器配置
-export VLM_SERVER_URL=http://localhost:30000
-export PDF_PARSE_ENGINE=vlm-sglang-engine
+## CLI 当前不覆盖的能力
 
-# 先用简单文件测试
-markio pdf-vlm simple.pdf --save
-```
+- 异步任务提交与队列管理
+- 控制台工作流
+- FASTA 与 GenBank 子命令
 
-#### 大文件处理
-**问题**: 大文件处理时间过长或失败
-```bash
-# 使用页码范围处理
-markio pdf large_file.pdf -st 0 -e 50 -s
-markio pdf large_file.pdf -st 51 -e 100 -s
-
-# 保存中间文件用于调试
-markio pdf large_file.pdf -sm -s -o ./debug/
-
-# 批量处理多个大文件
-for file in large*.pdf; do
-    markio pdf "$file" -s -o "./results/${file%.pdf}.md"
-done
-```
-
-#### 输出目录问题
-**问题**: 无法保存到指定目录
-```bash
-# 先创建输出目录
-mkdir -p ./results
-
-# 检查目录权限
-ls -la ./results/
-
-# 使用绝对路径
-markio pdf document.pdf -s -o /home/user/results/output.md
-```
-
-### 性能技巧
-
-#### 批量处理
-```bash
-# 高效处理多个文件
-find ./input -name "*.pdf" -print0 | xargs -0 -I {} -P 4 markio pdf {} -s -o ./results/
-
-# 为避免内存问题限制并行进程数
-parallel -j 2 markio pdf {} -s -o "{.}.md" ::: *.pdf
-```
-
-#### 文件组织
-```bash
-# 按文件类型组织输出
-markio pdf document.pdf -s -o ./pdfs/document.md
-markio docx report.docx -s -o ./docs/report.md
-markio html page.html -s -o ./web/page.md
-```
-
-### 获取帮助
-
-#### 调试信息
-```bash
-# 启用调试日志
-export LOG_LEVEL=DEBUG
-export LOG_DIR=./debug_logs
-
-# 显示特定命令的帮助
-markio pdf --help
-markio pdf-vlm --help
-
-# 检查环境变量
-env | grep MARKIO
-env | grep MINERU
-```
-
-#### 系统信息
-报告问题时请提供：
-- 操作系统和版本
-- Python版本 (`python --version`)
-- Markio版本 (`pip show markio`)
-- 错误消息和堆栈跟踪
-- 重现问题的示例命令
-
-### 资源链接
-- [项目Wiki与FAQ](https://github.com/Tendo33/markio/wiki)
-- [GitHub Issues](https://github.com/Tendo33/markio/issues)
-- [GitHub Discussions](https://github.com/Tendo33/markio/discussions)
-- [主README](../README.zh.md) 获取完整文档
-- [英文CLI指南](cli_usage.md) 获取英文文档
-- [SDK使用指南](sdk_usage_zh.md) 获取Python SDK文档
-- [英文SDK指南](sdk_usage.md) 获取英文SDK文档
-
-**更多信息请参考 [Markio 项目文档](https://github.com/Tendo33/markio)**
+这些场景请使用 REST API、console 或更底层的 parser 模块。
