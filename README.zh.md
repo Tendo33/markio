@@ -22,7 +22,7 @@ Markio 提供四种主要交付面：
 - 本地 Python SDK 与 CLI
 - 由 FastAPI 托管在 `/console` 的 Vue 3 控制台
 
-当前版本为 **alpha**（`0.1.2`）。它已经适合内部环境、staging 与集成开发，但还不应被表述为完全成熟的 GA 平台。
+当前版本为 **alpha**（`0.1.3`）。它已经适合内部环境、staging 与集成开发，但还不应被表述为完全成熟的 GA 平台。
 
 ## 当前产品形态
 
@@ -158,6 +158,9 @@ curl -H "Authorization: Bearer <YOUR_JWT>" \
 
 curl -H "Authorization: Bearer <YOUR_JWT>" \
   "http://localhost:8000/v1/tasks/dashboard"
+
+curl -H "Authorization: Bearer <ADMIN_JWT>" \
+  "http://localhost:8000/v1/tasks/queue"
 ```
 
 ## CLI 与 SDK
@@ -206,7 +209,13 @@ sdk = MarkioSDK(
 
 - 所有 `/v1/*` 路由都要求 JWT
 - `role=admin` 才能调用队列暂停/恢复相关接口
-- 当前 console 仍保留前端托管 token 的模式，这一取舍在本阶段是有意保留的
+- `/v1/tasks/dashboard` 是 owner-scoped 的，普通用户只能看到自己的任务统计与最近任务
+- 当前 console 仍保留前端托管 token 的模式，并通过 `localStorage` 在浏览器侧持久化
+
+### MCP 行为
+
+- `/v1/mcp/*` 与 legacy `/mcp/*` 在校验失败或解析失败时都会返回标准 FastAPI 非 2xx 错误包
+- legacy `/mcp/*` 仍保留废弃提示响应头
 
 ### URL 解析与下载安全
 
@@ -287,5 +296,6 @@ markio/
 
 - 项目仍处于 alpha，而非 GA
 - console 仍采用前端 token 模式
+- 队列暂停/恢复与全局队列健康度是 admin-only；dashboard 仍然是 owner-scoped
 - FASTA 与 GenBank 目前没有一层统一的 CLI 命令或 `MarkioSDK` façade；请使用 REST 接口或 parser 模块
 - `/console` 的 fallback 页面是刻意保留的降级提示，不是主链路

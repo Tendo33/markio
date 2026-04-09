@@ -2,7 +2,9 @@ import base64
 import hashlib
 import hmac
 import json
+import tempfile
 import time
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -186,3 +188,99 @@ async def test_mcp_convert_document_rejects_oversized_upload(monkeypatch, mcp_ap
 
     assert response.status_code == 413
     assert "Maximum allowed size" in response.text
+
+
+@pytest.mark.asyncio
+async def test_mcp_convert_document_validation_error_uses_standard_error_envelope(monkeypatch, mcp_app):
+    secret = "mcp-validation-secret"
+    monkeypatch.setattr(settings, "auth_jwt_secret", secret, raising=False)
+    monkeypatch.setattr(settings, "auth_jwt_algorithm", "HS256", raising=False)
+    token = _build_jwt(secret)
+    app, _ = mcp_app
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/mcp/convert_document",
+            files={"file": ("demo.txt", b"hello", "text/plain")},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["error"]["code"] == "http_400"
+    assert "Unsupported file type" in payload["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_mcp_convert_document_cleans_temp_file_on_parser_failure(monkeypatch, mcp_app, tmp_path: Path):
+    secret = "mcp-temp-cleanup-secret"
+    monkeypatch.setattr(settings, "auth_jwt_secret", secret, raising=False)
+    monkeypatch.setattr(settings, "auth_jwt_algorithm", "HS256", raising=False)
+    token = _build_jwt(secret)
+    app, instance = mcp_app
+
+    created_temp_paths: list[Path] = []
+    original_named_temp_file = tempfile.NamedTemporaryFile
+
+    def tracking_named_tempfile(*args, **kwargs):
+        handle = original_named_temp_file(*args, **kwargs)
+        created_temp_paths.append(Path(handle.name))
+        return handle
+
+    async def failing_docx_parser(*, resource_path: str, save_parsed_content: bool, output_dir: str) -> str:
+        raise RuntimeError("boom")
+
+    instance.FILE_PARSERS = {
+        ".docx": (failing_docx_parser, DOCXParserConfig),
+    }
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", tracking_named_tempfile)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/mcp/convert_document",
+            files={
+                "file": (
+                    "demo.docx",
+                    b"fake",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert payload["error"]["code"] == "http_500"
+    assert payload["error"]["message"] == "Parsing failed"
+    assert created_temp_paths
+    assert all(not path.exists() for path in created_temp_paths)
+
+
+@pytest.mark.asyncio
+async def test_legacy_mcp_error_keeps_deprecation_headers(monkeypatch, mcp_app):
+    secret = "mcp-legacy-error-secret"
+    monkeypatch.setattr(settings, "auth_jwt_secret", secret, raising=False)
+    monkeypatch.setattr(settings, "auth_jwt_algorithm", "HS256", raising=False)
+    token = _build_jwt(secret)
+    app, _ = mcp_app
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/mcp/parse_url",
+            json={"url": "notaurl"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 400
+    assert response.headers["Deprecation"] == "true"
+    assert response.headers["X-Markio-Deprecated"] == "Use /v1/mcp/* endpoints"
+    assert response.json()["error"]["code"] == "http_400"

@@ -32,3 +32,21 @@ async def test_v1_routes_require_bearer_auth():
             params={"url": "https://example.com"},
         )
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_default_security_headers_are_applied():
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    csp = response.headers["content-security-policy"]
+    assert "script-src 'self'" in csp
+    assert "script-src 'self' 'unsafe-inline'" not in csp
+    assert "object-src 'none'" in csp
+    assert "frame-ancestors 'none'" in csp

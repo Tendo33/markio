@@ -8,7 +8,6 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from markio.auth import require_auth_user
-from markio.mcps.mcp_server import MarkioMCP
 from markio.middlewares.error_handlers import add_error_handlers
 from markio.middlewares.handle import handle_middleware
 from markio.routers.doc_router import router as doc_router
@@ -129,6 +128,8 @@ def register_routers(app: FastAPI):
 
 def mount_mcp_server(app: FastAPI):
     """Initialize and mount MCP server"""
+    from markio.mcps.mcp_server import MarkioMCP
+
     mcp_server = MarkioMCP(app)
     logger.info("MCP server mounted")
     return mcp_server

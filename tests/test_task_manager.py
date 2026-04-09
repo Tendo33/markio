@@ -649,7 +649,7 @@ class TaskManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(len(dashboard["recent_tasks"]), 2)
         await manager.stop()
 
-    async def test_cache_key_ignores_owner_and_filename(self):
+    async def test_cache_key_ignores_filename_but_not_owner(self):
         file_path = self.tmp_dir / "same-content.pdf"
         file_path.write_text("demo", encoding="utf-8")
 
@@ -670,7 +670,7 @@ class TaskManagerTests(unittest.IsolatedAsyncioTestCase):
             lang="ch",
         )
 
-        self.assertEqual(
+        self.assertNotEqual(
             manager._build_cache_key(request_a),
             manager._build_cache_key(request_b),
         )

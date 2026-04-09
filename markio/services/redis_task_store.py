@@ -34,6 +34,30 @@ class RedisTaskStore:
         self._retry_sha: Optional[str] = None
         self._timeout_requeue_sha: Optional[str] = None
 
+    async def set_queue_paused(
+        self,
+        paused: bool,
+        *,
+        updated_at: Optional[datetime] = None,
+    ) -> None:
+        redis = self._ensure_redis()
+        now = updated_at or datetime.now(timezone.utc)
+        await redis.hset(
+            self._queue_state_key(),
+            mapping={
+                "paused": self._bool_value(paused),
+                "updated_at": now.isoformat(),
+            },
+        )
+
+    async def get_queue_paused(self) -> bool:
+        redis = self._ensure_redis()
+        payload = await redis.hgetall(self._queue_state_key())
+        if not payload:
+            return False
+        decoded = self._decode_mapping(payload)
+        return self._parse_bool(decoded.get("paused"))
+
     async def submit_task(
         self,
         request: SubmitTaskRequest,
@@ -513,6 +537,7 @@ class RedisTaskStore:
             self._queue_processing_key(),
             self._task_created_key(),
             self._queue_seq_key(),
+            self._queue_state_key(),
         ]
         for status in TaskStatus:
             keys.append(self._task_status_key(status))
@@ -553,6 +578,9 @@ class RedisTaskStore:
 
     def _queue_seq_key(self) -> str:
         return f"{self.key_prefix}queue:seq"
+
+    def _queue_state_key(self) -> str:
+        return f"{self.key_prefix}queue:state"
 
     def _task_key_prefix(self) -> str:
         return f"{self.key_prefix}task:"

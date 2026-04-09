@@ -63,6 +63,11 @@ class RedisTaskManager(BaseTaskManager):
         if self._started:
             return
         self.store._ensure_redis()
+        self._paused = await self.store.get_queue_paused()
+        if self._paused:
+            self._resume_event.clear()
+        else:
+            self._resume_event.set()
         self._stop_event.clear()
         self._workers = [
             asyncio.create_task(self._worker_loop(index), name=f"redis-task-worker-{index}")
@@ -83,10 +88,12 @@ class RedisTaskManager(BaseTaskManager):
         logger.info("Redis task manager stopped")
 
     async def pause_queue(self) -> None:
+        await self.store.set_queue_paused(True)
         self._paused = True
         self._resume_event.clear()
 
     async def resume_queue(self) -> None:
+        await self.store.set_queue_paused(False)
         self._paused = False
         self._resume_event.set()
 

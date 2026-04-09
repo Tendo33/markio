@@ -256,6 +256,96 @@ class RedisTaskManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(cache_called)
         await manager.stop()
 
+    async def test_pause_state_persists_across_manager_restart(self):
+        redis = FakeRedis()
+        store = RedisTaskStore(redis, use_lua=False)
+
+        async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+            return "# parsed"
+
+        manager = RedisTaskManager(worker_count=1, parser_func=fake_parser, store=store)
+        await manager.start()
+        await manager.pause_queue()
+        self.assertTrue((await manager.get_queue_health()).paused)
+        await manager.stop()
+
+        restarted = RedisTaskManager(worker_count=1, parser_func=fake_parser, store=store)
+        await restarted.start()
+        self.assertTrue((await restarted.get_queue_health()).paused)
+
+        await restarted.resume_queue()
+        self.assertFalse((await restarted.get_queue_health()).paused)
+        await restarted.stop()
+
+    async def test_cache_key_is_owner_scoped_for_cached_results(self):
+        file_path = self.tmp_dir / "owner-cache.pdf"
+        file_path.write_text("demo", encoding="utf-8")
+        cache_values: dict[str, str] = {}
+        parser_calls = 0
+
+        async def parser(path: str, request: SubmitTaskRequest) -> str:
+            nonlocal parser_calls
+            parser_calls += 1
+            return f"# parsed for {request.owner_id}"
+
+        async def cache_get(key: str):
+            return cache_values.get(key)
+
+        async def cache_set(key: str, value: str):
+            cache_values[key] = value
+            return True
+
+        redis = FakeRedis()
+        store = RedisTaskStore(redis, use_lua=False)
+        manager = RedisTaskManager(
+            worker_count=1,
+            parser_func=parser,
+            cache_getter=cache_get,
+            cache_setter=cache_set,
+            store=store,
+        )
+        await manager.start()
+
+        owner_a = await manager.submit(
+            SubmitTaskRequest(
+                filename="owner-cache.pdf",
+                file_path=str(file_path),
+                owner_id="owner-a",
+            )
+        )
+        await self._wait_status(manager, owner_a.task_id, TaskStatus.completed)
+        owner_a_completed = await manager.get_task(owner_a.task_id)
+        self.assertEqual(owner_a_completed.result, "# parsed for owner-a")
+        self.assertEqual(parser_calls, 1)
+
+        file_path.write_text("demo", encoding="utf-8")
+        owner_b = await manager.submit(
+            SubmitTaskRequest(
+                filename="owner-cache.pdf",
+                file_path=str(file_path),
+                owner_id="owner-b",
+            )
+        )
+        await self._wait_status(manager, owner_b.task_id, TaskStatus.completed)
+        owner_b_completed = await manager.get_task(owner_b.task_id)
+        self.assertEqual(owner_b_completed.result, "# parsed for owner-b")
+        self.assertEqual(parser_calls, 2)
+
+        file_path.write_text("demo", encoding="utf-8")
+        owner_a_cached = await manager.submit(
+            SubmitTaskRequest(
+                filename="owner-cache.pdf",
+                file_path=str(file_path),
+                owner_id="owner-a",
+            )
+        )
+        owner_a_cached_completed = await manager.get_task(owner_a_cached.task_id)
+        self.assertIsNotNone(owner_a_cached_completed)
+        self.assertTrue(owner_a_cached_completed.cache_hit)
+        self.assertEqual(owner_a_cached_completed.result, "# parsed for owner-a")
+        self.assertEqual(parser_calls, 2)
+        await manager.stop()
+
 
 if __name__ == "__main__":
     unittest.main()

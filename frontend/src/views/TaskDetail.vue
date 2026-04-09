@@ -153,26 +153,26 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, RefreshCw, RotateCcw, X } from 'lucide-vue-next'
 
-import { hasApiToken, onApiTokenChange } from '@/api/client'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import { useTaskStore } from '@/stores'
+import { useAuthStore, useTaskStore } from '@/stores'
 import { formatDateTime, formatDuration } from '@/utils/format'
 import { toast } from '@/utils/toast'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const taskStore = useTaskStore()
+const { configured: tokenConfigured } = storeToRefs(authStore)
 
 let timerId: number | null = null
 let refreshing = false
 let pollDelayMs = 3000
-let unsubscribeTokenChange: (() => void) | null = null
 
-const tokenConfigured = ref(hasApiToken())
 const taskId = computed(() => String(route.params.id))
 const task = computed(() => taskStore.currentTask)
 const finalResultLoaded = ref(false)
@@ -322,12 +322,6 @@ function handleVisibilityChange() {
 }
 
 onMounted(() => {
-  unsubscribeTokenChange = onApiTokenChange(() => {
-    tokenConfigured.value = hasApiToken()
-    loadCurrentTask().catch(() => {
-      // errors are already stored in the Pinia store
-    })
-  })
   document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
@@ -343,10 +337,6 @@ watch(
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
-  if (unsubscribeTokenChange) {
-    unsubscribeTokenChange()
-    unsubscribeTokenChange = null
-  }
   stopPolling()
 })
 </script>

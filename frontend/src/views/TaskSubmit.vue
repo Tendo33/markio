@@ -147,18 +147,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { Upload } from 'lucide-vue-next'
 
-import { hasApiToken, onApiTokenChange } from '@/api/client'
 import type { TaskLanguage } from '@/api/types'
 import FileUploader from '@/components/FileUploader.vue'
-import { useTaskStore } from '@/stores'
+import { useAuthStore, useTaskStore } from '@/stores'
 import { formatFileSize } from '@/utils/format'
 import { toast } from '@/utils/toast'
 
+const authStore = useAuthStore()
 const taskStore = useTaskStore()
 const fileUploader = ref<InstanceType<typeof FileUploader> | null>(null)
+const { configured: tokenConfigured } = storeToRefs(authStore)
 
 const DEFAULT_MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
 const maxUploadSizeBytes = Number.parseInt(
@@ -192,12 +194,10 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.jpeg',
 ])
 
-const tokenConfigured = ref(hasApiToken())
 const files = ref<File[]>([])
 const resultText = ref(
   `等待提交...${tokenConfigured.value ? '' : '\n\n请先在顶部配置 JWT Token 后再提交任务。'}`
 )
-let unsubscribeTokenChange: (() => void) | null = null
 
 const form = reactive({
   parse_method: 'auto' as 'auto' | 'txt' | 'ocr',
@@ -323,18 +323,14 @@ async function submit() {
 }
 
 onMounted(() => {
-  unsubscribeTokenChange = onApiTokenChange(() => {
-    tokenConfigured.value = hasApiToken()
-    if (!tokenConfigured.value) {
-      resultText.value = '请先在顶部配置 JWT Token 后再提交任务。'
-    }
-  })
+  if (!tokenConfigured.value) {
+    resultText.value = '请先在顶部配置 JWT Token 后再提交任务。'
+  }
 })
 
-onUnmounted(() => {
-  if (unsubscribeTokenChange) {
-    unsubscribeTokenChange()
-    unsubscribeTokenChange = null
-  }
+watch(tokenConfigured, (configured) => {
+  resultText.value = configured
+    ? '等待提交...'
+    : '请先在顶部配置 JWT Token 后再提交任务。'
 })
 </script>

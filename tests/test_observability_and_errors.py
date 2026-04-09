@@ -25,13 +25,14 @@ def test_healthz_endpoint():
     payload = response.json()
     assert payload["status"] == "ok"
     assert "timestamp" in payload
-    assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
+    assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
     assert response.headers["Permissions-Policy"]
     assert "Content-Security-Policy" in response.headers
     csp = response.headers["Content-Security-Policy"]
     assert "unsafe-eval" not in csp
+    assert "script-src 'self'" in csp
     assert "connect-src 'self'" in csp
 
 
@@ -248,12 +249,12 @@ def test_rate_limit_middleware_returns_429_when_exceeded():
     assert client.get("/limited").status_code == 200
     assert client.get("/limited").status_code == 200
 
-    limited = client.get("/limited")
-    assert limited.status_code == 429
-    payload = limited.json()
+    limited_response = client.get("/limited")
+    assert limited_response.status_code == 429
+    payload = limited_response.json()
     assert payload["error"]["code"] == "http_429"
     assert payload["request_id"]
-    assert limited.headers["X-Request-ID"] == payload["request_id"]
+    assert limited_response.headers["X-Request-ID"] == payload["request_id"]
 
 
 def test_setup_logger_disables_diagnose_and_backtrace_outside_debug(monkeypatch, tmp_path):

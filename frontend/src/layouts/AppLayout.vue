@@ -151,27 +151,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
 import { LayoutDashboard, ListTodo, RefreshCw, Settings, Upload } from 'lucide-vue-next'
 
-import { getApiToken, getApiTokenRole, hasApiToken, onApiTokenChange, setApiToken } from '@/api/client'
-import { useQueueStore, useTaskStore } from '@/stores'
+import { useAuthStore, useQueueStore, useTaskStore } from '@/stores'
 import { toast } from '@/utils/toast'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const taskStore = useTaskStore()
 const queueStore = useQueueStore()
+const { configured: tokenConfigured, isAdmin, role, token } = storeToRefs(authStore)
 
 const refreshing = ref(false)
 const autoRefreshing = ref(false)
 const showMobileTokenPanel = ref(false)
-const apiToken = ref(getApiToken())
-const currentRole = ref(getApiTokenRole('user'))
-const tokenConfigured = ref(hasApiToken())
+const apiToken = ref(token.value)
 let timerId: number | null = null
 let autoRefreshDelayMs = 5000
-let unsubscribeTokenChange: (() => void) | null = null
 
 const navItems = [
   { path: '/', label: '仪表盘', icon: LayoutDashboard },
@@ -182,7 +181,7 @@ const navItems = [
 
 const activeClass = 'bg-accent-soft text-accent-strong'
 const inactiveClass = 'text-secondary hover:text-primary hover:bg-hover'
-const isAdmin = computed(() => currentRole.value === 'admin')
+const currentRole = computed(() => role.value)
 
 const stats = computed(() => {
   return (
@@ -207,9 +206,8 @@ function shouldAutoRefresh() {
 }
 
 function syncTokenContext() {
-  apiToken.value = getApiToken()
-  currentRole.value = getApiTokenRole('user')
-  tokenConfigured.value = hasApiToken()
+  authStore.refreshFromStorage()
+  apiToken.value = token.value
 }
 
 async function refreshAll(options: { silent?: boolean } = {}) {
@@ -284,7 +282,7 @@ function handleVisibilityChange() {
 }
 
 function saveToken() {
-  setApiToken(apiToken.value)
+  authStore.saveToken(apiToken.value)
   syncTokenContext()
   toast.success('Token 已保存')
   refreshAll().catch(() => {
@@ -294,7 +292,7 @@ function saveToken() {
 
 function clearToken() {
   apiToken.value = ''
-  setApiToken('')
+  authStore.clearToken()
   syncTokenContext()
   taskStore.resetState()
   queueStore.reset()
@@ -303,7 +301,6 @@ function clearToken() {
 
 onMounted(async () => {
   syncTokenContext()
-  unsubscribeTokenChange = onApiTokenChange(syncTokenContext)
   try {
     await refreshAll()
   } catch {
@@ -313,12 +310,15 @@ onMounted(async () => {
   scheduleAutoRefresh()
 })
 
+watch(
+  token,
+  () => {
+    syncTokenContext()
+  }
+)
+
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
-  if (unsubscribeTokenChange) {
-    unsubscribeTokenChange()
-    unsubscribeTokenChange = null
-  }
   if (timerId) {
     clearTimeout(timerId)
     timerId = null

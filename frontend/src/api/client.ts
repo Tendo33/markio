@@ -9,17 +9,17 @@ function resolveStoredToken(): string {
   if (typeof window === 'undefined') {
     return envApiToken
   }
-  const sessionToken = window.sessionStorage.getItem(API_TOKEN_STORAGE_KEY)?.trim() ?? ''
-  return sessionToken || envApiToken
+  const persistedToken = window.localStorage.getItem(API_TOKEN_STORAGE_KEY)?.trim() ?? ''
+  return persistedToken || envApiToken
 }
 
 export function setApiToken(token: string) {
   if (typeof window === 'undefined') return
   const normalized = token.trim()
   if (normalized) {
-    window.sessionStorage.setItem(API_TOKEN_STORAGE_KEY, normalized)
+    window.localStorage.setItem(API_TOKEN_STORAGE_KEY, normalized)
   } else {
-    window.sessionStorage.removeItem(API_TOKEN_STORAGE_KEY)
+    window.localStorage.removeItem(API_TOKEN_STORAGE_KEY)
   }
   window.dispatchEvent(new Event(TOKEN_CHANGE_EVENT))
 }

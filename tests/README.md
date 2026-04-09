@@ -35,6 +35,7 @@ uv run pytest -m live
 uv run pytest tests/test_url_parser.py tests/test_console_frontend.py -q
 uv run pytest tests/test_task_auth_and_idor.py tests/test_task_router.py -q
 uv run pytest tests/test_redis.py tests/test_redis_task_store.py tests/test_redis_task_manager.py -q
+uv run pytest tests/test_mcp_routes.py tests/test_observability_and_errors.py -q
 ```
 
 ## Test Areas
@@ -58,6 +59,7 @@ uv run pytest tests/test_redis.py tests/test_redis_task_store.py tests/test_redi
 ### Console delivery
 
 - `test_console_frontend.py`
+- `test_main_routes.py`
 
 This suite validates the `/console` delivery contract against real built frontend assets, not a fake placeholder route.
 

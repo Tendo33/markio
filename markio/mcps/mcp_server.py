@@ -22,13 +22,19 @@ Supported File Types:
 """
 
 import os
+import warnings
+from contextlib import suppress
 from datetime import datetime
 from typing import Any, Dict
 
 from fastapi import APIRouter, Body, Depends, FastAPI, File, HTTPException, Response, UploadFile
-from fastapi_mcp import FastApiMCP
+from fastapi.responses import JSONResponse
+from starlette.status import HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR
+from pydantic.warnings import PydanticDeprecatedSince211
 
 from markio.auth import require_auth_user
+from markio.middlewares.error_handlers import add_error_handlers
+from markio.middlewares.error_handlers import _error_payload
 from markio.parsers import (
     doc_parser,
     docx_parser,
@@ -58,6 +64,13 @@ from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
 
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore",
+        category=PydanticDeprecatedSince211,
+    )
+    from fastapi_mcp import FastApiMCP
+
 
 DEPRECATION_HEADERS = {
     "Deprecation": "true",
@@ -84,6 +97,7 @@ class MarkioMCP:
             app: The FastAPI application instance to mount the MCP server to
         """
         self.app = app
+        add_error_handlers(self.app)
         self.mcp = FastApiMCP(app)
         self.mcp.mount()
 
@@ -156,6 +170,25 @@ class MarkioMCP:
         for key, value in DEPRECATION_HEADERS.items():
             response.headers[key] = value
 
+    @classmethod
+    def _legacy_error_response(cls, exc: HTTPException) -> JSONResponse:
+        if isinstance(exc.detail, str):
+            message = exc.detail
+            details: object | None = None
+        else:
+            message = "Request failed"
+            details = exc.detail
+        response = JSONResponse(
+            status_code=exc.status_code,
+            content=_error_payload(
+                code=f"http_{exc.status_code}",
+                message=message,
+                details=details,
+            ),
+        )
+        cls._mark_legacy_endpoint(response)
+        return response
+
     async def _parse_document(
         self, file_path: str, file_extension: str, config: BaseParserConfig
     ) -> str:
@@ -203,9 +236,10 @@ class MarkioMCP:
             import tempfile
 
             max_upload_size = int(settings.task_max_upload_size_bytes)
+            tmp_path: str | None = None
+            suffix = os.path.splitext(file.filename or "")[1].lower()
             try:
                 # 1. Save uploaded file to temporary directory
-                suffix = os.path.splitext(file.filename or "")[1].lower()
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                     bytes_written = 0
                     while True:
@@ -238,33 +272,24 @@ class MarkioMCP:
                     "parsed_at": datetime.now().isoformat(),
                 }
             except ValueError as exc:
-                logger.error(
-                    f"Validation error for uploaded file {file.filename}: {exc}"
-                )
-                return {
-                    "status": "error",
-                    "message": str(exc),
-                    "file_type": suffix if "suffix" in locals() else "unknown",
-                    "parsed_at": datetime.now().isoformat(),
-                }
+                logger.error(f"Validation error for uploaded file {file.filename}: {exc}")
+                raise HTTPException(
+                    status_code=HTTP_400_BAD_REQUEST,
+                    detail=str(exc),
+                ) from exc
             except HTTPException:
                 logger.warning(f"Uploaded file {file.filename} rejected by request guard")
                 raise
-            except Exception:
+            except Exception as exc:
                 logger.exception(f"Error parsing uploaded file {file.filename}")
-                return {
-                    "status": "error",
-                    "message": "Parsing failed",
-                    "file_type": suffix if "suffix" in locals() else "unknown",
-                    "parsed_at": datetime.now().isoformat(),
-                }
+                raise HTTPException(
+                    status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Parsing failed",
+                ) from exc
             finally:
-                # 3. Clean up temporary files
-                try:
-                    if "tmp_path" in locals() and os.path.exists(tmp_path):
+                if tmp_path and os.path.exists(tmp_path):
+                    with suppress(Exception):
                         os.remove(tmp_path)
-                except Exception:
-                    pass
 
         @secure_router.post(
             "/mcp/convert_document",
@@ -294,7 +319,10 @@ class MarkioMCP:
             ),
         ):
             self._mark_legacy_endpoint(response)
-            return await _convert_document_core(file)
+            try:
+                return await _convert_document_core(file)
+            except HTTPException as exc:
+                return self._legacy_error_response(exc)
 
         async def _parse_url_core(url: str) -> dict[str, Any]:
             """
@@ -311,49 +339,51 @@ class MarkioMCP:
             Example:
                 >>> POST /mcp/parse_url {"url": "https://example.com/article"}
             """
-            try:
-                from markio.parsers.url_parser import url_parse_main
+            from markio.parsers.url_parser import url_parse_main
 
-                if not url.startswith(("http://", "https://")):
-                    raise ValueError("URL must start with http:// or https://")
-                logger.info(f"Starting to parse URL: {url}")
+            if not url.startswith(("http://", "https://")):
+                logger.error(f"Validation error for URL {url}: invalid scheme")
+                raise HTTPException(
+                    status_code=HTTP_400_BAD_REQUEST,
+                    detail="URL must start with http:// or https://",
+                )
+
+            logger.info(f"Starting to parse URL: {url}")
+            try:
                 result = await url_parse_main(
                     url=url,
                     save_parsed_content=False,
                     output_dir=settings.output_dir,
                 )
-                if isinstance(result, str):
-                    logger.info(f"Successfully parsed URL: {url}")
-                    return {
-                        "status": "success",
-                        "result": result,
-                        "file_type": "url",
-                        "parsed_at": datetime.now().isoformat(),
-                    }
-
-                logger.error(f"Failed to parse URL {url}: parser returned non-string")
-                return {
-                    "status": "error",
-                    "message": "URL parsing failed",
-                    "file_type": "url",
-                    "parsed_at": datetime.now().isoformat(),
-                }
             except ValueError as exc:
                 logger.error(f"Validation error for URL {url}: {exc}")
-                return {
-                    "status": "error",
-                    "message": str(exc),
-                    "file_type": "url",
-                    "parsed_at": datetime.now().isoformat(),
-                }
-            except Exception:
+                raise HTTPException(
+                    status_code=HTTP_400_BAD_REQUEST,
+                    detail=str(exc),
+                ) from exc
+            except HTTPException:
+                raise
+            except Exception as exc:
                 logger.exception(f"Error parsing URL {url}")
-                return {
-                    "status": "error",
-                    "message": "URL parsing failed",
-                    "file_type": "url",
-                    "parsed_at": datetime.now().isoformat(),
-                }
+                raise HTTPException(
+                    status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="URL parsing failed",
+                ) from exc
+
+            if not isinstance(result, str):
+                logger.error(f"Failed to parse URL {url}: parser returned non-string")
+                raise HTTPException(
+                    status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="URL parsing failed",
+                )
+
+            logger.info(f"Successfully parsed URL: {url}")
+            return {
+                "status": "success",
+                "result": result,
+                "file_type": "url",
+                "parsed_at": datetime.now().isoformat(),
+            }
 
         @secure_router.post(
             "/mcp/parse_url",
@@ -385,7 +415,10 @@ class MarkioMCP:
             ),
         ):
             self._mark_legacy_endpoint(response)
-            return await _parse_url_core(url)
+            try:
+                return await _parse_url_core(url)
+            except HTTPException as exc:
+                return self._legacy_error_response(exc)
 
         self.app.include_router(secure_router)
         self.app.include_router(legacy_router)

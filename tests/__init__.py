@@ -15,5 +15,8 @@ Usage:
 """
 
 from markio import __version__
+
 __author__ = "Markio Team"
 __description__ = "Markio API Test Suite"
+
+__all__ = ("__version__", "__author__", "__description__")

@@ -5,19 +5,20 @@ from fastapi import FastAPI, Request
 
 def _security_headers() -> dict[str, str]:
     return {
-        "X-Frame-Options": "SAMEORIGIN",
+        "X-Frame-Options": "DENY",
         "X-Content-Type-Options": "nosniff",
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
         "Content-Security-Policy": "; ".join(
             [
                 "default-src 'self'",
-                "script-src 'self' 'unsafe-inline'",
+                "script-src 'self'",
                 "style-src 'self' 'unsafe-inline'",
                 "img-src 'self' data: https:",
                 "font-src 'self' data: https:",
                 "connect-src 'self'",
-                "frame-ancestors 'self'",
+                "object-src 'none'",
+                "frame-ancestors 'none'",
                 "base-uri 'self'",
                 "form-action 'self'",
             ]

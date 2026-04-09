@@ -11,9 +11,12 @@ from httpx import ASGITransport, AsyncClient
 
 from markio.routers.task_router import router as task_router
 from markio.schemas.task_schemas import SubmitTaskRequest
+from markio.services.redis_task_manager import RedisTaskManager
+from markio.services.redis_task_store import RedisTaskStore
 from markio.services import runtime
 from markio.services.task_manager import AsyncTaskManager
 from markio.settings import settings
+from tests.test_redis_task_manager import FakeRedis
 
 
 def _b64url(data: bytes) -> str:
@@ -215,6 +218,48 @@ async def test_dashboard_queue_is_owner_scoped_while_global_queue_is_admin_only(
         assert global_queue.json()["queued"] == 2
 
     await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_admin_queue_pause_persists_in_dashboard_after_redis_manager_restart(monkeypatch):
+    secret = "test-secret-redis-dashboard-pause"
+    monkeypatch.setattr(settings, "auth_jwt_secret", secret, raising=False)
+    monkeypatch.setattr(settings, "auth_jwt_algorithm", "HS256", raising=False)
+
+    redis = FakeRedis()
+    store = RedisTaskStore(redis, use_lua=False)
+
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return "# done"
+
+    manager = RedisTaskManager(worker_count=1, parser_func=fake_parser, store=store)
+    await manager.start()
+    await manager.pause_queue()
+    await manager.stop()
+
+    restarted = RedisTaskManager(worker_count=1, parser_func=fake_parser, store=store)
+    await restarted.start()
+    monkeypatch.setattr(runtime, "_task_manager", restarted)
+
+    app = FastAPI()
+    app.include_router(task_router, prefix="/v1")
+    user_headers = _auth_headers(_build_jwt(secret=secret, sub="user-a", role="user"))
+    admin_headers = _auth_headers(_build_jwt(secret=secret, sub="admin-1", role="admin"))
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        dashboard = await client.get("/v1/tasks/dashboard?recent_limit=10", headers=user_headers)
+        queue = await client.get("/v1/tasks/queue", headers=admin_headers)
+
+    assert dashboard.status_code == 200
+    assert queue.status_code == 200
+    assert dashboard.json()["queue"]["paused"] is True
+    assert queue.json()["paused"] is True
+
+    await restarted.resume_queue()
+    await restarted.stop()
 
 
 @pytest.mark.asyncio

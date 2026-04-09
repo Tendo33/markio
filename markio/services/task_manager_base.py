@@ -40,7 +40,9 @@ class BaseTaskManager:
         except FileNotFoundError:
             return ""
 
+        owner_id = (request.owner_id or "").strip() or "anonymous"
         options = {
+            "owner_id": owner_id,
             "parse_method": request.parse_method,
             "lang": request.lang,
             "save_middle_content": request.save_middle_content,

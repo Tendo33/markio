@@ -89,27 +89,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { Clock, Cpu, Loader, Pause, PauseCircle, Play, RefreshCw } from 'lucide-vue-next'
 
-import { getApiTokenRole, hasApiToken, onApiTokenChange } from '@/api/client'
 import StatCard from '@/components/StatCard.vue'
-import { useQueueStore } from '@/stores'
+import { useAuthStore, useQueueStore } from '@/stores'
 import { formatDateTime } from '@/utils/format'
 import { toast } from '@/utils/toast'
 
+const authStore = useAuthStore()
 const queueStore = useQueueStore()
+const { configured: tokenConfigured, role: currentRole } = storeToRefs(authStore)
 
 const logs = ref<Array<{ time: string; message: string; type: 'info' | 'error' }>>([])
 const actionLocked = ref(false)
-const currentRole = ref('user')
-const tokenConfigured = ref(hasApiToken())
 const canManageQueue = computed(() => tokenConfigured.value && currentRole.value === 'admin')
-let unsubscribeTokenChange: (() => void) | null = null
 
 function syncRole() {
-  tokenConfigured.value = hasApiToken()
-  currentRole.value = getApiTokenRole('user')
+  authStore.refreshFromStorage()
   if (!canManageQueue.value) {
     queueStore.reset()
   }
@@ -183,18 +181,12 @@ async function resume() {
 
 onMounted(async () => {
   syncRole()
-  unsubscribeTokenChange = onApiTokenChange(() => {
-    syncRole()
-  })
   if (canManageQueue.value) {
     await refresh()
   }
 })
 
-onUnmounted(() => {
-  if (unsubscribeTokenChange) {
-    unsubscribeTokenChange()
-    unsubscribeTokenChange = null
-  }
+watch([tokenConfigured, currentRole], () => {
+  syncRole()
 })
 </script>

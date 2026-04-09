@@ -22,7 +22,7 @@ Markio converts documents and web content into Markdown or structured text throu
 - Local Python SDK and CLI
 - Vue 3 console served by FastAPI at `/console`
 
-The project is currently **alpha** (`0.1.2`). It is suitable for internal environments, staged rollouts, and integration work, but it is not positioned as a fully hardened GA platform yet.
+The project is currently **alpha** (`0.1.3`). It is suitable for internal environments, staged rollouts, and integration work, but it is not positioned as a fully hardened GA platform yet.
 
 ## Current Product Shape
 
@@ -158,6 +158,9 @@ curl -H "Authorization: Bearer <YOUR_JWT>" \
 
 curl -H "Authorization: Bearer <YOUR_JWT>" \
   "http://localhost:8000/v1/tasks/dashboard"
+
+curl -H "Authorization: Bearer <ADMIN_JWT>" \
+  "http://localhost:8000/v1/tasks/queue"
 ```
 
 ## CLI and SDK
@@ -206,7 +209,13 @@ sdk = MarkioSDK(
 
 - All `/v1/*` routes require JWT auth
 - `role=admin` is required for queue pause/resume routes
-- The console currently keeps the token in frontend-managed state; that tradeoff is intentionally preserved in the current phase
+- `/v1/tasks/dashboard` is owner-scoped; users only see their own task stats and recent items
+- The console keeps the token in frontend-managed browser state and now persists it via `localStorage`
+
+### MCP behavior
+
+- `/v1/mcp/*` and legacy `/mcp/*` use the standard non-2xx FastAPI error envelope for validation and parser failures
+- legacy `/mcp/*` routes remain deprecated and still emit deprecation headers
 
 ### URL parsing and download safety
 
@@ -287,5 +296,6 @@ markio/
 
 - The project is still marked alpha, not GA
 - Console auth remains token-based on the frontend side for now
+- Queue pause/resume and global queue health are admin-only; dashboard remains owner-scoped
 - There is no first-class CLI or `MarkioSDK` wrapper for FASTA and GenBank yet; use the REST endpoints or parser modules directly
 - The fallback page at `/console` is intentional and only exists to signal missing build assets

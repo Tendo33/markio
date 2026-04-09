@@ -212,6 +212,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ChevronLeft,
@@ -224,25 +225,25 @@ import {
   X,
 } from 'lucide-vue-next'
 
-import { hasApiToken, onApiTokenChange } from '@/api/client'
 import type { TaskStatus } from '@/api/types'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import { useTaskStore } from '@/stores'
+import { useAuthStore, useTaskStore } from '@/stores'
 import { formatRelativeTime } from '@/utils/format'
 import { toast } from '@/utils/toast'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const taskStore = useTaskStore()
+const { configured: tokenConfigured } = storeToRefs(authStore)
 
 const VALID_PAGE_SIZES = [10, 20, 50]
 const VALID_STATUSES: TaskStatus[] = ['pending', 'processing', 'completed', 'failed', 'canceled']
 
 const status = ref<TaskStatus | ''>(taskStore.statusFilter)
 const pageSize = ref(taskStore.pageSize)
-const tokenConfigured = ref(hasApiToken())
 const hasActiveTasks = computed(() =>
   taskStore.tasks.some((task) => task.status === 'pending' || task.status === 'processing')
 )
@@ -255,7 +256,6 @@ const confirmState = ref({
 })
 let pollTimerId: number | null = null
 let pollDelayMs = 5000
-let unsubscribeTokenChange: (() => void) | null = null
 
 function stopPolling() {
   if (pollTimerId) {
@@ -443,14 +443,14 @@ function handleVisibilityChange() {
 }
 
 onMounted(async () => {
-  unsubscribeTokenChange = onApiTokenChange(() => {
-    tokenConfigured.value = hasApiToken()
-    syncStateFromRoute().catch(() => {
-      // errors are already stored in the Pinia store
-    })
-  })
   document.addEventListener('visibilitychange', handleVisibilityChange)
   await syncStateFromRoute()
+})
+
+watch(tokenConfigured, () => {
+  syncStateFromRoute().catch(() => {
+    // errors are already stored in the Pinia store
+  })
 })
 
 watch(
@@ -468,10 +468,6 @@ watch(hasActiveTasks, () => {
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
-  if (unsubscribeTokenChange) {
-    unsubscribeTokenChange()
-    unsubscribeTokenChange = null
-  }
   stopPolling()
 })
 </script>

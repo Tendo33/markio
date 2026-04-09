@@ -65,9 +65,9 @@ Backend endpoints used by the console:
 ## Auth and Permissions
 
 - every console-triggered API call still depends on JWT auth
-- the current frontend keeps the token client-side
+- the current frontend keeps the token client-side and persists it in `localStorage`
 - queue controls are effectively admin-only because the backend requires `role=admin`
-- owner/admin task separation is reflected in the UI behavior, but the backend remains the source of truth
+- dashboard and task list responses are owner-scoped; the backend remains the source of truth for access control
 
 ## Network Model
 
@@ -83,7 +83,9 @@ Cross-origin development is possible, but requires backend CORS allowlisting.
 
 The backend now serves the console with a tighter CSP posture:
 
-- `unsafe-eval` removed
+- `script-src` is restricted to `'self'`
+- `object-src 'none'`
+- `frame-ancestors 'none'`
 - `connect-src` reduced to same-origin defaults
 
 When extending the console, prefer same-origin API access and avoid introducing browser features that require loosening that policy without a strong reason.

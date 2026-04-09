@@ -5,6 +5,8 @@ import { taskApi } from '@/api'
 import type { DashboardPayload, SubmitTaskRequest, TaskRecord, TaskStatus } from '@/api/types'
 
 export const useTaskStore = defineStore('task', () => {
+  type RequestScope = 'dashboard' | 'list' | 'detail' | 'submit'
+
   const tasks = ref<TaskRecord[]>([])
   const currentTaskSummary = ref<TaskRecord | null>(null)
   const currentTaskResult = ref<string | null>(null)
@@ -15,14 +17,20 @@ export const useTaskStore = defineStore('task', () => {
   const total = ref(0)
   const statusFilter = ref<TaskStatus | ''>('')
 
-  const dashboardLoading = ref(false)
-  const listLoading = ref(false)
-  const detailLoading = ref(false)
-  const submitting = ref(false)
-  const dashboardError = ref('')
-  const listError = ref('')
-  const detailError = ref('')
-  const submitError = ref('')
+  const requestState = ref<Record<RequestScope, { loading: boolean; error: string }>>({
+    dashboard: { loading: false, error: '' },
+    list: { loading: false, error: '' },
+    detail: { loading: false, error: '' },
+    submit: { loading: false, error: '' },
+  })
+  const dashboardLoading = computed(() => requestState.value.dashboard.loading)
+  const listLoading = computed(() => requestState.value.list.loading)
+  const detailLoading = computed(() => requestState.value.detail.loading)
+  const submitting = computed(() => requestState.value.submit.loading)
+  const dashboardError = computed(() => requestState.value.dashboard.error)
+  const listError = computed(() => requestState.value.list.error)
+  const detailError = computed(() => requestState.value.detail.error)
+  const submitError = computed(() => requestState.value.submit.error)
   const currentTask = computed<TaskRecord | null>(() => {
     if (!currentTaskSummary.value) {
       return null
@@ -42,23 +50,34 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  function beginRequest(scope: RequestScope) {
+    requestState.value[scope].loading = true
+    requestState.value[scope].error = ''
+  }
+
+  function failRequest(scope: RequestScope, message: string) {
+    requestState.value[scope].error = message
+  }
+
+  function finishRequest(scope: RequestScope) {
+    requestState.value[scope].loading = false
+  }
+
   async function loadDashboard(recentLimit: number = 8) {
-    dashboardLoading.value = true
-    dashboardError.value = ''
+    beginRequest('dashboard')
     try {
       dashboard.value = await taskApi.getDashboard(recentLimit)
       return dashboard.value
     } catch (err: any) {
-      dashboardError.value = err?.message || '加载仪表盘失败'
+      failRequest('dashboard', err?.message || '加载仪表盘失败')
       throw err
     } finally {
-      dashboardLoading.value = false
+      finishRequest('dashboard')
     }
   }
 
   async function loadTasks(nextPage: number = page.value) {
-    listLoading.value = true
-    listError.value = ''
+    beginRequest('list')
 
     try {
       const response = await taskApi.listTasks(
@@ -71,10 +90,10 @@ export const useTaskStore = defineStore('task', () => {
       page.value = response.page
       return response
     } catch (err: any) {
-      listError.value = err?.message || '加载任务列表失败'
+      failRequest('list', err?.message || '加载任务列表失败')
       throw err
     } finally {
-      listLoading.value = false
+      finishRequest('list')
     }
   }
 
@@ -89,8 +108,7 @@ export const useTaskStore = defineStore('task', () => {
     taskId: string,
     options: { includeResult?: boolean; maxResultChars?: number } = {}
   ) {
-    detailLoading.value = true
-    detailError.value = ''
+    beginRequest('detail')
 
     try {
       const detail = await taskApi.getTaskDetail(taskId, {
@@ -114,16 +132,15 @@ export const useTaskStore = defineStore('task', () => {
         result: currentTaskResult.value,
       }
     } catch (err: any) {
-      detailError.value = err?.message || '加载任务详情失败'
+      failRequest('detail', err?.message || '加载任务详情失败')
       throw err
     } finally {
-      detailLoading.value = false
+      finishRequest('detail')
     }
   }
 
   async function submit(request: SubmitTaskRequest) {
-    submitting.value = true
-    submitError.value = ''
+    beginRequest('submit')
 
     try {
       const result = await taskApi.submitTask(request)
@@ -131,10 +148,10 @@ export const useTaskStore = defineStore('task', () => {
       total.value += 1
       return result
     } catch (err: any) {
-      submitError.value = err?.message || '提交任务失败'
+      failRequest('submit', err?.message || '提交任务失败')
       throw err
     } finally {
-      submitting.value = false
+      finishRequest('submit')
     }
   }
 
@@ -169,20 +186,24 @@ export const useTaskStore = defineStore('task', () => {
   function resetCurrentTask() {
     currentTaskSummary.value = null
     currentTaskResult.value = null
-    detailError.value = ''
+    clearError('detail')
   }
 
   function clearError(scope: 'dashboard' | 'list' | 'detail' | 'submit' | 'all' = 'all') {
-    if (scope === 'dashboard' || scope === 'all') dashboardError.value = ''
-    if (scope === 'list' || scope === 'all') listError.value = ''
-    if (scope === 'detail' || scope === 'all') detailError.value = ''
-    if (scope === 'submit' || scope === 'all') submitError.value = ''
+    if (scope === 'all') {
+      for (const key of Object.keys(requestState.value) as RequestScope[]) {
+        requestState.value[key].error = ''
+      }
+      return
+    }
+    requestState.value[scope].error = ''
   }
 
   return {
     tasks,
     currentTask,
     dashboard,
+    requestState,
     page,
     pageSize,
     total,

@@ -65,9 +65,9 @@ npm run build
 ## 鉴权与权限
 
 - console 发起的所有 API 调用仍依赖 JWT
-- 当前前端依旧在浏览器侧持有 token
+- 当前前端依旧在浏览器侧持有 token，并通过 `localStorage` 持久化
 - 队列控制是 admin-only，因为后端要求 `role=admin`
-- owner/admin 视图差异只是前端辅助，真正的权限边界仍以后端为准
+- dashboard 和任务列表返回结果都是 owner-scoped；真正的权限边界仍以后端为准
 
 ## 网络模型
 
@@ -83,7 +83,9 @@ npm run build
 
 后端当前为 console 提供了更收紧的 CSP：
 
-- 已移除 `unsafe-eval`
+- `script-src` 仅允许 `'self'`
+- `object-src 'none'`
+- `frame-ancestors 'none'`
 - `connect-src` 已收缩到同源默认行为
 
 如果将来扩展 console，请尽量继续使用同源 API，不要随意为了“方便调试”放宽 CSP。

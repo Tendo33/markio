@@ -5,7 +5,7 @@ from markio import __version__
 from .ctx import TraceCtx
 from .middle import TraceASGIMiddleware
 
-__all__ = ("TraceASGIMiddleware", "TraceCtx")
+__all__ = ("TraceASGIMiddleware", "TraceCtx", "__version__")
 
 def add_trace_middleware(app: FastAPI):
     """
