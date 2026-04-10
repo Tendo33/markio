@@ -6,25 +6,28 @@
       @drop.prevent="onDrop"
       @keydown="onKeyDown"
       :class="dropzoneClass"
-      class="border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500"
+      class="cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors focus:outline-none focus-visible:border-[color:var(--accent)] focus-visible:[box-shadow:0_0_0_4px_var(--focus-ring)]"
       @click="openFileDialog"
       role="button"
       tabindex="0"
       aria-label="文件上传拖拽区域"
+      :aria-describedby="props.describedBy"
     >
       <input
         ref="fileInput"
+        :id="resolvedInputId"
         type="file"
         :accept="accept"
         :multiple="multiple"
         class="hidden"
         @change="onFileChange"
         aria-label="选择上传文件"
+        :aria-describedby="props.describedBy"
       />
 
       <Upload class="mx-auto h-12 w-12 text-tertiary" />
       <p class="mt-2 text-sm text-secondary">
-        <span class="font-semibold text-primary-600">点击上传</span> 或拖拽文件到这里
+        <span class="font-semibold text-link">点击上传</span> 或拖拽文件到这里
       </p>
       <p class="mt-1 text-xs text-secondary">{{ acceptHint }}</p>
       <p v-if="maxSize" class="text-xs text-tertiary">最大文件大小: {{ formatFileSize(maxSize) }}</p>
@@ -78,10 +81,14 @@ const props = withDefaults(defineProps<{
   multiple?: boolean
   maxSize?: number
   acceptHint?: string
+  inputId?: string
+  describedBy?: string
 }>(), {
   accept: '*',
   multiple: true,
   acceptHint: '',
+  inputId: '',
+  describedBy: '',
 })
 
 const emit = defineEmits<{
@@ -92,12 +99,14 @@ const fileInput = ref<HTMLInputElement>()
 const files = ref<File[]>([])
 const isDragging = ref(false)
 const rejectedMessages = ref<string[]>([])
+const fallbackInputId = `file-uploader-${Math.random().toString(36).slice(2)}`
+const resolvedInputId = computed(() => props.inputId || fallbackInputId)
 
   const dropzoneClass = computed(() => {
     if (isDragging.value) {
-      return 'border-primary-500 bg-primary-50'
+      return 'border-[color:var(--accent)] bg-[color:var(--accent-soft)]'
     }
-    return 'border-default hover:border-primary-400'
+    return 'border-default hover:border-[color:var(--accent)]'
   })
 
 function openFileDialog() {

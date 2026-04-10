@@ -8,39 +8,39 @@
     </a>
 
     <nav
-      class="relative bg-white/90 backdrop-blur-md border-b border-subtle sticky top-0 z-40"
+      class="sticky top-0 z-40 border-b border-subtle bg-surface"
       aria-label="主导航"
     >
       <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-        <div class="flex flex-wrap lg:flex-nowrap justify-between items-center min-h-16 py-2 gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-3 py-3 lg:flex-nowrap">
           <div class="flex items-center min-w-0 flex-1">
             <router-link to="/" class="flex items-center gap-3 group">
-              <div class="h-9 w-9 rounded-xl text-white font-semibold text-xs tracking-wide flex items-center justify-center bg-[color:var(--text-primary)]">
+              <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[color:var(--text-primary)] text-inverse text-xs font-semibold tracking-wide">
                 MK
               </div>
               <div>
                 <div class="text-lg font-semibold text-primary">Markio Console</div>
-                <div class="text-xs text-secondary">OpenAI 风格轻量任务控制台</div>
+                <div class="text-xs text-secondary">提交、追踪与管理文档解析任务</div>
               </div>
             </router-link>
           </div>
 
-          <div class="flex items-center gap-1 overflow-x-auto">
+          <div class="order-3 flex w-full flex-wrap items-center gap-2 lg:order-none lg:w-auto lg:flex-1 lg:justify-center">
             <router-link
               v-for="item in navItems"
               :key="item.path"
               :to="item.path"
               :class="isActive(item.path) ? activeClass : inactiveClass"
-              class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap"
+              class="nav-link"
             >
-              <component :is="item.icon" class="w-4 h-4 mr-1.5" />
+              <component :is="item.icon" class="h-4 w-4" />
               {{ item.label }}
             </router-link>
           </div>
 
           <div class="flex items-center gap-2">
             <button
-              class="inline-flex lg:hidden px-2 py-1.5 text-xs rounded-lg border border-default text-tertiary hover:bg-hover"
+              class="btn btn-secondary text-xs lg:hidden"
               type="button"
               @click="showMobileTokenPanel = !showMobileTokenPanel"
               :aria-expanded="showMobileTokenPanel ? 'true' : 'false'"
@@ -52,21 +52,21 @@
               <input
                 v-model="apiToken"
                 type="password"
-                class="w-52 px-2 py-1.5 text-xs rounded-lg border border-default bg-surface text-primary"
-                placeholder="JWT Token"
+                class="min-h-[44px] w-56 rounded-xl border border-default bg-surface px-3 py-2.5 text-sm text-primary xl:w-64"
+                placeholder="输入 JWT Token"
                 aria-label="API JWT Token"
                 @keyup.enter="saveToken"
               />
               <button
                 @click="saveToken"
-                class="px-2 py-1.5 text-xs rounded-lg border border-default text-tertiary hover:bg-hover"
+                class="btn btn-secondary text-xs"
                 aria-label="保存 API Token"
               >
                 保存
               </button>
               <button
                 @click="clearToken"
-                class="px-2 py-1.5 text-xs rounded-lg border border-default text-tertiary hover:bg-hover"
+                class="btn btn-secondary text-xs"
                 aria-label="清除 API Token"
               >
                 清除
@@ -93,7 +93,7 @@
               @click="refreshAll"
               :disabled="refreshing || autoRefreshing"
               aria-label="刷新仪表盘和队列状态"
-              class="icon-btn text-secondary hover:text-primary-600 hover:bg-hover"
+              class="icon-btn text-secondary hover:bg-hover hover:text-primary"
               title="刷新"
             >
               <RefreshCw :class="{ 'animate-spin': refreshing || autoRefreshing }" class="w-5 h-5" />
@@ -101,33 +101,32 @@
           </div>
         </div>
       </div>
-      <div class="absolute inset-x-0 bottom-0 h-[2px] bg-[color:var(--accent)] opacity-50"></div>
     </nav>
 
     <section
       id="mobile-token-panel"
       v-if="showMobileTokenPanel"
-      class="lg:hidden px-4 sm:px-6 py-3 border-b border-subtle bg-surface"
+      class="border-b border-subtle bg-surface px-4 py-3 sm:px-6 lg:hidden"
     >
-      <div class="flex items-center gap-2">
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
         <input
           v-model="apiToken"
           type="password"
-          class="flex-1 px-2 py-2 text-xs rounded-lg border border-default bg-surface text-primary"
-          placeholder="JWT Token"
+          class="min-h-[44px] rounded-xl border border-default bg-surface px-3 py-2.5 text-sm text-primary"
+          placeholder="输入 JWT Token"
           aria-label="移动端 API JWT Token"
           @keyup.enter="saveToken"
         />
         <button
           @click="saveToken"
-          class="px-2 py-2 text-xs rounded-lg border border-default text-tertiary hover:bg-hover"
+          class="btn btn-secondary text-xs"
           aria-label="保存移动端 API Token"
         >
           保存
         </button>
         <button
           @click="clearToken"
-          class="px-2 py-2 text-xs rounded-lg border border-default text-tertiary hover:bg-hover"
+          class="btn btn-secondary text-xs"
           aria-label="清除移动端 API Token"
         >
           清除
@@ -141,7 +140,7 @@
       role="status"
       aria-live="polite"
     >
-      当前尚未配置 JWT Token，控制台不会主动请求 `/v1/*` 接口。请在顶部保存 Token 后再访问仪表盘、任务或队列能力。
+      还没有可用的 JWT Token。先在顶部保存 Token，再查看任务、提交文件或管理队列。
     </section>
 
     <main id="main-content" class="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-4 lg:py-6">
@@ -179,8 +178,8 @@ const navItems = [
   { path: '/queue', label: '队列管理', icon: Settings },
 ]
 
-const activeClass = 'bg-accent-soft text-accent-strong'
-const inactiveClass = 'text-secondary hover:text-primary hover:bg-hover'
+const activeClass = 'nav-link-active'
+const inactiveClass = 'nav-link-inactive'
 const currentRole = computed(() => role.value)
 
 const stats = computed(() => {

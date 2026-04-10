@@ -10,6 +10,14 @@ const toastQueue: ToastOptions[] = []
 let activeToast = false
 let toastContainer: HTMLDivElement | null = null
 
+function getThemeValue(name: string, fallback: string) {
+  if (typeof window === 'undefined') {
+    return fallback
+  }
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value || fallback
+}
+
 function ensureContainer() {
   if (toastContainer) {
     return toastContainer
@@ -82,7 +90,8 @@ function buildToastElement(options: ToastOptions): HTMLDivElement {
     minWidth: '250px',
     padding: '0.875rem 1rem',
     borderRadius: '0.5rem',
-    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+    border: `1px solid ${colors.border}`,
+    boxShadow: '0 16px 32px -20px rgba(22, 33, 23, 0.4)',
     display: 'flex',
     alignItems: 'center',
     gap: '0.75rem',
@@ -94,7 +103,7 @@ function buildToastElement(options: ToastOptions): HTMLDivElement {
     opacity: '0',
     backgroundColor: colors.bg,
     color: colors.text,
-    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: '"Soehne", "Soehne Buch", "Geist", "SF Pro Text", "PingFang SC", "Noto Sans SC", sans-serif',
   })
 
   const icon = document.createElement('span')
@@ -128,12 +137,28 @@ function wait(ms: number) {
   })
 }
 
-function getToastColors(type: ToastType): { bg: string; text: string } {
+function getToastColors(type: ToastType): { bg: string; text: string; border: string } {
   const colorMap = {
-    success: { bg: '#10b981', text: '#ffffff' },
-    error: { bg: '#ef4444', text: '#ffffff' },
-    warning: { bg: '#f59e0b', text: '#ffffff' },
-    info: { bg: '#3b82f6', text: '#ffffff' },
+    success: {
+      bg: getThemeValue('--toast-success-bg', '#154e3c'),
+      text: getThemeValue('--toast-success-text', '#f7faf6'),
+      border: getThemeValue('--status-success-border', '#b8decb'),
+    },
+    error: {
+      bg: getThemeValue('--toast-error-bg', '#9d281e'),
+      text: getThemeValue('--toast-error-text', '#f7faf6'),
+      border: getThemeValue('--status-danger-border', '#e8b7b1'),
+    },
+    warning: {
+      bg: getThemeValue('--toast-warning-bg', '#8b5300'),
+      text: getThemeValue('--toast-warning-text', '#f7faf6'),
+      border: getThemeValue('--status-warning-border', '#e8d3a3'),
+    },
+    info: {
+      bg: getThemeValue('--toast-info-bg', '#1f4ea8'),
+      text: getThemeValue('--toast-info-text', '#f7faf6'),
+      border: getThemeValue('--status-info-border', '#c5d5f4'),
+    },
   }
   return colorMap[type]
 }

@@ -9,6 +9,32 @@ export default defineConfig({
   build: {
     outDir: '../markio/webapp',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return
+          }
+          if (id.includes('/axios/')) {
+            return 'network'
+          }
+          if (id.includes('/dayjs/')) {
+            return 'date'
+          }
+          if (id.includes('/lucide-vue-next/')) {
+            return 'icons'
+          }
+          if (
+            id.includes('/vue/') ||
+            id.includes('/vue-router/') ||
+            id.includes('/pinia/') ||
+            id.includes('/@vue/')
+          ) {
+            return 'framework'
+          }
+        },
+      },
+    },
   },
   resolve: {
     alias: {

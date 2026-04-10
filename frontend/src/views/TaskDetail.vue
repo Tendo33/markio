@@ -1,7 +1,7 @@
 <template>
   <div :aria-busy="taskStore.detailLoading ? 'true' : 'false'">
     <div class="mb-4">
-      <button @click="$router.back()" class="text-sm text-secondary hover:text-primary flex items-center">
+      <button @click="$router.back()" class="text-link flex items-center text-sm">
         <ArrowLeft class="w-4 h-4 mr-1" />
         返回
       </button>
@@ -9,16 +9,16 @@
 
     <div class="mb-6">
       <h1 class="page-title">任务详情</h1>
-      <p class="mt-1 page-subtitle">跟踪任务执行状态与解析输出</p>
+      <p class="mt-1 page-subtitle">查看任务状态、参数和最终解析结果。</p>
     </div>
 
-    <div
-      v-if="!tokenConfigured"
-      class="card border-warning bg-warning text-sm text-warning break-words"
-      dir="auto"
-    >
-      当前未配置 JWT Token，任务详情页不会请求 `/v1/tasks/:id`。请先在顶部保存 Token，再查看结果正文。
-    </div>
+      <div
+        v-if="!tokenConfigured"
+        class="card border-warning bg-warning text-sm text-warning break-words"
+        dir="auto"
+      >
+        还没有可用的 JWT Token。先在顶部保存 Token，再查看任务详情和解析结果。
+      </div>
 
     <template v-else>
       <div
@@ -56,11 +56,11 @@
               <dd class="mt-1 text-primary break-words" dir="auto">{{ task.filename }}</dd>
             </div>
             <div>
-              <dt class="text-secondary">parse_method</dt>
+              <dt class="text-secondary">解析方式</dt>
               <dd class="mt-1 text-primary">{{ task.parse_method }}</dd>
             </div>
             <div>
-              <dt class="text-secondary">lang</dt>
+              <dt class="text-secondary">文档语言</dt>
               <dd class="mt-1 text-primary">{{ task.lang }}</dd>
             </div>
             <div>
@@ -103,7 +103,7 @@
             {{ task.error_message }}
           </div>
 
-          <div class="mt-5 flex gap-3">
+          <div class="mt-5 flex flex-wrap gap-3">
             <button
               v-if="task.status === 'pending'"
               @click="cancel"
@@ -136,7 +136,7 @@
           >
             <pre class="whitespace-pre-wrap break-words">{{ task.result }}</pre>
           </div>
-          <div v-else class="text-sm text-secondary">暂无结果输出</div>
+          <div v-else class="text-sm text-secondary">结果还没生成。任务完成后会显示在这里。</div>
         </div>
       </div>
     </template>

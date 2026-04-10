@@ -2,7 +2,7 @@
   <div>
     <div class="mb-4 lg:mb-6">
       <h1 class="page-title">提交任务</h1>
-      <p class="mt-1 page-subtitle">保持 Markio 轻量能力：docling + MinerU</p>
+      <p class="mt-1 page-subtitle">上传文档，配置解析参数，然后持续跟踪任务结果。</p>
     </div>
 
     <div class="max-w-5xl mx-auto">
@@ -11,19 +11,24 @@
         class="card mb-6 border-warning bg-warning text-sm text-warning break-words"
         dir="auto"
       >
-        当前未配置 JWT Token，提交页不会调用 `/v1/tasks/submit`。请先在顶部保存 Token，再上传文件并创建任务。
+        还没有可用的 JWT Token。先在顶部保存 Token，再上传文件并创建任务。
       </div>
 
       <div class="card mb-6">
         <h2 class="section-title mb-4">上传文件</h2>
         <FileUploader
           ref="fileUploader"
+          input-id="task-submit-file"
           :multiple="false"
           :max-size="maxUploadSizeBytes"
           accept=".pdf,.doc,.docx,.ppt,.pptx,.xlsx,.html,.htm,.epub,.png,.jpg,.jpeg"
-          accept-hint="支持常见文档与图片文件，前端会先校验文件大小"
+          described-by="task-submit-file-hint"
+          accept-hint="支持常见文档和图片文件；提交前会先检查文件类型和大小。"
           @update:files="onFilesChange"
         />
+        <p id="task-submit-file-hint" class="field-hint">
+          上传一个文件即可创建任务。结果会在任务详情页持续刷新。
+        </p>
       </div>
 
       <div class="card mb-6">
@@ -31,10 +36,11 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
           <div v-if="isPdfFile">
-            <label class="block text-sm font-medium text-tertiary mb-2">parse_method</label>
+            <label class="field-label" for="submit-parse-method">解析方式</label>
             <select
+              id="submit-parse-method"
               v-model="form.parse_method"
-              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2.5"
             >
               <option value="auto">auto</option>
               <option value="txt">txt</option>
@@ -43,10 +49,11 @@
           </div>
 
           <div v-if="isPdfFile">
-            <label class="block text-sm font-medium text-tertiary mb-2">lang</label>
+            <label class="field-label" for="submit-language">文档语言</label>
             <select
+              id="submit-language"
               v-model="form.lang"
-              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2.5"
             >
               <option v-for="language in PDF_LANGUAGES" :key="language" :value="language">
                 {{ language }}
@@ -55,70 +62,96 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-tertiary mb-2">priority</label>
+            <label class="field-label" for="submit-priority">优先级</label>
             <input
+              id="submit-priority"
               v-model.number="form.priority"
               type="number"
               min="-10"
               max="100"
-              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2.5"
             />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-tertiary mb-2">output_dir</label>
+            <label class="field-label" for="submit-output-dir">输出目录</label>
             <input
+              id="submit-output-dir"
               v-model="form.output_dir"
               type="text"
-              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2.5"
+              aria-describedby="submit-output-dir-hint"
             />
-            <p class="mt-2 text-xs text-secondary">
+            <p id="submit-output-dir-hint" class="field-hint">
               仅支持服务端允许的相对目录，最终路径会受后端工作目录与安全校验限制。
             </p>
           </div>
 
           <div v-if="isPdfFile">
-            <label class="block text-sm font-medium text-tertiary mb-2">start_page</label>
+            <label class="field-label" for="submit-start-page">起始页</label>
             <input
+              id="submit-start-page"
               v-model.number="form.start_page"
               type="number"
               min="0"
-              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2.5"
+              :aria-describedby="pageRangeError ? 'submit-page-range-error' : undefined"
+              :aria-invalid="pageRangeError ? 'true' : 'false'"
             />
           </div>
 
           <div v-if="isPdfFile">
-            <label class="block text-sm font-medium text-tertiary mb-2">end_page（留空表示最后一页）</label>
+            <label class="field-label" for="submit-end-page">结束页（留空表示最后一页）</label>
             <input
+              id="submit-end-page"
               v-model="form.end_page"
               type="number"
               min="0"
-              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2.5"
+              :aria-describedby="pageRangeError ? 'submit-end-page-hint submit-page-range-error' : 'submit-end-page-hint'"
+              :aria-invalid="pageRangeError ? 'true' : 'false'"
             />
+            <p id="submit-end-page-hint" class="field-hint">留空时默认解析到最后一页。</p>
           </div>
         </div>
         <p v-if="!isPdfFile" class="mt-3 text-sm text-secondary">
-          当前文件不是 PDF，已自动隐藏 PDF 专属参数（parse_method/lang/start_page/end_page/save_middle_content）。
+          当前文件不是 PDF，已自动隐藏 PDF 专属参数。
         </p>
-        <p v-if="pageRangeError" class="mt-3 text-sm text-danger break-words" dir="auto">{{ pageRangeError }}</p>
-        <p v-if="fileTypeError" class="mt-2 text-sm text-danger break-words" dir="auto">{{ fileTypeError }}</p>
+        <p
+          v-if="pageRangeError"
+          id="submit-page-range-error"
+          class="field-error break-words"
+          dir="auto"
+          role="alert"
+        >
+          {{ pageRangeError }}
+        </p>
+        <p
+          v-if="fileTypeError"
+          id="submit-file-type-error"
+          class="field-error break-words"
+          dir="auto"
+          role="alert"
+        >
+          {{ fileTypeError }}
+        </p>
 
         <div class="mt-4 space-y-2">
           <label class="flex items-center">
             <input
               v-model="form.save_parsed_content"
               type="checkbox"
-              class="w-4 h-4 text-primary-600 border-default rounded"
+              class="h-4 w-4 rounded border-default text-[color:var(--accent)]"
             />
-            <span class="ml-2 text-sm text-tertiary">保存解析内容</span>
+            <span class="ml-2 text-sm text-tertiary">保存解析文本</span>
           </label>
           <label v-if="isPdfFile" class="flex items-center">
             <input
               v-model="form.save_middle_content"
               type="checkbox"
-              class="w-4 h-4 text-primary-600 border-default rounded"
+              class="h-4 w-4 rounded border-default text-[color:var(--accent)]"
             />
-            <span class="ml-2 text-sm text-tertiary">保存中间结果</span>
+            <span class="ml-2 text-sm text-tertiary">保存中间产物</span>
           </label>
         </div>
 
@@ -196,7 +229,7 @@ const SUPPORTED_EXTENSIONS = new Set([
 
 const files = ref<File[]>([])
 const resultText = ref(
-  `等待提交...${tokenConfigured.value ? '' : '\n\n请先在顶部配置 JWT Token 后再提交任务。'}`
+  `准备就绪。${tokenConfigured.value ? '选择文件后即可提交。' : '先在顶部保存 JWT Token，再继续提交任务。'}`
 )
 
 const form = reactive({
@@ -214,7 +247,7 @@ const pageRangeError = computed(() => {
   if (form.end_page === '') {
     return ''
   }
-  return Number(form.end_page) < form.start_page ? 'end_page 不能小于 start_page' : ''
+  return Number(form.end_page) < form.start_page ? '结束页不能小于起始页。' : ''
 })
 
 function getFileExtension(filename: string): string {
@@ -262,13 +295,13 @@ function onFilesChange(nextFiles: File[]) {
 
 async function submit() {
   if (!tokenConfigured.value) {
-    resultText.value = '请先配置 JWT Token'
-    toast.warning('请先配置 JWT Token')
+    resultText.value = '请先保存 JWT Token，然后再提交任务。'
+    toast.warning('请先保存 JWT Token。')
     return
   }
   if (files.value.length === 0) {
-    resultText.value = '请先选择文件'
-    toast.warning('请先选择文件')
+    resultText.value = '请先选择一个文件。'
+    toast.warning('请先选择一个文件。')
     return
   }
   if (pageRangeError.value) {
@@ -324,13 +357,13 @@ async function submit() {
 
 onMounted(() => {
   if (!tokenConfigured.value) {
-    resultText.value = '请先在顶部配置 JWT Token 后再提交任务。'
+    resultText.value = '先在顶部保存 JWT Token，再上传文件并创建任务。'
   }
 })
 
 watch(tokenConfigured, (configured) => {
   resultText.value = configured
-    ? '等待提交...'
-    : '请先在顶部配置 JWT Token 后再提交任务。'
+    ? '准备就绪。选择文件后即可提交。'
+    : '先在顶部保存 JWT Token，再上传文件并创建任务。'
 })
 </script>

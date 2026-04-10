@@ -6,9 +6,9 @@
     aria-live="polite"
     aria-busy="true"
   >
-    <div :class="spinnerClass" class="animate-spin rounded-full border-t-2 border-b-2" aria-hidden="true"></div>
+    <div :class="spinnerClass" class="spinner-ring animate-spin rounded-full border-2" aria-hidden="true"></div>
     <p v-if="text" :class="textClass" class="ml-3">{{ text }}</p>
-    <span v-else class="sr-only">Loading</span>
+    <span v-else class="sr-only">加载中</span>
   </div>
 </template>
 
@@ -26,16 +26,16 @@ const props = withDefaults(defineProps<{
 
   const containerClass = computed(() => {
     if (props.fullscreen) {
-      return 'fixed inset-0 bg-surface bg-opacity-75 z-50'
+      return 'fixed inset-0 z-50 bg-[color:rgba(253,253,248,0.82)]'
     }
     return ''
   })
 
 const spinnerClass = computed(() => {
   const sizeMap = {
-    sm: 'h-4 w-4 border-primary-500',
-    md: 'h-8 w-8 border-primary-600',
-    lg: 'h-12 w-12 border-primary-600',
+    sm: 'h-4 w-4',
+    md: 'h-8 w-8',
+    lg: 'h-12 w-12',
   }
   return sizeMap[props.size]
 })

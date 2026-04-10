@@ -10,17 +10,18 @@
       class="card border-warning bg-warning text-sm text-warning break-words"
       dir="auto"
     >
-      当前未配置 JWT Token，任务列表不会请求 `/v1/tasks`。请先在顶部保存 Token，再使用分页、筛选和详情能力。
+      还没有可用的 JWT Token。先在顶部保存 Token，再筛选、翻页和查看任务详情。
     </div>
 
     <template v-else>
       <div class="card mb-6">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label class="block text-sm font-medium text-tertiary mb-2">状态</label>
+            <label class="field-label" for="task-status-filter">状态</label>
             <select
+              id="task-status-filter"
               v-model="status"
-              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2.5"
             >
               <option value="">全部</option>
               <option value="pending">pending</option>
@@ -32,10 +33,11 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-tertiary mb-2">每页数量</label>
+            <label class="field-label" for="task-page-size-filter">每页数量</label>
             <select
+              id="task-page-size-filter"
               v-model.number="pageSize"
-              class="w-full px-3 py-2 border border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              class="w-full px-3 py-2.5"
             >
               <option :value="10">10</option>
               <option :value="20">20</option>
@@ -67,6 +69,7 @@
         v-if="taskStore.listError"
         class="card mb-6 border-danger bg-danger text-sm text-danger break-words"
         dir="auto"
+        role="alert"
       >
         {{ taskStore.listError }}
       </div>
@@ -84,96 +87,163 @@
 
         <div v-else-if="taskStore.tasks.length === 0" class="text-center py-12 text-secondary">
           <FileQuestion class="w-16 h-16 mx-auto mb-4 text-tertiary" />
-          <p>暂无任务</p>
+          <p>还没有任务。</p>
+          <p class="mt-2 text-sm">提交一个文件后，任务状态会在这里持续更新。</p>
         </div>
 
-        <div v-else class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-[color:var(--border-subtle)]">
-            <thead class="bg-muted">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
-                  任务ID
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
-                  文件名
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
-                  状态
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
-                  优先级
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
-                  重试
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
-                  创建时间
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
-                  操作
-                </th>
-              </tr>
-            </thead>
-            <tbody class="bg-surface divide-y divide-[color:var(--border-subtle)]">
-              <tr v-for="task in taskStore.tasks" :key="task.task_id" class="hover:bg-muted">
-                <td
-                  class="px-6 py-4 whitespace-nowrap text-xs text-secondary font-mono"
-                  :title="task.task_id"
-                  dir="auto"
+        <div v-else>
+          <div class="space-y-3 md:hidden">
+            <article
+              v-for="task in taskStore.tasks"
+              :key="task.task_id"
+              class="stack-card"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <p class="break-all text-xs text-secondary">任务 {{ task.task_id }}</p>
+                  <h2 class="mt-1 truncate text-sm font-semibold text-primary" :title="task.filename" dir="auto">
+                    {{ task.filename }}
+                  </h2>
+                </div>
+                <StatusBadge :status="task.status" />
+              </div>
+
+              <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt class="text-secondary">优先级</dt>
+                  <dd class="mt-1 text-primary">{{ task.priority }}</dd>
+                </div>
+                <div>
+                  <dt class="text-secondary">重试次数</dt>
+                  <dd class="mt-1 text-primary">{{ task.retry_count }}</dd>
+                </div>
+                <div class="col-span-2">
+                  <dt class="text-secondary">创建时间</dt>
+                  <dd class="mt-1 text-primary">{{ formatRelativeTime(task.created_at) }}</dd>
+                </div>
+              </dl>
+
+              <div class="mt-4 flex flex-wrap gap-2">
+                <router-link
+                  :to="`/tasks/${task.task_id}`"
+                  class="btn btn-secondary text-xs"
+                  :aria-label="`查看任务 ${task.task_id} 详情`"
                 >
-                  {{ task.task_id }}
-                </td>
-                <td
-                  class="px-6 py-4 whitespace-nowrap text-sm text-primary max-w-xs truncate"
-                  :title="task.filename"
-                  dir="auto"
+                  <Eye class="w-4 h-4" />
+                  查看详情
+                </router-link>
+                <button
+                  v-if="task.status === 'pending'"
+                  @click="cancelTask(task.task_id)"
+                  type="button"
+                  class="btn btn-secondary text-xs"
+                  :aria-label="`取消任务 ${task.task_id}`"
                 >
-                  {{ task.filename }}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap"><StatusBadge :status="task.status" /></td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">{{ task.priority }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">{{ task.retry_count }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
-                  {{ formatRelativeTime(task.created_at) }}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <div class="flex items-center gap-2">
-                    <router-link
-                      :to="`/tasks/${task.task_id}`"
-                      class="icon-btn text-primary-600 hover:text-primary-700"
-                      title="详情"
-                      :aria-label="`查看任务 ${task.task_id} 详情`"
-                    >
-                      <Eye class="w-4 h-4" />
-                    </router-link>
-                    <button
-                      v-if="task.status === 'pending'"
-                      @click="cancelTask(task.task_id)"
-                      type="button"
-                      class="icon-btn text-danger hover:text-danger"
-                      title="取消"
-                      :aria-label="`取消任务 ${task.task_id}`"
-                    >
-                      <X class="w-4 h-4" />
-                    </button>
-                    <button
-                      v-if="task.status === 'failed' || task.status === 'canceled'"
-                      @click="retryTask(task.task_id)"
-                      type="button"
-                      class="icon-btn text-warning hover:text-warning"
-                      title="重试"
-                      :aria-label="`重试任务 ${task.task_id}`"
-                    >
-                      <RotateCcw class="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <X class="w-4 h-4" />
+                  取消任务
+                </button>
+                <button
+                  v-if="task.status === 'failed' || task.status === 'canceled'"
+                  @click="retryTask(task.task_id)"
+                  type="button"
+                  class="btn btn-secondary text-xs"
+                  :aria-label="`重试任务 ${task.task_id}`"
+                >
+                  <RotateCcw class="w-4 h-4" />
+                  重新提交
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <div class="hidden overflow-x-auto md:block">
+            <table class="min-w-full divide-y divide-[color:var(--border-subtle)]">
+              <thead class="bg-muted">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                    任务ID
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                    文件名
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                    状态
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                    优先级
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                    重试
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                    创建时间
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="bg-surface divide-y divide-[color:var(--border-subtle)]">
+                <tr v-for="task in taskStore.tasks" :key="task.task_id" class="hover:bg-muted">
+                  <td
+                    class="px-6 py-4 whitespace-nowrap text-xs text-secondary font-mono"
+                    :title="task.task_id"
+                    dir="auto"
+                  >
+                    {{ task.task_id }}
+                  </td>
+                  <td
+                    class="px-6 py-4 whitespace-nowrap text-sm text-primary max-w-xs truncate"
+                    :title="task.filename"
+                    dir="auto"
+                  >
+                    {{ task.filename }}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap"><StatusBadge :status="task.status" /></td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">{{ task.priority }}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">{{ task.retry_count }}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
+                    {{ formatRelativeTime(task.created_at) }}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div class="flex items-center gap-2">
+                      <router-link
+                        :to="`/tasks/${task.task_id}`"
+                        class="icon-btn text-secondary hover:text-primary"
+                        title="详情"
+                        :aria-label="`查看任务 ${task.task_id} 详情`"
+                      >
+                        <Eye class="w-4 h-4" />
+                      </router-link>
+                      <button
+                        v-if="task.status === 'pending'"
+                        @click="cancelTask(task.task_id)"
+                        type="button"
+                        class="icon-btn text-danger hover:text-danger"
+                        title="取消"
+                        :aria-label="`取消任务 ${task.task_id}`"
+                      >
+                        <X class="w-4 h-4" />
+                      </button>
+                      <button
+                        v-if="task.status === 'failed' || task.status === 'canceled'"
+                        @click="retryTask(task.task_id)"
+                        type="button"
+                        class="icon-btn text-warning hover:text-warning"
+                        title="重试"
+                        :aria-label="`重试任务 ${task.task_id}`"
+                      >
+                        <RotateCcw class="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        <div v-if="taskStore.tasks.length > 0" class="mt-4 flex items-center justify-between">
+        <div v-if="taskStore.tasks.length > 0" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="text-sm text-secondary">共 {{ taskStore.total }} 条</div>
           <div class="flex items-center gap-2">
             <button

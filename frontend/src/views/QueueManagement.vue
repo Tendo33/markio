@@ -2,16 +2,16 @@
   <div :aria-busy="queueStore.loading ? 'true' : 'false'">
     <div class="mb-6">
       <h1 class="page-title">队列管理</h1>
-      <p class="mt-1 page-subtitle">暂停/恢复队列，并监控 worker 运行状态</p>
+      <p class="mt-1 page-subtitle">在管理员视角下暂停、恢复并观察任务吞吐。</p>
     </div>
 
     <div v-if="!tokenConfigured" class="card border-warning bg-warning text-sm text-warning break-words" dir="auto">
-      当前未配置 JWT Token，队列管理页不会请求 admin-only 的 `/v1/tasks/queue` 接口。
+      还没有可用的 JWT Token。先在顶部保存 Token，管理员才能查看和管理队列。
     </div>
 
     <div v-else-if="!canManageQueue" class="space-y-6">
       <div class="card border-warning bg-warning text-sm text-warning break-words" dir="auto">
-        当前 JWT 角色是 <code>{{ currentRole }}</code>，无权访问全局队列运营接口。普通用户请返回仪表盘查看 owner-scoped 任务概览。
+        当前 JWT 角色是 <code>{{ currentRole }}</code>，没有全局队列管理权限。普通用户可以回到仪表盘查看自己的任务概览。
       </div>
 
       <div class="card">
@@ -69,9 +69,9 @@
       <div class="card">
         <div class="flex items-center justify-between mb-4">
           <h2 class="section-title">操作日志</h2>
-          <button @click="logs = []" class="text-sm text-secondary hover:text-primary">清空</button>
+          <button @click="logs = []" class="text-link text-sm">清空</button>
         </div>
-        <div v-if="logs.length === 0" class="text-sm text-secondary">暂无日志</div>
+        <div v-if="logs.length === 0" class="text-sm text-secondary">还没有操作记录。</div>
         <div v-else class="space-y-2">
           <div
             v-for="(log, index) in logs"

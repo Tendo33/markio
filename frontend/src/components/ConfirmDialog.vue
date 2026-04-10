@@ -3,13 +3,13 @@
     <Transition name="fade">
       <div v-if="modelValue" class="fixed inset-0 z-50 overflow-y-auto">
         <!-- 遮罩层 -->
-        <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="onCancel"></div>
+        <div class="fixed inset-0 bg-[color:rgba(22,33,23,0.42)] transition-opacity" @click="onCancel"></div>
 
         <!-- 对话框 -->
         <div class="flex min-h-screen items-center justify-center p-4">
           <div
             ref="dialogRef"
-            class="relative bg-surface rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all"
+            class="card relative w-full max-w-md p-6"
             role="dialog"
             aria-modal="true"
             :aria-labelledby="titleId"
@@ -28,7 +28,7 @@
                 ref="cancelButtonRef"
                 @click="onCancel"
                 type="button"
-                class="px-4 py-2 text-sm font-medium text-tertiary bg-surface border border-default rounded-lg hover:bg-muted"
+                class="btn btn-secondary"
               >
                 {{ cancelText }}
               </button>
@@ -37,7 +37,7 @@
                 @click="onConfirm"
                 type="button"
                 :class="confirmButtonClass"
-                class="px-4 py-2 text-sm font-medium text-white rounded-lg"
+                class="btn text-inverse"
               >
                 {{ confirmText }}
               </button>

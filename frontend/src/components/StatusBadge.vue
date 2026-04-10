@@ -1,5 +1,5 @@
 <template>
-  <span :class="badgeClass" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+  <span :class="badgeClass" class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium">
     <span :class="dotClass" class="w-1.5 h-1.5 rounded-full mr-1.5"></span>
     {{ statusText }}
   </span>
@@ -27,11 +27,11 @@ const statusText = computed(() => {
 
 const badgeClass = computed(() => {
   const classMap: Record<TaskStatus, string> = {
-    pending: 'bg-muted text-tertiary',
-    processing: 'bg-warning text-warning',
-    completed: 'bg-success text-success',
-    failed: 'bg-danger text-danger',
-    canceled: 'bg-muted text-secondary',
+    pending: 'bg-muted text-tertiary border-subtle',
+    processing: 'bg-warning text-warning border-warning',
+    completed: 'bg-success text-success border-[color:var(--status-success-border)]',
+    failed: 'bg-danger text-danger border-danger',
+    canceled: 'bg-muted text-secondary border-subtle',
   }
   return classMap[props.status]
 })
