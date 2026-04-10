@@ -22,7 +22,7 @@ Markio converts documents and web content into Markdown or structured text throu
 - Local Python SDK and CLI
 - Vue 3 console served by FastAPI at `/console`
 
-The project is currently **alpha** (`0.1.3`). It is suitable for internal environments, staged rollouts, and integration work, but it is not positioned as a fully hardened GA platform yet.
+The project is currently **alpha** (`0.1.4`). It is suitable for internal environments, staged rollouts, and integration work, but it is not positioned as a fully hardened GA platform yet.
 
 ## Current Product Shape
 
