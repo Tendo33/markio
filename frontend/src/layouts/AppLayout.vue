@@ -171,12 +171,17 @@ const apiToken = ref(token.value)
 let timerId: number | null = null
 let autoRefreshDelayMs = 5000
 
-const navItems = [
-  { path: '/', label: '仪表盘', icon: LayoutDashboard },
-  { path: '/tasks', label: '任务列表', icon: ListTodo },
-  { path: '/tasks/submit', label: '提交任务', icon: Upload },
-  { path: '/queue', label: '队列管理', icon: Settings },
-]
+const navItems = computed(() => {
+  const items = [
+    { path: '/', label: '仪表盘', icon: LayoutDashboard },
+    { path: '/tasks', label: '任务列表', icon: ListTodo },
+    { path: '/tasks/submit', label: '提交任务', icon: Upload },
+  ]
+  if (isAdmin.value) {
+    items.push({ path: '/queue', label: '队列管理', icon: Settings })
+  }
+  return items
+})
 
 const activeClass = 'nav-link-active'
 const inactiveClass = 'nav-link-inactive'

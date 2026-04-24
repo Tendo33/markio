@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 from datetime import datetime, timezone
+from math import ceil
 from time import perf_counter
 
 from markio.schemas.task_schemas import (
@@ -327,7 +328,7 @@ class RedisTaskManager(BaseTaskManager):
                 "max_ms": 0,
             }
         sorted_values = sorted(values)
-        p95_index = max(int(len(sorted_values) * 0.95) - 1, 0)
+        p95_index = max(ceil(len(sorted_values) * 0.95) - 1, 0)
         avg_ms = int(sum(sorted_values) / len(sorted_values))
         return {
             "count": len(sorted_values),

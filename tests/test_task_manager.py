@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from markio.schemas.task_schemas import SubmitTaskRequest, TaskStatus
+from markio.services.redis_task_manager import RedisTaskManager
 from markio.services.task_manager import AsyncTaskManager
 
 
@@ -717,6 +718,15 @@ class TaskManagerTests(unittest.IsolatedAsyncioTestCase):
 
         await manager.resume_queue()
         await manager.stop()
+
+    async def test_duration_metrics_p95_uses_upper_percentile_index(self):
+        values = [10, 20]
+
+        async_metrics = AsyncTaskManager._duration_metrics(values)
+        redis_metrics = RedisTaskManager._duration_metrics(values)
+
+        self.assertEqual(async_metrics["p95_ms"], 20)
+        self.assertEqual(redis_metrics["p95_ms"], 20)
 
 
 if __name__ == "__main__":

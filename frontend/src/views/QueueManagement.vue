@@ -186,7 +186,10 @@ onMounted(async () => {
   }
 })
 
-watch([tokenConfigured, currentRole], () => {
+watch([tokenConfigured, currentRole], async () => {
   syncRole()
+  if (canManageQueue.value) {
+    await refresh()
+  }
 })
 </script>

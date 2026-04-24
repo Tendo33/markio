@@ -8,6 +8,7 @@ import os
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from math import ceil
 from pathlib import Path
 from time import perf_counter
 
@@ -665,7 +666,7 @@ class AsyncTaskManager(BaseTaskManager):
                 "max_ms": 0,
             }
         sorted_values = sorted(values)
-        p95_index = max(int(len(sorted_values) * 0.95) - 1, 0)
+        p95_index = max(ceil(len(sorted_values) * 0.95) - 1, 0)
         avg_ms = int(sum(sorted_values) / len(sorted_values))
         return {
             "count": len(sorted_values),

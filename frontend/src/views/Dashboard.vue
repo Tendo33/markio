@@ -33,7 +33,7 @@
           <ListTodo class="w-4 h-4" />
           任务列表
         </router-link>
-        <router-link to="/queue" class="btn btn-secondary flex items-center justify-center">
+        <router-link v-if="isAdmin" to="/queue" class="btn btn-secondary flex items-center justify-center">
           <Settings class="w-4 h-4" />
           队列管理
         </router-link>
@@ -136,6 +136,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import {
   CheckCircle,
   Clock,
@@ -155,11 +156,13 @@ import {
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import { useTaskStore } from '@/stores'
+import { useAuthStore, useTaskStore } from '@/stores'
 import { formatRelativeTime } from '@/utils/format'
 import { toast } from '@/utils/toast'
 
+const authStore = useAuthStore()
 const taskStore = useTaskStore()
+const { isAdmin } = storeToRefs(authStore)
 
 const stats = computed(() => {
   return (
