@@ -45,6 +45,20 @@ RUN sed -i 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/source
 WORKDIR /workspace
 
 # =================================================================================================
+# Stage 2: Frontend Builder
+# 单独构建 Vue console，避免镜像依赖仓库中已有的静态产物。
+# =================================================================================================
+FROM node:20-bookworm-slim AS frontend-builder
+
+WORKDIR /frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
+# =================================================================================================
 # Stage 2: Builder Stage
 # 专门用于编译、安装依赖和下载模型。此阶段的产物将被拷贝到最终镜像，但其本身不会成为最终镜像。
 # =================================================================================================
@@ -83,6 +97,7 @@ ENV PATH="/root/.local/bin:$PATH"
 
 # 从 builder 阶段拷贝源代码和下载好的模型
 COPY --from=builder /workspace /workspace
+COPY --from=frontend-builder /frontend/dist /workspace/markio/webapp
 COPY --from=builder /root/.cache/modelscope/hub /root/.cache/modelscope/hub
 COPY --from=builder /root/mineru.json /root/mineru.json
 

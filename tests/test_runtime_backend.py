@@ -23,5 +23,16 @@ def test_compose_redis_service_uses_redis_task_backend():
     compose = yaml.safe_load(compose_path.read_text())
     environment = compose["services"]["markio"]["environment"]
 
+    assert "PYTHONPATH=/workspace" in environment
     assert "REDIS_ENABLED=true" in environment
     assert "TASK_QUEUE_BACKEND=redis" in environment
+
+
+def test_dockerfile_builds_console_assets_in_image():
+    dockerfile_path = Path(__file__).resolve().parents[1] / "Dockerfile"
+    dockerfile = dockerfile_path.read_text(encoding="utf-8")
+
+    assert "FROM node:20-bookworm-slim AS frontend-builder" in dockerfile
+    assert "RUN npm ci" in dockerfile
+    assert "RUN npm run build" in dockerfile
+    assert "COPY --from=frontend-builder /frontend/dist /workspace/markio/webapp" in dockerfile

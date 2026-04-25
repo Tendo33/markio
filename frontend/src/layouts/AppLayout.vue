@@ -268,6 +268,10 @@ function nextAutoRefreshDelay(hadError: boolean) {
 function scheduleAutoRefresh(hadError = false) {
   if (timerId) {
     clearTimeout(timerId)
+    timerId = null
+  }
+  if (!shouldAutoRefresh()) {
+    return
   }
   const delay = nextAutoRefreshDelay(hadError)
   timerId = window.setTimeout(async () => {
@@ -282,6 +286,11 @@ function handleVisibilityChange() {
       // ignore visibility refresh error
     })
     scheduleAutoRefresh()
+    return
+  }
+  if (timerId) {
+    clearTimeout(timerId)
+    timerId = null
   }
 }
 
@@ -292,6 +301,7 @@ function saveToken() {
   refreshAll().catch(() => {
     // ignore refresh error after token save
   })
+  scheduleAutoRefresh()
 }
 
 function clearToken() {
@@ -300,6 +310,10 @@ function clearToken() {
   syncTokenContext()
   taskStore.resetState()
   queueStore.reset()
+  if (timerId) {
+    clearTimeout(timerId)
+    timerId = null
+  }
   toast.info('Token 已清除')
 }
 
@@ -318,6 +332,13 @@ watch(
   token,
   () => {
     syncTokenContext()
+  }
+)
+
+watch(
+  [tokenConfigured, () => route.name, () => stats.value.pending, () => stats.value.processing],
+  () => {
+    scheduleAutoRefresh()
   }
 )
 

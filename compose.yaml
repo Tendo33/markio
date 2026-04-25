@@ -10,7 +10,7 @@ services:
       - ./uploads:/workspace/uploads
       - ./outputs:/workspace/outputs
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/workspace
       - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:?AUTH_JWT_SECRET is required}
       - REDIS_HOST=redis
       - REDIS_ENABLED=true
