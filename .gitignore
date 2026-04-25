@@ -179,3 +179,4 @@ project_document/
 
 # Frontend build artifacts (Vite outDir)
 markio/webapp/
+docs/health-check/
