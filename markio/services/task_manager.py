@@ -466,6 +466,7 @@ class AsyncTaskManager(BaseTaskManager):
                 record.started_at,
                 record.completed_at,
             )
+            self._requests.pop(task_id, None)
             self._persist_state_locked()
 
     async def _enqueue_task(self, task_id: str) -> None:
@@ -505,9 +506,11 @@ class AsyncTaskManager(BaseTaskManager):
 
         for task_id in list(self._records.keys()):
             if task_id not in keep_ids:
+                request = self._requests.pop(task_id, None)
                 self._records.pop(task_id, None)
-                self._requests.pop(task_id, None)
                 self._pending_items.pop(task_id, None)
+                if request is not None:
+                    self._cleanup_temp_file(request.file_path)
 
     def _persist_state_locked(self) -> None:
         if not self.state_file_path:
@@ -578,6 +581,22 @@ class AsyncTaskManager(BaseTaskManager):
             self._pending_items[task_id] = QueueItem(
                 task_id=raw_pending.get("task_id", task_id),
                 cache_key=raw_pending.get("cache_key"),
+            )
+
+        for task_id, record in self._records.items():
+            if task_id in self._pending_items:
+                continue
+            if record.status not in {TaskStatus.pending, TaskStatus.processing}:
+                continue
+
+            request = self._requests.get(task_id)
+            if request is None:
+                continue
+
+            record.status = TaskStatus.pending
+            self._pending_items[task_id] = QueueItem(
+                task_id=task_id,
+                cache_key=self._build_cache_key(request),
             )
 
         self._prune_records_locked()
