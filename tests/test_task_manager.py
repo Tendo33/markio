@@ -1,5 +1,7 @@
 import asyncio
+import json
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 from markio.schemas.task_schemas import SubmitTaskRequest, TaskStatus
@@ -404,6 +406,136 @@ class TaskManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(loaded)
         self.assertIsNone(loaded.result)
         await manager2.stop()
+
+    async def test_persistence_requeues_processing_task_after_restart(self):
+        file_path = self.tmp_dir / "resume-processing.pdf"
+        file_path.write_text("demo", encoding="utf-8")
+        state_file = self.tmp_dir / "task_state_processing.json"
+        task_id = "a" * 32
+        now = datetime.now(timezone.utc).isoformat()
+
+        state_file.write_text(
+            json.dumps(
+                {
+                    "paused": False,
+                    "records": [
+                        {
+                            "task_id": task_id,
+                            "filename": "resume-processing.pdf",
+                            "owner_id": "user-a",
+                            "status": "processing",
+                            "parse_method": "auto",
+                            "lang": "ch",
+                            "created_at": now,
+                            "started_at": now,
+                            "completed_at": None,
+                            "result": None,
+                            "error_message": None,
+                            "cache_hit": False,
+                            "priority": 0,
+                            "retry_count": 0,
+                            "processing_duration_ms": None,
+                        }
+                    ],
+                    "requests": {
+                        task_id: {
+                            "filename": "resume-processing.pdf",
+                            "file_path": str(file_path),
+                            "owner_id": "user-a",
+                            "parse_method": "auto",
+                            "lang": "ch",
+                            "save_parsed_content": False,
+                            "save_middle_content": False,
+                            "output_dir": "outputs",
+                            "start_page": 0,
+                            "end_page": None,
+                            "priority": 0,
+                        }
+                    },
+                    "pending": {},
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+            self.assertEqual(path, str(file_path))
+            return "# resumed"
+
+        manager = AsyncTaskManager(
+            worker_count=1,
+            parser_func=fake_parser,
+            state_file_path=str(state_file),
+            state_result_max_chars=4096,
+        )
+        await manager.start()
+        await self._wait_status(manager, task_id, TaskStatus.completed)
+        completed = await manager.get_task(task_id)
+        self.assertEqual(completed.result, "# resumed")
+        await manager.stop()
+
+    async def test_completed_task_does_not_persist_request_metadata(self):
+        file_path = self.tmp_dir / "persist-cleanup.pdf"
+        file_path.write_text("demo", encoding="utf-8")
+        state_file = self.tmp_dir / "task_state_cleanup.json"
+
+        async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+            return "# cleaned"
+
+        manager = AsyncTaskManager(
+            worker_count=1,
+            parser_func=fake_parser,
+            state_file_path=str(state_file),
+            state_result_max_chars=4096,
+        )
+        await manager.start()
+        task = await manager.submit(
+            SubmitTaskRequest(
+                filename="persist-cleanup.pdf",
+                file_path=str(file_path),
+            )
+        )
+        await self._wait_status(manager, task.task_id, TaskStatus.completed)
+        await manager.stop()
+
+        payload = json.loads(state_file.read_text(encoding="utf-8"))
+        self.assertNotIn(task.task_id, payload["requests"])
+
+    async def test_prune_failed_task_cleans_up_orphaned_upload(self):
+        failed_file_path = self.tmp_dir / "failed-prune.pdf"
+        failed_file_path.write_text("demo", encoding="utf-8")
+        next_file_path = self.tmp_dir / "next-prune.pdf"
+        next_file_path.write_text("demo", encoding="utf-8")
+
+        async def parser(path: str, request: SubmitTaskRequest) -> str:
+            if request.filename == "failed-prune.pdf":
+                raise RuntimeError("expected failure")
+            return "# ok"
+
+        manager = AsyncTaskManager(worker_count=1, parser_func=parser, max_history=1)
+        manager.max_history = 1
+        await manager.start()
+
+        failed_task = await manager.submit(
+            SubmitTaskRequest(
+                filename="failed-prune.pdf",
+                file_path=str(failed_file_path),
+            )
+        )
+        await self._wait_status(manager, failed_task.task_id, TaskStatus.failed)
+        self.assertTrue(failed_file_path.exists())
+
+        await manager.submit(
+            SubmitTaskRequest(
+                filename="next-prune.pdf",
+                file_path=str(next_file_path),
+            )
+        )
+
+        self.assertFalse(failed_file_path.exists())
+        await manager.stop()
 
     async def test_list_tasks_supports_pagination_and_status(self):
         state_file = self.tmp_dir / "list_state.json"
