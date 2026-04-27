@@ -66,6 +66,7 @@ npm run build
 
 - console 发起的所有 API 调用仍依赖 JWT
 - 当前前端依旧在浏览器侧持有 token，并通过 `localStorage` 持久化
+- 已过期或格式损坏的浏览器 token 会被视为不可用，直到用户替换为新的有效 token
 - 队列控制是 admin-only，因为后端要求 `role=admin`
 - dashboard 和任务列表返回结果都是 owner-scoped；真正的权限边界仍以后端为准
 

@@ -215,7 +215,7 @@ class ApplicationConfig(BaseModel):
 
     task_processing_timeout_seconds: float = Field(
         default=0.0,
-        description="Processing timeout before requeue (seconds)",
+        description="Redis backend only: processing timeout before requeue (seconds)",
         alias="TASK_PROCESSING_TIMEOUT_SECONDS",
     )
 
@@ -241,6 +241,12 @@ class ApplicationConfig(BaseModel):
         default=5000,
         description="Maximum in-memory rate-limit buckets to avoid unbounded growth",
         alias="RATE_LIMIT_MAX_BUCKETS",
+    )
+
+    rate_limit_trust_proxy_headers: bool = Field(
+        default=False,
+        description="Trust Forwarded/X-Forwarded-For headers for rate-limit client IP detection",
+        alias="RATE_LIMIT_TRUST_PROXY_HEADERS",
     )
 
     url_fetch_mode: Literal["direct", "jina_proxy"] = Field(

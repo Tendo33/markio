@@ -140,7 +140,7 @@
       role="status"
       aria-live="polite"
     >
-      还没有可用的 JWT Token。先在顶部保存 Token，再查看任务、提交文件或管理队列。
+      {{ tokenBannerMessage }}
     </section>
 
     <main id="main-content" class="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-4 lg:py-6">
@@ -162,7 +162,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const taskStore = useTaskStore()
 const queueStore = useQueueStore()
-const { configured: tokenConfigured, isAdmin, role, token } = storeToRefs(authStore)
+const { configured: tokenConfigured, isAdmin, role, status, token } = storeToRefs(authStore)
 
 const refreshing = ref(false)
 const autoRefreshing = ref(false)
@@ -186,6 +186,15 @@ const navItems = computed(() => {
 const activeClass = 'nav-link-active'
 const inactiveClass = 'nav-link-inactive'
 const currentRole = computed(() => role.value)
+const tokenBannerMessage = computed(() => {
+  if (status.value === 'expired') {
+    return '当前 JWT Token 已过期。先在顶部更新 Token，再查看任务、提交文件或管理队列。'
+  }
+  if (status.value === 'invalid') {
+    return '当前 JWT Token 无效。先在顶部更新 Token，再查看任务、提交文件或管理队列。'
+  }
+  return '还没有可用的 JWT Token。先在顶部保存 Token，再查看任务、提交文件或管理队列。'
+})
 
 const stats = computed(() => {
   return (

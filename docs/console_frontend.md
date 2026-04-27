@@ -66,6 +66,7 @@ Backend endpoints used by the console:
 
 - every console-triggered API call still depends on JWT auth
 - the current frontend keeps the token client-side and persists it in `localStorage`
+- expired or malformed browser tokens are treated as unavailable until the user replaces them
 - queue controls are effectively admin-only because the backend requires `role=admin`
 - dashboard and task list responses are owner-scoped; the backend remains the source of truth for access control
 

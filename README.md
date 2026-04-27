@@ -210,7 +210,7 @@ sdk = MarkioSDK(
 - All `/v1/*` routes require JWT auth
 - `role=admin` is required for queue pause/resume routes
 - `/v1/tasks/dashboard` is owner-scoped; users only see their own task stats and recent items
-- The console keeps the token in frontend-managed browser state and now persists it via `localStorage`
+- The console keeps the token in frontend-managed browser state and persists it via `localStorage`; expired or malformed browser tokens are treated as unavailable until replaced
 
 ### MCP behavior
 
@@ -251,7 +251,9 @@ Core configuration comes from `.env` and `markio/settings/config_model.py`.
 | `TASK_QUEUE_BACKEND` | `memory` | `memory` or `redis` |
 | `TASK_WORKER_COUNT` | `2` | Async task workers |
 | `TASK_MAX_UPLOAD_SIZE_BYTES` | `52428800` | Max async upload size |
+| `TASK_PROCESSING_TIMEOUT_SECONDS` | `0` | Redis backend only: requeue stale `processing` tasks after this timeout |
 | `RATE_LIMIT_ENABLED` | `true` | Lightweight per-route rate limiting |
+| `RATE_LIMIT_TRUST_PROXY_HEADERS` | `false` | Trust `Forwarded` / `X-Forwarded-For` for client IP detection behind a controlled proxy |
 | `ENABLE_MCP` | `false` | Mount MCP endpoints |
 | `MARKIO_API_BASE_URL` | `""` | SDK/CLI remote mode |
 | `MARKIO_API_TOKEN` | `""` | SDK/CLI remote Bearer token |

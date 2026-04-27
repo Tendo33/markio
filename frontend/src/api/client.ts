@@ -5,12 +5,19 @@ const envApiToken = (import.meta.env.VITE_API_TOKEN as string | undefined)?.trim
 export const API_TOKEN_STORAGE_KEY = 'markio_api_token'
 const TOKEN_CHANGE_EVENT = 'markio:token-change'
 
-function resolveStoredToken(): string {
+export type ApiTokenStatus = 'missing' | 'invalid' | 'expired' | 'valid'
+
+function readStoredToken(): string {
   if (typeof window === 'undefined') {
     return envApiToken
   }
   const persistedToken = window.localStorage.getItem(API_TOKEN_STORAGE_KEY)?.trim() ?? ''
   return persistedToken || envApiToken
+}
+
+type JwtPayload = {
+  exp?: unknown
+  role?: unknown
 }
 
 export function setApiToken(token: string) {
@@ -25,11 +32,7 @@ export function setApiToken(token: string) {
 }
 
 export function getApiToken(): string {
-  return resolveStoredToken()
-}
-
-export function hasApiToken(): boolean {
-  return resolveStoredToken().length > 0
+  return readStoredToken()
 }
 
 function decodeBase64Url(input: string): string | null {
@@ -46,20 +49,53 @@ function decodeBase64Url(input: string): string | null {
   return null
 }
 
-export function getApiTokenRole(defaultRole: string = 'user'): string {
-  const token = resolveStoredToken()
-  if (!token) return defaultRole
+function parseTokenPayload(token: string): JwtPayload | null {
+  if (!token) return null
   const [, payloadSegment] = token.split('.')
-  if (!payloadSegment) return defaultRole
+  if (!payloadSegment) return null
   const payloadRaw = decodeBase64Url(payloadSegment)
-  if (!payloadRaw) return defaultRole
+  if (!payloadRaw) return null
   try {
-    const payload = JSON.parse(payloadRaw) as { role?: unknown }
-    if (typeof payload.role === 'string' && payload.role.trim()) {
-      return payload.role.trim().toLowerCase()
-    }
+    return JSON.parse(payloadRaw) as JwtPayload
   } catch {
-    return defaultRole
+    return null
+  }
+}
+
+function classifyToken(token: string): ApiTokenStatus {
+  if (!token) return 'missing'
+  const payload = parseTokenPayload(token)
+  if (!payload) return 'invalid'
+  if (payload.exp !== undefined) {
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
+      return 'invalid'
+    }
+    if (Date.now() >= payload.exp * 1000) {
+      return 'expired'
+    }
+  }
+  return 'valid'
+}
+
+function resolveUsableToken(): string {
+  const storedToken = readStoredToken()
+  return classifyToken(storedToken) === 'valid' ? storedToken : ''
+}
+
+export function getApiTokenStatus(): ApiTokenStatus {
+  return classifyToken(readStoredToken())
+}
+
+export function hasApiToken(): boolean {
+  return resolveUsableToken().length > 0
+}
+
+export function getApiTokenRole(defaultRole: string = 'user'): string {
+  const token = resolveUsableToken()
+  if (!token) return defaultRole
+  const payload = parseTokenPayload(token)
+  if (payload && typeof payload.role === 'string' && payload.role.trim()) {
+    return payload.role.trim().toLowerCase()
   }
   return defaultRole
 }
@@ -83,7 +119,7 @@ const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use((config) => {
-  const token = resolveStoredToken()
+  const token = resolveUsableToken()
   if (token) {
     config.headers = config.headers ?? {}
     config.headers.Authorization = `Bearer ${token}`

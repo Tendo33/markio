@@ -26,6 +26,7 @@ Redis-backed task execution requires both:
 - `TASK_QUEUE_BACKEND=redis`
 
 If `TASK_QUEUE_BACKEND=redis` is configured while `REDIS_ENABLED=false`, the runtime falls back to the in-memory backend and logs a warning.
+`TASK_PROCESSING_TIMEOUT_SECONDS` only applies when Redis is the active task backend.
 
 ## Compose Security Baseline
 

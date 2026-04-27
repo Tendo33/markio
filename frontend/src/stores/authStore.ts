@@ -5,6 +5,7 @@ import {
   API_TOKEN_STORAGE_KEY,
   getApiToken,
   getApiTokenRole,
+  getApiTokenStatus,
   hasApiToken,
   onApiTokenChange,
   setApiToken,
@@ -13,6 +14,7 @@ import {
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(getApiToken())
   const role = ref(getApiTokenRole('user'))
+  const status = ref(getApiTokenStatus())
   const configured = ref(hasApiToken())
   let stopTokenListener: (() => void) | null = null
   let storageListenerBound = false
@@ -20,6 +22,7 @@ export const useAuthStore = defineStore('auth', () => {
   function refreshFromStorage() {
     token.value = getApiToken()
     role.value = getApiTokenRole('user')
+    status.value = getApiTokenStatus()
     configured.value = hasApiToken()
   }
 
@@ -54,6 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     token,
     role,
+    status,
     configured,
     isAdmin: computed(() => role.value === 'admin'),
     refreshFromStorage,
