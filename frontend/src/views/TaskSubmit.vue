@@ -196,10 +196,13 @@ const fileUploader = ref<InstanceType<typeof FileUploader> | null>(null)
 const { configured: tokenConfigured } = storeToRefs(authStore)
 
 const DEFAULT_MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
-const maxUploadSizeBytes = Number.parseInt(
-  String(import.meta.env.VITE_TASK_MAX_UPLOAD_SIZE_BYTES ?? DEFAULT_MAX_UPLOAD_SIZE_BYTES),
-  10
-)
+
+function resolveMaxUploadSizeBytes(rawValue: unknown): number {
+  const parsed = Number.parseInt(String(rawValue ?? DEFAULT_MAX_UPLOAD_SIZE_BYTES), 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_UPLOAD_SIZE_BYTES
+}
+
+const maxUploadSizeBytes = resolveMaxUploadSizeBytes(import.meta.env.VITE_TASK_MAX_UPLOAD_SIZE_BYTES)
 const PDF_LANGUAGES: TaskLanguage[] = [
   'ch',
   'ch_server',

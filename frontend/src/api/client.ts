@@ -35,22 +35,35 @@ export function getApiToken(): string {
   return readStoredToken()
 }
 
+function hasJwtShape(token: string): boolean {
+  const segments = token.split('.')
+  return segments.length === 3 && segments.every((segment) => segment.length > 0)
+}
+
 function decodeBase64Url(input: string): string | null {
   if (!input) return null
   const normalized = input.replace(/-/g, '+').replace(/_/g, '/')
   const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4)
   try {
-    if (typeof window !== 'undefined' && typeof window.atob === 'function') {
-      return window.atob(padded)
+    const atobFn =
+      typeof window !== 'undefined' && typeof window.atob === 'function'
+        ? window.atob.bind(window)
+        : typeof atob === 'function'
+          ? atob
+          : null
+    if (!atobFn) {
+      return null
     }
+    const binary = atobFn(padded)
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+    return new TextDecoder().decode(bytes)
   } catch {
     return null
   }
-  return null
 }
 
 function parseTokenPayload(token: string): JwtPayload | null {
-  if (!token) return null
+  if (!hasJwtShape(token)) return null
   const [, payloadSegment] = token.split('.')
   if (!payloadSegment) return null
   const payloadRaw = decodeBase64Url(payloadSegment)
@@ -64,15 +77,14 @@ function parseTokenPayload(token: string): JwtPayload | null {
 
 function classifyToken(token: string): ApiTokenStatus {
   if (!token) return 'missing'
+  if (!hasJwtShape(token)) return 'invalid'
   const payload = parseTokenPayload(token)
   if (!payload) return 'invalid'
-  if (payload.exp !== undefined) {
-    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
-      return 'invalid'
-    }
-    if (Date.now() >= payload.exp * 1000) {
-      return 'expired'
-    }
+  if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
+    return 'invalid'
+  }
+  if (Date.now() >= payload.exp * 1000) {
+    return 'expired'
   }
   return 'valid'
 }
@@ -95,7 +107,7 @@ export function getApiTokenRole(defaultRole: string = 'user'): string {
   if (!token) return defaultRole
   const payload = parseTokenPayload(token)
   if (payload && typeof payload.role === 'string' && payload.role.trim()) {
-    return payload.role.trim().toLowerCase()
+    return payload.role.trim().toLowerCase() === 'admin' ? 'admin' : defaultRole
   }
   return defaultRole
 }
