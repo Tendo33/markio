@@ -53,6 +53,7 @@ class TaskStats:
     processing: int = 0
     completed: int = 0
     failed: int = 0
+    canceled: int = 0
 
 
 @dataclass

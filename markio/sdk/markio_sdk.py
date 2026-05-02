@@ -50,7 +50,7 @@ class MarkioSDK:
 
     def __init__(
         self,
-        output_dir: str = "output",
+        output_dir: str = "outputs",
         api_base_url: Optional[str] = None,
         token: Optional[str] = None,
         timeout_seconds: int = 180,
@@ -60,7 +60,7 @@ class MarkioSDK:
 
         Args:
             output_dir (str): Base directory for saving parsed content and extracted assets.
-                            Defaults to "output".
+                            Defaults to "outputs".
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -131,6 +131,7 @@ class MarkioSDK:
         self,
         file_path: str,
         parse_method: str = "auto",
+        lang: str = "ch",
         save_parsed_content: bool = False,
         save_middle_content: bool = False,
         start_page: int = 0,
@@ -142,6 +143,7 @@ class MarkioSDK:
         Args:
             file_path (str): Path to the PDF file
             parse_method (str): Parsing method - "auto", "ocr", or "txt"
+            lang (str): OCR/document language hint
             save_parsed_content (bool): Whether to save parsed content
             save_middle_content (bool): Whether to save intermediate processing results
             start_page (int): First page to parse (0-based)
@@ -156,6 +158,7 @@ class MarkioSDK:
                 file_path=file_path,
                 data={
                     "parse_method": parse_method,
+                    "lang": lang,
                     "save_parsed_content": str(save_parsed_content).lower(),
                     "save_middle_content": str(save_middle_content).lower(),
                     "start_page": start_page,
@@ -168,6 +171,7 @@ class MarkioSDK:
         markdown_content = await pdf_parse_main(
             resource_path=file_path,
             parse_method=parse_method,
+            lang=lang,
             save_parsed_content=save_parsed_content,
             save_middle_content=save_middle_content,
             output_dir=str(self.output_dir),

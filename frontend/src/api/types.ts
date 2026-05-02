@@ -55,6 +55,7 @@ export interface TaskStats {
   processing: number
   completed: number
   failed: number
+  canceled: number
 }
 
 export interface QueueHealth {

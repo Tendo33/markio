@@ -156,6 +156,8 @@ class RedisTaskStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(task.status, TaskStatus.canceled)
         pending_count = await self.redis.zcard("queue:pending")
         self.assertEqual(pending_count, 0)
+        stats = await self.store.get_stats()
+        self.assertEqual(stats.canceled, 1)
 
     async def test_list_tasks_by_status(self):
         now = datetime.now(timezone.utc)

@@ -5,11 +5,12 @@
       <p class="mt-2 lg:mt-3 page-subtitle">总览近期任务、吞吐状态和队列节奏</p>
     </div>
 
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
       <StatCard title="等待中" :value="stats.pending" subtitle="待处理任务" :icon="Clock" color="gray" />
       <StatCard title="处理中" :value="stats.processing" subtitle="正在解析" :icon="Loader" color="yellow" />
       <StatCard title="已完成" :value="stats.completed" subtitle="解析成功" :icon="CheckCircle" color="green" />
       <StatCard title="失败" :value="stats.failed" subtitle="需要重试" :icon="XCircle" color="red" />
+      <StatCard title="已取消" :value="stats.canceled" subtitle="用户主动取消" :icon="Ban" color="blue" />
     </div>
 
     <div v-if="taskStore.dashboardError" class="card mb-6 border-danger bg-danger text-sm text-danger break-words" dir="auto">
@@ -139,6 +140,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import {
   CheckCircle,
+  Ban,
   Clock,
   Clock3,
   Eye,
@@ -171,6 +173,7 @@ const stats = computed(() => {
       processing: 0,
       completed: 0,
       failed: 0,
+      canceled: 0,
     }
   )
 })

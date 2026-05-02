@@ -200,6 +200,7 @@ class RedisTaskManager(BaseTaskManager):
                 "processing": stats.processing,
                 "completed": stats.completed,
                 "failed": stats.failed,
+                "canceled": stats.canceled,
             },
             "queue": {
                 "queued": queue_health.queued,

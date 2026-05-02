@@ -375,6 +375,7 @@ class RedisTaskStore:
                 processing=int(await redis.zcard(self._task_status_key(TaskStatus.processing))),
                 completed=int(await redis.zcard(self._task_status_key(TaskStatus.completed))),
                 failed=int(await redis.zcard(self._task_status_key(TaskStatus.failed))),
+                canceled=int(await redis.zcard(self._task_status_key(TaskStatus.canceled))),
             )
 
         owner_ids_raw = await redis.zrange(self._owner_tasks_key(owner_id), 0, -1)
@@ -388,14 +389,23 @@ class RedisTaskStore:
             processing=int(await redis.zcard(self._owner_status_key(owner_id, TaskStatus.processing))),
             completed=int(await redis.zcard(self._owner_status_key(owner_id, TaskStatus.completed))),
             failed=int(await redis.zcard(self._owner_status_key(owner_id, TaskStatus.failed))),
+            canceled=int(await redis.zcard(self._owner_status_key(owner_id, TaskStatus.canceled))),
         )
-        if stats.pending + stats.processing + stats.completed + stats.failed == 0:
+        if (
+            stats.pending
+            + stats.processing
+            + stats.completed
+            + stats.failed
+            + stats.canceled
+            == 0
+        ):
             await self._rebuild_all_owner_status_indexes(owner_id)
             stats = TaskStats(
                 pending=int(await redis.zcard(self._owner_status_key(owner_id, TaskStatus.pending))),
                 processing=int(await redis.zcard(self._owner_status_key(owner_id, TaskStatus.processing))),
                 completed=int(await redis.zcard(self._owner_status_key(owner_id, TaskStatus.completed))),
                 failed=int(await redis.zcard(self._owner_status_key(owner_id, TaskStatus.failed))),
+                canceled=int(await redis.zcard(self._owner_status_key(owner_id, TaskStatus.canceled))),
             )
         return stats
 

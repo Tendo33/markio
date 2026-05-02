@@ -35,6 +35,7 @@ def pdf(
     parse_method: str = typer.Option(
         "auto", "--method", "-m", help="Parse method: auto|ocr|txt"
     ),
+    lang: str = typer.Option("ch", "--lang", "-l", help="Document language hint"),
     save_parsed_content: bool = typer.Option(
         False, "--save", "-s", help="Save parsed content to file"
     ),
@@ -55,6 +56,7 @@ def pdf(
         result = await sdk.parse_pdf(
             file_path=file_path,
             parse_method=parse_method,
+            lang=lang,
             save_parsed_content=save_parsed_content,
             save_middle_content=save_middle_content,
             start_page=start_page,

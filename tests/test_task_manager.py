@@ -254,6 +254,8 @@ class TaskManagerTests(unittest.IsolatedAsyncioTestCase):
         canceled_task = await manager.get_task(task.task_id)
         self.assertIsNotNone(canceled_task)
         self.assertEqual(canceled_task.status, TaskStatus.canceled)
+        stats = await manager.get_stats()
+        self.assertEqual(stats.canceled, 1)
 
         await manager.resume_queue()
         await asyncio.sleep(0.1)

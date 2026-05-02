@@ -261,6 +261,8 @@ class AsyncTaskManager(BaseTaskManager):
                 stats.completed += 1
             elif record.status == TaskStatus.failed:
                 stats.failed += 1
+            elif record.status == TaskStatus.canceled:
+                stats.canceled += 1
         return stats
 
     async def get_queue_health(self, owner_id: str | None = None) -> QueueHealth:

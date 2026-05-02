@@ -66,3 +66,22 @@ async def test_sdk_local_parse_url_uses_shared_url_parser(monkeypatch, tmp_path)
         "save_parsed_content": True,
         "output_dir": str(tmp_path),
     }
+
+
+@pytest.mark.asyncio
+async def test_sdk_parse_pdf_passes_lang_and_uses_outputs_default(monkeypatch):
+    captured = {}
+
+    async def _fake_pdf_parse_main(**kwargs):
+        captured.update(kwargs)
+        return "# parsed pdf"
+
+    monkeypatch.setattr("markio.sdk.markio_sdk.pdf_parse_main", _fake_pdf_parse_main)
+
+    sdk = MarkioSDK()
+    result = await sdk.parse_pdf("sample.pdf", parse_method="ocr", lang="en")
+
+    assert result["content"] == "# parsed pdf"
+    assert captured["parse_method"] == "ocr"
+    assert captured["lang"] == "en"
+    assert captured["output_dir"].endswith("outputs")

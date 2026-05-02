@@ -203,6 +203,7 @@ const stats = computed(() => {
       processing: 0,
       completed: 0,
       failed: 0,
+      canceled: 0,
     }
   )
 })
