@@ -38,7 +38,7 @@ logger = get_logger(__name__)
     Parameters:
         - url (str): The URL to fetch and parse HTML content from
         - save_parsed_content (bool): Whether to save the parsed content to a file
-        - output_dir (str): Directory to save parsed content (optional, defaults to ~/mark_flow_parsed_content)
+        - output_dir (str): Directory to save parsed content (optional, defaults to the configured outputs directory)
 
     Returns:
         dict: A JSON response containing:
@@ -59,7 +59,7 @@ async def parse_html_url_endpoint(
     ),
     output_dir: str = Query(
         default=DEFAULT_OUTPUT_DIR,
-        description="Directory to save the output file. Defaults to ~/mark_flow_parsed_content.",
+        description="Directory to save the output file. Relative paths are resolved inside the configured outputs directory.",
     ),
 ):
     """

@@ -83,7 +83,17 @@ def resolve_strict_output_dir(requested: str, base: str) -> str:
     if requested_path.is_absolute():
         resolved_dir = requested_path.resolve()
     else:
-        resolved_dir = (Path.cwd() / requested_path).resolve()
+        cwd_relative_dir = (Path.cwd() / requested_path).resolve()
+        try:
+            cwd_relative_dir.relative_to(base_dir)
+            resolved_dir = cwd_relative_dir
+        except ValueError:
+            relative_parts = requested_path.parts
+            if relative_parts and relative_parts[0] == base_dir.name:
+                requested_path = (
+                    Path(*relative_parts[1:]) if len(relative_parts) > 1 else Path(".")
+                )
+            resolved_dir = (base_dir / requested_path).resolve()
 
     try:
         resolved_dir.relative_to(base_dir)

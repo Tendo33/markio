@@ -83,7 +83,7 @@
               aria-describedby="submit-output-dir-hint"
             />
             <p id="submit-output-dir-hint" class="field-hint">
-              仅支持服务端允许的相对目录，最终路径会受后端工作目录与安全校验限制。
+              相对路径会保存到服务端 `outputs/` 目录下，例如 `jobs/demo-1`。
             </p>
           </div>
 

@@ -184,6 +184,36 @@ async def test_parse_url_accepts_valid_output_subdir(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_parse_url_accepts_relative_output_subdir_without_outputs_prefix(
+    monkeypatch,
+):
+    async def fake_url_parse_main(url: str, save_parsed_content: bool, output_dir: str) -> str:
+        assert save_parsed_content is True
+        assert output_dir.endswith("outputs/nested/relative-ok")
+        return "# parsed"
+
+    monkeypatch.setattr(url_router, "url_parse_main", fake_url_parse_main)
+
+    app = _build_app(url_router)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/parse_url",
+            params={
+                "url": "https://example.com",
+                "save_parsed_content": "true",
+                "output_dir": "nested/relative-ok",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["parsed_content"] == "# parsed"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("module,endpoint,file_tuple", UPLOAD_ROUTE_CASES)
 async def test_parse_upload_routes_reject_oversized_payload_with_413(
     monkeypatch,
