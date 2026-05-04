@@ -42,3 +42,57 @@ def test_cache_key_is_scoped_by_owner_id(tmp_path: Path):
     )
 
     assert manager._build_cache_key(request_a) != manager._build_cache_key(request_b)
+
+
+def test_non_pdf_cache_key_ignores_pdf_only_options(tmp_path: Path):
+    file_path = tmp_path / "cache-owner.docx"
+    file_path.write_text("same-content", encoding="utf-8")
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=None)
+    request_a = SubmitTaskRequest(
+        filename="cache-owner.docx",
+        file_path=str(file_path),
+        parse_method="auto",
+        lang="ch",
+        save_middle_content=False,
+        start_page=0,
+        end_page=None,
+    )
+    request_b = SubmitTaskRequest(
+        filename="cache-owner.docx",
+        file_path=str(file_path),
+        parse_method="ocr",
+        lang="en",
+        save_middle_content=True,
+        start_page=3,
+        end_page=9,
+    )
+
+    assert manager._build_cache_key(request_a) == manager._build_cache_key(request_b)
+
+
+def test_pdf_cache_key_still_tracks_pdf_specific_options(tmp_path: Path):
+    file_path = tmp_path / "cache-owner.pdf"
+    file_path.write_text("same-content", encoding="utf-8")
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=None)
+    request_a = SubmitTaskRequest(
+        filename="cache-owner.pdf",
+        file_path=str(file_path),
+        parse_method="auto",
+        lang="ch",
+        save_middle_content=False,
+        start_page=0,
+        end_page=None,
+    )
+    request_b = SubmitTaskRequest(
+        filename="cache-owner.pdf",
+        file_path=str(file_path),
+        parse_method="ocr",
+        lang="en",
+        save_middle_content=True,
+        start_page=3,
+        end_page=9,
+    )
+
+    assert manager._build_cache_key(request_a) != manager._build_cache_key(request_b)

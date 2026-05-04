@@ -119,7 +119,8 @@ export const useTaskStore = defineStore('task', () => {
       const previousTaskId = currentTaskSummary.value?.task_id
       currentTaskSummary.value = summary
       if (options.includeResult) {
-        currentTaskResult.value = detail.result ?? null
+        currentTaskResult.value =
+          detail.result === null || detail.result === undefined ? null : detail.result
       } else if (previousTaskId !== detail.task_id || detail.status !== 'completed') {
         currentTaskResult.value = null
       }

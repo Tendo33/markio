@@ -41,15 +41,22 @@ class BaseTaskManager:
             return ""
 
         owner_id = (request.owner_id or "").strip() or "anonymous"
+        extension = os.path.splitext(request.filename or "")[1].lower()
         options = {
             "owner_id": owner_id,
-            "parse_method": request.parse_method,
-            "lang": request.lang,
-            "save_middle_content": request.save_middle_content,
-            "start_page": request.start_page,
-            "end_page": request.end_page,
-            "engine": os.getenv("PDF_PARSE_ENGINE", "pipeline"),
+            "extension": extension,
         }
+        if extension == ".pdf":
+            options.update(
+                {
+                    "parse_method": request.parse_method,
+                    "lang": request.lang,
+                    "save_middle_content": request.save_middle_content,
+                    "start_page": request.start_page,
+                    "end_page": request.end_page,
+                    "engine": os.getenv("PDF_PARSE_ENGINE", "pipeline"),
+                }
+            )
         options_digest = hashlib.sha256(
             json.dumps(options, sort_keys=True, ensure_ascii=True).encode("utf-8")
         ).hexdigest()

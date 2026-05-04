@@ -130,13 +130,19 @@
         <div class="card">
           <h2 class="section-title mb-3">解析结果</h2>
           <div
-            v-if="task.result"
+            v-if="task.result !== null"
             class="bg-code text-code text-xs rounded-lg p-4 overflow-auto max-h-[480px]"
             dir="auto"
           >
             <pre class="whitespace-pre-wrap break-words">{{ task.result }}</pre>
           </div>
-          <div v-else class="text-sm text-secondary">结果还没生成。任务完成后会显示在这里。</div>
+          <div v-else class="text-sm text-secondary">
+            {{
+              task.status === 'completed'
+                ? '解析已完成，但结果为空。'
+                : '结果还没生成。任务完成后会显示在这里。'
+            }}
+          </div>
         </div>
       </div>
     </template>
