@@ -42,7 +42,7 @@ class BaseTaskManager:
 
         owner_id = (request.owner_id or "").strip() or "anonymous"
         extension = os.path.splitext(request.filename or "")[1].lower()
-        options = {
+        options: dict[str, object] = {
             "owner_id": owner_id,
             "extension": extension,
         }
