@@ -47,6 +47,7 @@ from markio.parsers import (
     pptx_parser,
     xlsx_parser,
 )
+from markio.parsers.url_parser import URLFetchError, URLSecurityError
 from markio.schemas.parser_base import BaseParserConfig
 from markio.schemas.parsers_schemas import (
     DOCXParserConfig,
@@ -355,6 +356,18 @@ class MarkioMCP:
                     save_parsed_content=False,
                     output_dir=settings.output_dir,
                 )
+            except URLSecurityError as exc:
+                logger.error(f"Validation error for URL {url}: {exc}")
+                raise HTTPException(
+                    status_code=HTTP_400_BAD_REQUEST,
+                    detail=str(exc),
+                ) from exc
+            except URLFetchError as exc:
+                logger.warning(f"Fetch error for URL {url}: {exc}")
+                raise HTTPException(
+                    status_code=502,
+                    detail="Failed to fetch URL content",
+                ) from exc
             except ValueError as exc:
                 logger.error(f"Validation error for URL {url}: {exc}")
                 raise HTTPException(

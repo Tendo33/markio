@@ -246,9 +246,6 @@ async def readyz() -> JSONResponse:
 
 def main():
     """Main application entry point"""
-    if not initialize_models_safely():
-        logger.error("Failed to initialize models, server may not function properly")
-
     uvicorn.run(app, host=settings.host, port=settings.port)
 
 

@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from markio.mcps import mcp_server
+from markio.parsers.url_parser import URLFetchError
 from markio.schemas.parsers_schemas import DOCXParserConfig
 from markio.settings import settings
 
@@ -284,3 +285,36 @@ async def test_legacy_mcp_error_keeps_deprecation_headers(monkeypatch, mcp_app):
     assert response.headers["Deprecation"] == "true"
     assert response.headers["X-Markio-Deprecated"] == "Use /v1/mcp/* endpoints"
     assert response.json()["error"]["code"] == "http_400"
+
+
+@pytest.mark.asyncio
+async def test_v1_mcp_parse_url_maps_fetch_failures_to_502(monkeypatch, mcp_app):
+    secret = "mcp-fetch-error-secret"
+    monkeypatch.setattr(settings, "auth_jwt_secret", secret, raising=False)
+    monkeypatch.setattr(settings, "auth_jwt_algorithm", "HS256", raising=False)
+    token = _build_jwt(secret)
+    app, _ = mcp_app
+
+    async def failing_url_parse_main(
+        url: str,
+        save_parsed_content: bool,
+        output_dir: str,
+    ) -> str:
+        raise URLFetchError("URL fetch timeout")
+
+    monkeypatch.setattr("markio.parsers.url_parser.url_parse_main", failing_url_parse_main)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/mcp/parse_url",
+            json={"url": "https://example.com"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 502
+    payload = response.json()
+    assert payload["error"]["code"] == "http_502"
+    assert payload["error"]["message"] == "Failed to fetch URL content"

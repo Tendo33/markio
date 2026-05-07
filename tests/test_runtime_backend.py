@@ -22,10 +22,13 @@ def test_compose_redis_service_uses_redis_task_backend():
     compose_path = Path(__file__).resolve().parents[1] / "compose.yaml"
     compose = yaml.safe_load(compose_path.read_text())
     environment = compose["services"]["markio"]["environment"]
+    volumes = compose["services"]["markio"]["volumes"]
 
     assert "PYTHONPATH=/workspace" in environment
     assert "REDIS_ENABLED=true" in environment
     assert "TASK_QUEUE_BACKEND=redis" in environment
+    assert "./data:/workspace/data" in volumes
+    assert "./outputs:/workspace/outputs" in volumes
 
 
 def test_dockerfile_builds_console_assets_in_image():
