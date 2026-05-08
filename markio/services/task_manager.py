@@ -7,8 +7,7 @@ import logging
 import os
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
-from math import ceil
+from datetime import datetime
 from pathlib import Path
 from time import perf_counter
 
@@ -25,6 +24,21 @@ from markio.services.task_manager_base import (
     CacheGetter,
     CacheSetter,
     ParserFunc,
+)
+from markio.services.task_serialization import (
+    submit_task_request_from_dict,
+    submit_task_request_to_dict,
+    task_record_from_dict,
+    task_record_to_dict,
+)
+from markio.services.task_time import calculate_duration_ms, duration_metrics, utc_now
+from markio.services.task_transitions import (
+    cancel_transition,
+    completion_transition,
+    failure_transition,
+    processing_transition,
+    retry_transition,
+    transition_to_record_fields,
 )
 
 logger = logging.getLogger(__name__)
@@ -148,7 +162,7 @@ class AsyncTaskManager(BaseTaskManager):
         if cache_allowed and self.cache_getter and cache_key:
             cached_value = await self._safe_cache_get(cache_key)
             if cached_value:
-                now = _utc_now()
+                now = utc_now()
                 record = TaskRecord(
                     task_id=task_id,
                     filename=request.filename,
@@ -178,7 +192,7 @@ class AsyncTaskManager(BaseTaskManager):
             status=TaskStatus.pending,
             parse_method=request.parse_method,
             lang=request.lang,
-            created_at=_utc_now(),
+            created_at=utc_now(),
             priority=request.priority,
         )
 
@@ -316,7 +330,7 @@ class AsyncTaskManager(BaseTaskManager):
             "success_rate": success_rate,
             "sla": self._duration_metrics(duration_values),
             "recent_tasks": [self._record_to_dict(item) for item in recent.items],
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": utc_now().isoformat(),
         }
 
     async def cancel_task(self, task_id: str, owner_id: str | None = None) -> bool:
@@ -327,9 +341,13 @@ class AsyncTaskManager(BaseTaskManager):
             if owner_id and record.owner_id != owner_id:
                 return False
 
-            record.status = TaskStatus.canceled
-            record.completed_at = _utc_now()
-            record.error_message = "Canceled by user"
+            self._apply_transition(
+                record,
+                cancel_transition(
+                    current_retry_count=record.retry_count,
+                    completed_at=utc_now(),
+                ),
+            )
 
             self._pending_items.pop(task_id, None)
             self._persist_state_locked()
@@ -349,13 +367,10 @@ class AsyncTaskManager(BaseTaskManager):
             if not os.path.exists(request.file_path):
                 return False
 
-            record.status = TaskStatus.pending
-            record.error_message = None
-            record.result = None
-            record.started_at = None
-            record.completed_at = None
-            record.retry_count += 1
-            record.processing_duration_ms = None
+            self._apply_transition(
+                record,
+                retry_transition(current_retry_count=record.retry_count),
+            )
 
             cache_key = self._build_cache_key(request)
             self._pending_items[task_id] = QueueItem(task_id=task_id, cache_key=cache_key)
@@ -388,9 +403,13 @@ class AsyncTaskManager(BaseTaskManager):
                     self._queue.task_done()
                     continue
 
-                record.status = TaskStatus.processing
-                record.started_at = _utc_now()
-                record.processing_duration_ms = None
+                self._apply_transition(
+                    record,
+                    processing_transition(
+                        current_retry_count=record.retry_count,
+                        started_at=utc_now(),
+                    ),
+                )
                 self._persist_state_locked()
 
             started_at_perf = perf_counter()
@@ -429,23 +448,25 @@ class AsyncTaskManager(BaseTaskManager):
                 and record.retry_count < self.max_auto_retries
                 and os.path.exists(request.file_path)
             ):
-                record.retry_count += 1
-                record.status = TaskStatus.pending
-                record.error_message = message
-                record.result = None
-                record.started_at = None
-                record.completed_at = None
-                record.processing_duration_ms = None
+                self._apply_transition(
+                    record,
+                    retry_transition(
+                        current_retry_count=record.retry_count,
+                        error_message=message,
+                    ),
+                )
                 cache_key = self._build_cache_key(request)
                 self._pending_items[task_id] = QueueItem(task_id=task_id, cache_key=cache_key)
                 should_retry = True
             else:
-                record.status = TaskStatus.failed
-                record.error_message = message
-                record.completed_at = _utc_now()
-                record.processing_duration_ms = self._calculate_duration_ms(
-                    record.started_at,
-                    record.completed_at,
+                self._apply_transition(
+                    record,
+                    failure_transition(
+                        current_retry_count=record.retry_count,
+                        started_at=record.started_at,
+                        completed_at=utc_now(),
+                        message=message,
+                    ),
                 )
 
             self._persist_state_locked()
@@ -460,13 +481,14 @@ class AsyncTaskManager(BaseTaskManager):
             record = self._records.get(task_id)
             if record is None:
                 return
-            record.status = TaskStatus.completed
-            record.result = result
-            record.error_message = None
-            record.completed_at = _utc_now()
-            record.processing_duration_ms = self._calculate_duration_ms(
-                record.started_at,
-                record.completed_at,
+            self._apply_transition(
+                record,
+                completion_transition(
+                    current_retry_count=record.retry_count,
+                    started_at=record.started_at,
+                    completed_at=utc_now(),
+                    result=result,
+                ),
             )
             self._requests.pop(task_id, None)
             self._persist_state_locked()
@@ -527,7 +549,7 @@ class AsyncTaskManager(BaseTaskManager):
                 self._record_to_persist_dict(item) for item in self._records.values()
             ],
             "requests": {
-                task_id: asdict(request)
+                task_id: submit_task_request_to_dict(request)
                 for task_id, request in self._requests.items()
             },
             "pending": {
@@ -567,7 +589,7 @@ class AsyncTaskManager(BaseTaskManager):
 
         self._requests.clear()
         for task_id, raw_request in payload.get("requests", {}).items():
-            self._requests[task_id] = SubmitTaskRequest(**raw_request)
+            self._requests[task_id] = submit_task_request_from_dict(raw_request)
 
         self._pending_items.clear()
         for task_id, raw_pending in payload.get("pending", {}).items():
@@ -605,17 +627,7 @@ class AsyncTaskManager(BaseTaskManager):
 
     @staticmethod
     def _record_to_dict(record: TaskRecord) -> dict:
-        payload = asdict(record)
-        payload["status"] = record.status.value
-        payload["owner_id"] = record.owner_id
-        payload["created_at"] = record.created_at.isoformat()
-        payload["started_at"] = (
-            record.started_at.isoformat() if record.started_at else None
-        )
-        payload["completed_at"] = (
-            record.completed_at.isoformat() if record.completed_at else None
-        )
-        return payload
+        return task_record_to_dict(record)
 
     def _record_to_persist_dict(self, record: TaskRecord) -> dict:
         payload = self._record_to_dict(record)
@@ -632,33 +644,12 @@ class AsyncTaskManager(BaseTaskManager):
 
     @staticmethod
     def _record_from_dict(payload: dict) -> TaskRecord:
-        def _parse_dt(value: str | None) -> datetime | None:
-            if not value:
-                return None
-            parsed = datetime.fromisoformat(value)
-            return _ensure_utc(parsed)
+        return task_record_from_dict(payload)
 
-        return TaskRecord(
-            task_id=payload["task_id"],
-            filename=payload["filename"],
-            owner_id=payload.get("owner_id", "anonymous"),
-            status=TaskStatus(payload["status"]),
-            parse_method=payload["parse_method"],
-            lang=payload["lang"],
-            created_at=_parse_dt(payload["created_at"]),
-            started_at=_parse_dt(payload.get("started_at")),
-            completed_at=_parse_dt(payload.get("completed_at")),
-            result=payload.get("result"),
-            error_message=payload.get("error_message"),
-            cache_hit=bool(payload.get("cache_hit", False)),
-            priority=int(payload.get("priority", 0)),
-            retry_count=int(payload.get("retry_count", 0)),
-            processing_duration_ms=(
-                int(payload["processing_duration_ms"])
-                if payload.get("processing_duration_ms") not in (None, "")
-                else None
-            ),
-        )
+    @staticmethod
+    def _apply_transition(record: TaskRecord, transition) -> None:
+        for field, value in transition_to_record_fields(transition).items():
+            setattr(record, field, value)
 
     @staticmethod
     def _copy_record(record: TaskRecord, *, include_result: bool) -> TaskRecord:
@@ -672,36 +663,8 @@ class AsyncTaskManager(BaseTaskManager):
         started_at: datetime | None,
         completed_at: datetime | None,
     ) -> int | None:
-        if started_at is None or completed_at is None:
-            return None
-        duration = int((completed_at - started_at).total_seconds() * 1000)
-        return max(duration, 0)
+        return calculate_duration_ms(started_at, completed_at)
 
     @staticmethod
     def _duration_metrics(values: list[int]) -> dict[str, int | float]:
-        if not values:
-            return {
-                "count": 0,
-                "avg_ms": 0,
-                "p95_ms": 0,
-                "max_ms": 0,
-            }
-        sorted_values = sorted(values)
-        p95_index = max(ceil(len(sorted_values) * 0.95) - 1, 0)
-        avg_ms = int(sum(sorted_values) / len(sorted_values))
-        return {
-            "count": len(sorted_values),
-            "avg_ms": avg_ms,
-            "p95_ms": sorted_values[p95_index],
-            "max_ms": sorted_values[-1],
-        }
-
-
-def _ensure_utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
-
-
-def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+        return duration_metrics(values)

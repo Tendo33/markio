@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import os
 from datetime import datetime, timezone
-from math import ceil
 from time import perf_counter
 
 from markio.schemas.task_schemas import (
@@ -21,6 +20,8 @@ from markio.services.task_manager_base import (
     CacheSetter,
     ParserFunc,
 )
+from markio.services.task_serialization import task_record_to_dict
+from markio.services.task_time import duration_metrics
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -299,41 +300,8 @@ class RedisTaskManager(BaseTaskManager):
 
     @staticmethod
     def _record_to_dict(record: TaskRecord) -> dict:
-        return {
-            "task_id": record.task_id,
-            "filename": record.filename,
-            "owner_id": record.owner_id,
-            "status": record.status.value,
-            "parse_method": record.parse_method,
-            "lang": record.lang,
-            "created_at": record.created_at.isoformat(),
-            "started_at": record.started_at.isoformat() if record.started_at else None,
-            "completed_at": record.completed_at.isoformat()
-            if record.completed_at
-            else None,
-            "result": record.result,
-            "error_message": record.error_message,
-            "cache_hit": record.cache_hit,
-            "priority": record.priority,
-            "retry_count": record.retry_count,
-            "processing_duration_ms": record.processing_duration_ms,
-        }
+        return task_record_to_dict(record)
 
     @staticmethod
     def _duration_metrics(values: list[int]) -> dict[str, int | float]:
-        if not values:
-            return {
-                "count": 0,
-                "avg_ms": 0,
-                "p95_ms": 0,
-                "max_ms": 0,
-            }
-        sorted_values = sorted(values)
-        p95_index = max(ceil(len(sorted_values) * 0.95) - 1, 0)
-        avg_ms = int(sum(sorted_values) / len(sorted_values))
-        return {
-            "count": len(sorted_values),
-            "avg_ms": avg_ms,
-            "p95_ms": sorted_values[p95_index],
-            "max_ms": sorted_values[-1],
-        }
+        return duration_metrics(values)

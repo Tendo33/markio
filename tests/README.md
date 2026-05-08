@@ -38,6 +38,14 @@ uv run pytest tests/test_redis.py tests/test_redis_task_store.py tests/test_redi
 uv run pytest tests/test_mcp_routes.py tests/test_observability_and_errors.py -q
 ```
 
+### Console browser E2E
+
+```bash
+cd frontend
+npx playwright install chromium
+npm run test:e2e
+```
+
 ## Test Areas
 
 ### Core parser and API behavior
@@ -63,9 +71,12 @@ uv run pytest tests/test_mcp_routes.py tests/test_observability_and_errors.py -q
 
 This suite validates the `/console` delivery contract against real built frontend assets, not a fake placeholder route.
 
+Browser-level regressions for the console now live under `frontend/e2e/` and run with Playwright against a local preview server plus mocked `/v1/*` responses.
+
 ### Async task system
 
 - `test_task_manager.py`
+- `test_task_manager_contract.py`
 - `test_task_manager_base.py`
 - `test_task_router.py`
 - `test_task_settings.py`

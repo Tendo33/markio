@@ -5,6 +5,9 @@ const envApiToken = (import.meta.env.VITE_API_TOKEN as string | undefined)?.trim
 export const API_TOKEN_STORAGE_KEY = 'markio_api_token'
 const TOKEN_CHANGE_EVENT = 'markio:token-change'
 
+// Keep browser token storage access centralized in this module so the
+// console's credential surface stays narrow and auditable.
+
 export type ApiTokenStatus = 'missing' | 'invalid' | 'expired' | 'valid'
 
 function readStoredToken(): string {

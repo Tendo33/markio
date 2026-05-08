@@ -72,7 +72,14 @@ Use it if you want the frontend to pre-validate task upload size with the same l
 
 - console route tests build the real SPA assets when required
 - import-time build side effects are intentionally avoided
-- there is no standalone frontend E2E suite yet
+- browser E2E coverage lives in `e2e/` and runs with Playwright against mocked `/v1/*` traffic
+
+### Run browser E2E
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
 
 Useful companion docs:
 

@@ -15,6 +15,19 @@ from markio.schemas.task_schemas import (
     TaskStats,
     TaskStatus,
 )
+from markio.services.task_serialization import (
+    submit_task_request_from_dict,
+    submit_task_request_to_dict,
+    task_record_from_dict,
+)
+from markio.services.task_time import calculate_duration_ms, parse_task_datetime, utc_now
+from markio.services.task_transitions import (
+    cancel_transition,
+    completion_transition,
+    failure_transition,
+    retry_transition,
+    transition_to_storage_fields,
+)
 from markio.utils.redis_utils import redis_manager
 
 
@@ -124,7 +137,7 @@ class RedisTaskStore:
 
     async def mark_completed(self, task_id: str, result: str) -> None:
         redis = self._ensure_redis()
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         task_key = self._task_key(task_id)
         payload = await redis.hgetall(task_key)
         if not payload:
@@ -132,17 +145,15 @@ class RedisTaskStore:
 
         created_score = self._created_score_from_payload(payload)
         started_at = self._parse_datetime(self._decode(payload.get("started_at")))
-        duration_ms = self._duration_ms(started_at, now)
+        transition = completion_transition(
+            current_retry_count=int(self._decode(payload.get("retry_count")) or "0"),
+            started_at=started_at,
+            completed_at=now,
+            result=result,
+        )
         await redis.hset(
             task_key,
-            mapping={
-                "status": TaskStatus.completed.value,
-                "completed_at": now.isoformat(),
-                "error_message": "",
-                "processing_duration_ms": (
-                    "" if duration_ms is None else str(duration_ms)
-                ),
-            },
+            mapping=transition_to_storage_fields(transition),
         )
         await redis.set(self._result_key(task_id), result)
         await self._move_status(task_id, payload, TaskStatus.completed, created_score)
@@ -150,7 +161,7 @@ class RedisTaskStore:
 
     async def mark_failed(self, task_id: str, message: str) -> None:
         redis = self._ensure_redis()
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         task_key = self._task_key(task_id)
         payload = await redis.hgetall(task_key)
         if not payload:
@@ -158,17 +169,15 @@ class RedisTaskStore:
 
         created_score = self._created_score_from_payload(payload)
         started_at = self._parse_datetime(self._decode(payload.get("started_at")))
-        duration_ms = self._duration_ms(started_at, now)
+        transition = failure_transition(
+            current_retry_count=int(self._decode(payload.get("retry_count")) or "0"),
+            started_at=started_at,
+            completed_at=now,
+            message=message,
+        )
         await redis.hset(
             task_key,
-            mapping={
-                "status": TaskStatus.failed.value,
-                "completed_at": now.isoformat(),
-                "error_message": message,
-                "processing_duration_ms": (
-                    "" if duration_ms is None else str(duration_ms)
-                ),
-            },
+            mapping=transition_to_storage_fields(transition),
         )
         await redis.delete(self._result_key(task_id))
         await self._move_status(task_id, payload, TaskStatus.failed, created_score)
@@ -204,18 +213,14 @@ class RedisTaskStore:
                 await self._sync_owner_indexes_from_task(task_id)
             return retried
 
-        retry_count = int(payload.get("retry_count", "0")) + 1
+        transition = retry_transition(
+            current_retry_count=int(payload.get("retry_count", "0")),
+            error_message=error_message,
+        )
         created_score = self._created_score_from_payload(payload)
         await redis.hset(
             task_key,
-            mapping={
-                "status": TaskStatus.pending.value,
-                "error_message": error_message or "",
-                "retry_count": str(retry_count),
-                "started_at": "",
-                "completed_at": "",
-                "processing_duration_ms": "",
-            },
+            mapping=transition_to_storage_fields(transition),
         )
         await redis.delete(self._result_key(task_id))
         await self._move_status(task_id, payload, TaskStatus.pending, created_score)
@@ -225,7 +230,7 @@ class RedisTaskStore:
 
     async def cancel_task(self, task_id: str, owner_id: str | None = None) -> bool:
         redis = self._ensure_redis()
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         task_key = self._task_key(task_id)
         payload = await redis.hgetall(task_key)
         if not payload:
@@ -250,14 +255,13 @@ class RedisTaskStore:
             return canceled
 
         created_score = self._created_score_from_payload(payload)
+        transition = cancel_transition(
+            current_retry_count=int(payload.get("retry_count", "0")),
+            completed_at=now,
+        )
         await redis.hset(
             task_key,
-            mapping={
-                "status": TaskStatus.canceled.value,
-                "completed_at": now.isoformat(),
-                "error_message": "Canceled by user",
-                "processing_duration_ms": "",
-            },
+            mapping=transition_to_storage_fields(transition),
         )
         await redis.zrem(self._queue_pending_key(), task_id)
         await self._move_status(task_id, payload, TaskStatus.canceled, created_score)
@@ -440,7 +444,7 @@ class RedisTaskStore:
         if timeout_seconds <= 0:
             return
         redis = self._ensure_redis()
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         now_iso = now.isoformat()
         cutoff = self._to_epoch(now) - float(timeout_seconds)
         task_ids = await redis.zrangebyscore(self._queue_processing_key(), 0, cutoff)
@@ -477,16 +481,13 @@ class RedisTaskStore:
             retry_count = int(payload.get("retry_count", "0"))
             created_score = self._created_score_from_payload(payload)
             if retry_count < max_auto_retries:
+                transition = retry_transition(
+                    current_retry_count=retry_count,
+                    error_message="Processing timeout",
+                )
                 await redis.hset(
                     self._task_key(task_id),
-                    mapping={
-                        "status": TaskStatus.pending.value,
-                        "error_message": "Processing timeout",
-                        "retry_count": str(retry_count + 1),
-                        "started_at": "",
-                        "completed_at": "",
-                        "processing_duration_ms": "",
-                    },
+                    mapping=transition_to_storage_fields(transition),
                 )
                 await redis.zrem(self._queue_processing_key(), task_id)
                 await redis.zrem(
@@ -501,14 +502,15 @@ class RedisTaskStore:
                 await self._enqueue_task(task_id, priority)
                 await self._sync_owner_indexes_from_task(task_id)
             else:
+                transition = failure_transition(
+                    current_retry_count=retry_count,
+                    started_at=self._parse_datetime(payload.get("started_at")),
+                    completed_at=now,
+                    message="Processing timeout",
+                )
                 await redis.hset(
                     self._task_key(task_id),
-                    mapping={
-                        "status": TaskStatus.failed.value,
-                        "completed_at": now_iso,
-                        "error_message": "Processing timeout",
-                        "processing_duration_ms": "",
-                    },
+                    mapping=transition_to_storage_fields(transition),
                 )
                 await redis.delete(self._result_key(task_id))
                 await redis.zrem(self._queue_processing_key(), task_id)
@@ -635,19 +637,28 @@ class RedisTaskStore:
         cache_key: str | None,
         processing_duration_ms: Optional[int],
     ) -> dict[str, str]:
+        request_payload = submit_task_request_to_dict(request)
         return {
             "task_id": task_id,
-            "filename": request.filename,
-            "owner_id": request.owner_id,
-            "file_path": request.file_path,
-            "parse_method": request.parse_method,
-            "lang": request.lang,
-            "save_parsed_content": self._bool_value(request.save_parsed_content),
-            "save_middle_content": self._bool_value(request.save_middle_content),
-            "output_dir": request.output_dir,
-            "start_page": str(request.start_page),
-            "end_page": "" if request.end_page is None else str(request.end_page),
-            "priority": str(request.priority),
+            "filename": str(request_payload["filename"]),
+            "owner_id": str(request_payload["owner_id"]),
+            "file_path": str(request_payload["file_path"]),
+            "parse_method": str(request_payload["parse_method"]),
+            "lang": str(request_payload["lang"]),
+            "save_parsed_content": self._bool_value(
+                bool(request_payload["save_parsed_content"])
+            ),
+            "save_middle_content": self._bool_value(
+                bool(request_payload["save_middle_content"])
+            ),
+            "output_dir": str(request_payload["output_dir"]),
+            "start_page": str(request_payload["start_page"]),
+            "end_page": (
+                ""
+                if request_payload["end_page"] is None
+                else str(request_payload["end_page"])
+            ),
+            "priority": str(request_payload["priority"]),
             "status": status.value,
             "created_at": created_at.isoformat(),
             "started_at": "" if started_at is None else started_at.isoformat(),
@@ -663,44 +674,11 @@ class RedisTaskStore:
         }
 
     def _build_task_record(self, payload: dict[str, str], result: Optional[str]) -> TaskRecord:
-        created_at = self._parse_datetime(payload.get("created_at"))
-        return TaskRecord(
-            task_id=payload.get("task_id", ""),
-            filename=payload.get("filename", ""),
-            owner_id=payload.get("owner_id", "anonymous"),
-            status=TaskStatus(payload.get("status", TaskStatus.pending.value)),
-            parse_method=payload.get("parse_method", "auto"),
-            lang=payload.get("lang", "ch"),
-            created_at=created_at or datetime.now(timezone.utc),
-            started_at=self._parse_datetime(payload.get("started_at")),
-            completed_at=self._parse_datetime(payload.get("completed_at")),
-            result=result,
-            error_message=payload.get("error_message") or None,
-            cache_hit=self._parse_bool(payload.get("cache_hit")),
-            priority=int(payload.get("priority", "0")),
-            retry_count=int(payload.get("retry_count", "0")),
-            processing_duration_ms=(
-                int(payload["processing_duration_ms"])
-                if payload.get("processing_duration_ms")
-                else None
-            ),
-        )
+        return task_record_from_dict({**payload, "result": result})
 
     @staticmethod
     def _build_request(payload: dict[str, str]) -> SubmitTaskRequest:
-        return SubmitTaskRequest(
-            filename=payload.get("filename", ""),
-            file_path=payload.get("file_path", ""),
-            owner_id=payload.get("owner_id", "anonymous"),
-            parse_method=payload.get("parse_method", "auto"),
-            lang=payload.get("lang", "ch"),
-            save_parsed_content=payload.get("save_parsed_content", "0") == "1",
-            save_middle_content=payload.get("save_middle_content", "0") == "1",
-            output_dir=payload.get("output_dir", "outputs"),
-            start_page=int(payload.get("start_page", "0")),
-            end_page=int(payload["end_page"]) if payload.get("end_page") else None,
-            priority=int(payload.get("priority", "0")),
-        )
+        return submit_task_request_from_dict(payload)
 
     async def _get_payload(self, task_id: str) -> Optional[dict[str, str]]:
         redis = self._ensure_redis()
@@ -1108,12 +1086,7 @@ class RedisTaskStore:
 
     @staticmethod
     def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
-        if not value:
-            return None
-        try:
-            return datetime.fromisoformat(value)
-        except ValueError:
-            return None
+        return parse_task_datetime(value)
 
     @staticmethod
     def _bool_value(value: bool) -> str:
@@ -1130,15 +1103,12 @@ class RedisTaskStore:
         started_at: Optional[datetime],
         completed_at: Optional[datetime],
     ) -> Optional[int]:
-        if started_at is None or completed_at is None:
-            return None
-        duration = int((completed_at - started_at).total_seconds() * 1000)
-        return max(duration, 0)
+        return calculate_duration_ms(started_at, completed_at)
 
     def _created_score_from_payload(self, payload: dict[str, Any]) -> float:
         created_at = self._parse_datetime(self._decode(payload.get("created_at")))
         if created_at is None:
-            created_at = datetime.now(timezone.utc)
+            created_at = utc_now()
         return self._to_epoch(created_at)
 
     @staticmethod

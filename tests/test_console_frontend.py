@@ -80,6 +80,43 @@ def test_console_includes_markio_console_title(console_build_ready):
     assert '<title>Markio Console</title>' in html
 
 
+def test_console_route_keeps_strict_security_headers(console_build_ready):
+    client = TestClient(_build_console_app())
+    response = client.get('/console/')
+
+    assert response.status_code == 200
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+    csp = response.headers["content-security-policy"]
+    assert "default-src 'self'" in csp
+    assert "script-src 'self'" in csp
+    assert "connect-src 'self'" in csp
+    assert "unsafe-eval" not in csp
+    assert "script-src 'self' 'unsafe-inline'" not in csp
+
+
+def test_console_frontend_centralizes_storage_access_and_avoids_html_injection():
+    frontend_src = FRONTEND_DIR / "src"
+    local_storage_users: list[str] = []
+    inner_html_users: list[str] = []
+
+    for path in frontend_src.rglob("*"):
+        if path.suffix not in {".ts", ".vue"}:
+            continue
+        if path.is_dir():
+            continue
+        content = path.read_text(encoding="utf-8")
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        if "localStorage" in content:
+            local_storage_users.append(relative)
+        if "innerHTML" in content:
+            inner_html_users.append(relative)
+
+    assert local_storage_users == ["frontend/src/api/client.ts"]
+    assert inner_html_users == []
+
+
 def test_console_fallback_page_when_assets_missing(tmp_path: Path):
     from markio.main import mount_web_console
 
