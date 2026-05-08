@@ -39,10 +39,12 @@ class PDFParserConfig(BaseParserConfig):
     )
     start_page: Optional[int] = Field(
         default=0,
+        ge=0,
         description="Start page to parse",
     )
     end_page: Optional[int] = Field(
         default=None,
+        ge=0,
         description="End page to parse",
     )
 

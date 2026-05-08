@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from tempfile import NamedTemporaryFile
+from tempfile import gettempdir
 from time import perf_counter
 from typing import Any, Awaitable, Callable, Mapping
 from uuid import uuid4
@@ -45,7 +45,7 @@ async def run_uploaded_file_parser(
     parser_kwargs = parser_kwargs or {}
 
     try:
-        temp_dir = os.path.dirname(NamedTemporaryFile().name)
+        temp_dir = gettempdir()
         original_filename = sanitize_filename(file.filename)
         temp_file_path, _ = create_unique_temp_file(original_filename, temp_dir)
         try:

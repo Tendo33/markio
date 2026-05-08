@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 from markio.parsers.pdf_parser import pdf_parse_main
 from markio.routers._request_guards import (
     resolve_parser_output_dir,
+    validate_pdf_page_range,
     validate_upload_file,
 )
 from markio.schemas.parsers_schemas import PDFParserConfig
@@ -75,6 +76,11 @@ async def parse_pdf_file_endpoint(
     # Validate file type
     _validate_pdf_file(file=file)
 
+    start_page, end_page = validate_pdf_page_range(
+        start_page=config.start_page,
+        end_page=config.end_page,
+    )
+
     # Ensure output directory exists and is constrained
     output_dir = resolve_parser_output_dir(
         requested_output_dir=config.output_dir or DEFAULT_OUTPUT_DIR,
@@ -98,8 +104,8 @@ async def parse_pdf_file_endpoint(
             save_parsed_content=config.save_parsed_content,
             save_middle_content=config.save_middle_content,
             output_dir=output_dir,
-            start_page=config.start_page,
-            end_page=config.end_page,
+            start_page=start_page,
+            end_page=end_page,
             backend=pdf_parse_engine,
             server_url=settings.vlm_server_url,
         )

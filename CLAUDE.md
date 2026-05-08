@@ -14,7 +14,7 @@ Markio is an API-first document parsing platform. It converts documents and web 
 
 Current status:
 
-- version `0.1.4`
+- version `0.1.5`
 - development stage: alpha
 - every `/v1/*` route requires JWT auth
 

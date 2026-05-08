@@ -75,6 +75,30 @@ def validate_upload_file(
     return file_extension
 
 
+def validate_pdf_page_range(
+    *,
+    start_page: int | None,
+    end_page: int | None,
+) -> tuple[int, int | None]:
+    normalized_start_page = 0 if start_page is None else start_page
+    if normalized_start_page < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="start_page must be greater than or equal to 0",
+        )
+    if end_page is not None and end_page < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="end_page must be greater than or equal to 0",
+        )
+    if end_page is not None and end_page < normalized_start_page:
+        raise HTTPException(
+            status_code=400,
+            detail="end_page must be greater than or equal to start_page",
+        )
+    return normalized_start_page, end_page
+
+
 def resolve_strict_output_dir(requested: str, base: str) -> str:
     base_dir = Path(base).expanduser().resolve()
     base_dir.mkdir(parents=True, exist_ok=True)
