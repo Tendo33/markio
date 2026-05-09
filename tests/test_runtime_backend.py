@@ -36,6 +36,6 @@ def test_dockerfile_builds_console_assets_in_image():
     dockerfile = dockerfile_path.read_text(encoding="utf-8")
 
     assert "FROM node:20-bookworm-slim AS frontend-builder" in dockerfile
-    assert "RUN npm ci" in dockerfile
-    assert "RUN npm run build" in dockerfile
+    assert "RUN corepack enable && pnpm install --frozen-lockfile" in dockerfile
+    assert "RUN pnpm run build" in dockerfile
     assert "COPY --from=frontend-builder /frontend/dist /workspace/markio/webapp" in dockerfile

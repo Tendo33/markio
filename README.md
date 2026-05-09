@@ -101,8 +101,8 @@ The backend serves the Vue SPA only when the built frontend assets exist in `mar
 
 ```bash
 cd frontend
-npm install
-npm run build
+pnpm install
+pnpm run build
 cd ..
 ```
 
@@ -280,7 +280,7 @@ Primary commands:
 ```bash
 uv run pytest
 uv run pytest -m live
-cd frontend && npm run build
+cd frontend && pnpm run build
 ```
 
 The repository currently uses pytest as the source of truth. Legacy helper scripts under `tests/` still exist, but direct pytest runs are the preferred path.

@@ -20,21 +20,21 @@ def console_build_ready() -> None:
     if index_file.exists():
         return
 
-    npm = shutil.which("npm")
-    if npm is None:
-        pytest.skip("npm is required to build console assets")
+    pnpm = shutil.which("pnpm")
+    if pnpm is None:
+        pytest.skip("pnpm is required to build console assets")
 
     env = os.environ.copy()
     if not (FRONTEND_DIR / "node_modules").exists():
         subprocess.run(
-            [npm, "ci"],
+            [pnpm, "install", "--frozen-lockfile"],
             cwd=FRONTEND_DIR,
             check=True,
             env=env,
         )
 
     subprocess.run(
-        [npm, "run", "build"],
+        [pnpm, "run", "build"],
         cwd=FRONTEND_DIR,
         check=True,
         env=env,

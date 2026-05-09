@@ -20,8 +20,8 @@ Console 是 Markio 当前的主浏览器控制台。它是一个基于 Vue 3 + T
 
 ```bash
 cd frontend
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 ### 后端托管
@@ -107,8 +107,8 @@ npm run build
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 常用目录：

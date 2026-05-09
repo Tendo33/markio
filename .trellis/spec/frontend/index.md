@@ -26,4 +26,4 @@ Primary routes:
 - API calls stay centralized in `frontend/src/api`.
 - Token storage stays centralized in `frontend/src/api/client.ts`.
 - Polling is stopped on route/visibility transitions where current composables do so.
-- `npm --prefix frontend run build` produces assets in `markio/webapp`.
+- `pnpm --prefix frontend run build` produces assets in `markio/webapp`.

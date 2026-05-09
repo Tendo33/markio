@@ -20,8 +20,8 @@ The frontend must build into `markio/webapp`.
 
 ```bash
 cd frontend
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 ### Backend serving
@@ -107,8 +107,8 @@ Relevant tests:
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 Useful paths:

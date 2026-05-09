@@ -158,8 +158,8 @@ def _build_console_fallback_html(web_console_dir: Path) -> str:
       <p>Expected build directory: <code>{web_console_dir}</code></p>
       <p>Build the frontend and restart the service:</p>
       <pre>cd frontend
-npm install
-npm run build</pre>
+pnpm install
+pnpm run build</pre>
     </main>
   </body>
 </html>

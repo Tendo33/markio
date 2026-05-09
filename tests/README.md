@@ -42,8 +42,8 @@ uv run pytest tests/test_mcp_routes.py tests/test_observability_and_errors.py -q
 
 ```bash
 cd frontend
-npx playwright install chromium
-npm run test:e2e
+pnpm exec playwright install chromium
+pnpm run test:e2e
 ```
 
 ## Test Areas

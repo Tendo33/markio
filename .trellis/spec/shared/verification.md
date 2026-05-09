@@ -14,8 +14,8 @@ git diff --check
 ```bash
 uv sync
 uv run pytest
-npm --prefix frontend ci
-npm --prefix frontend run build
+pnpm --prefix frontend install --frozen-lockfile
+pnpm --prefix frontend run build
 AUTH_JWT_SECRET=dev-secret REDIS_PASSWORD=dev-redis-password docker compose config
 ```
 

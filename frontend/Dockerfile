@@ -14,20 +14,21 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# 复制 package.json 和 package-lock.json
-COPY frontend/package*.json ./
+# 复制 package.json 和 pnpm-lock.yaml
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
 
 # 安装依赖（使用国内镜像加速）
 # 注意：构建阶段需要 devDependencies（包括 vite, typescript, postcss 等）
-RUN npm config set registry https://registry.npmmirror.com && \
-    npm install --ignore-scripts && \
-    npm cache clean --force
+RUN corepack enable && \
+    pnpm config set registry https://registry.npmmirror.com && \
+    pnpm install --frozen-lockfile --ignore-scripts && \
+    pnpm store prune
 
 # 复制前端源代码
 COPY frontend/ ./
 
 # 构建生产版本
-RUN npm run build
+RUN pnpm run build
 
 # ============================================================================
 # Stage 2: Production Stage with Nginx

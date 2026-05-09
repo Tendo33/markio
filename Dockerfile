@@ -52,11 +52,11 @@ FROM node:20-bookworm-slim AS frontend-builder
 
 WORKDIR /frontend
 
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
 
 COPY frontend/ ./
-RUN npm run build
+RUN pnpm run build
 
 # =================================================================================================
 # Stage 2: Builder Stage

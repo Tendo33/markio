@@ -67,7 +67,7 @@ If a backend candidate is tied to startup scripts, package exports, CLI entrypoi
 
 **Step 1: Rebuild frontend**
 
-Run: `cd frontend && npm run build`
+Run: `cd frontend && pnpm run build`
 Expected: TypeScript compile and Vite build succeed.
 
 **Step 2: Run backend regression tests for touched surface**

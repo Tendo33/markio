@@ -13,8 +13,8 @@ This directory contains the Vue 3 console that FastAPI serves at `/console`.
 ## Start Local Development
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 Default dev URL:
@@ -26,7 +26,7 @@ The default Vite setup proxies `/v1` to the local backend, so same-origin-style 
 ## Build
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 Build output is written to:
@@ -77,8 +77,8 @@ Use it if you want the frontend to pre-validate task upload size with the same l
 ### Run browser E2E
 
 ```bash
-npx playwright install chromium
-npm run test:e2e
+pnpm exec playwright install chromium
+pnpm run test:e2e
 ```
 
 Useful companion docs:

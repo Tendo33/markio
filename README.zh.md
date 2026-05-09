@@ -101,8 +101,8 @@ python markio/main.py
 
 ```bash
 cd frontend
-npm install
-npm run build
+pnpm install
+pnpm run build
 cd ..
 ```
 
@@ -274,7 +274,7 @@ Redis 细节见：[docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
 ```bash
 uv run pytest
 uv run pytest -m live
-cd frontend && npm run build
+cd frontend && pnpm run build
 ```
 
 当前以 pytest 为主事实来源。`tests/` 下仍保留部分历史脚本，但推荐直接运行 pytest。

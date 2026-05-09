@@ -13,15 +13,15 @@
 - Vue 3.5, TypeScript 5.9, Vite 7
 - Tailwind CSS 4 through `@tailwindcss/vite`
 - Pinia, Vue Router, Axios, Day.js, and `lucide-vue-next`
-- npm with `frontend/package-lock.json`
+- pnpm with `frontend/pnpm-lock.yaml`
 
 ## Commands
 
 ```bash
 uv sync
 uv run pytest
-npm --prefix frontend ci
-npm --prefix frontend run build
+pnpm --prefix frontend install --frozen-lockfile
+pnpm --prefix frontend run build
 ```
 
-Do not add pnpm/yarn lockfiles to this project without an explicit package-manager migration.
+Do not add npm/yarn lockfiles to this project without an explicit package-manager migration.

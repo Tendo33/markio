@@ -7,7 +7,7 @@ This repository is not a Python template. Specs must describe the current Markio
 ## Source Order
 
 1. `README.md`, `README.zh.md`, docs under `docs/`, and `tests/README.md`
-2. `pyproject.toml`, `uv.lock`, `pytest.ini`, `compose.yaml`, `frontend/package.json`, and `frontend/package-lock.json`
+2. `pyproject.toml`, `uv.lock`, `pytest.ini`, `compose.yaml`, `frontend/package.json`, and `frontend/pnpm-lock.yaml`
 3. `markio/`, `frontend/src/`, `scripts/`, and `tests/`
 4. `.trellis/spec/`
 
@@ -22,7 +22,7 @@ This repository is not a Python template. Specs must describe the current Markio
 ## Non-Negotiables
 
 - Python baseline is `>=3.11`.
-- Frontend package management is npm with `frontend/package-lock.json`.
+- Frontend package management is pnpm with `frontend/pnpm-lock.yaml`.
 - Frontend is Vue 3 + Vite + Tailwind CSS 4, not React.
 - Every `/v1/*` route requires JWT auth.
 - Redis remains optional; in-memory runtime remains the default local mode.

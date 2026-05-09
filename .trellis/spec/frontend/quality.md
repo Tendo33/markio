@@ -3,8 +3,8 @@
 Default frontend gate:
 
 ```bash
-npm --prefix frontend ci
-npm --prefix frontend run build
+pnpm --prefix frontend install --frozen-lockfile
+pnpm --prefix frontend run build
 ```
 
 `frontend/package.json` currently defines `build`, `dev`, `preview`, and `test:e2e`; it does not define lint or unit-test scripts. Do not document nonexistent commands as required gates.
