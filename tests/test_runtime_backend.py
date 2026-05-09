@@ -39,3 +39,13 @@ def test_dockerfile_builds_console_assets_in_image():
     assert "RUN corepack enable && pnpm install --frozen-lockfile" in dockerfile
     assert "RUN pnpm run build" in dockerfile
     assert "COPY --from=frontend-builder /frontend/dist /workspace/markio/webapp" in dockerfile
+
+
+def test_frontend_dockerfile_uses_markio_branding():
+    dockerfile_path = Path(__file__).resolve().parents[1] / "frontend" / "Dockerfile"
+    dockerfile = dockerfile_path.read_text(encoding="utf-8")
+
+    assert "Markio Frontend" in dockerfile
+    assert "markio-frontend:latest" in dockerfile
+    assert "Tianshu" not in dockerfile
+    assert "tianshu" not in dockerfile

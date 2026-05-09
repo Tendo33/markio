@@ -1,11 +1,11 @@
-# Tianshu (天枢) Frontend - Multi-stage Docker Build
-# Vue 3 + TypeScript + Vite 企业级前端应用
+# Markio Frontend - Multi-stage Docker Build
+# Vue 3 + TypeScript + Vite console application
 #
 # 构建方式:
-#   docker build -t tianshu-frontend:latest -f frontend/Dockerfile .
+#   docker build -t markio-frontend:latest -f frontend/Dockerfile .
 #
 # 运行方式:
-#   docker run -p 80:80 tianshu-frontend:latest
+#   docker run -p 80:80 markio-frontend:latest
 
 # ============================================================================
 # Stage 1: Build Stage

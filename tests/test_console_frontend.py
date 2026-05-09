@@ -117,6 +117,15 @@ def test_console_frontend_centralizes_storage_access_and_avoids_html_injection()
     assert inner_html_users == []
 
 
+def test_console_public_assets_are_markio_branded():
+    logo = (FRONTEND_DIR / "public" / "logo.svg").read_text(encoding="utf-8")
+
+    assert "Markio" in logo
+    assert "Tianshu" not in logo
+    assert "天枢" not in logo
+    assert not (FRONTEND_DIR / "public" / "vite.svg").exists()
+
+
 def test_console_fallback_page_when_assets_missing(tmp_path: Path):
     from markio.main import mount_web_console
 
