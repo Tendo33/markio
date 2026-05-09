@@ -1,36 +1,26 @@
-# Repository Guidelines
+# Project Agent Entrypoint
 
-## Project Structure & Module Organization
-- `markio/`: FastAPI backend, parsers, routers, services, settings, and SDK/CLI code.
-- `tests/`: Pytest suite (`test_*.py`) plus test fixtures in `tests/test_docs/`.
-- `frontend/`: Vue 3 + Vite console UI; built assets are served by the backend.
-- `docs/`: usage guides, architecture notes, and design plans.
-- `scripts/`: local helper scripts (for example concurrent/local processing).
-- Runtime/output folders: `data/`, `logs/`, and `outputs/`.
+This file is the cross-tool entrypoint for Markio.
 
-## Build, Test, and Development Commands
-- `uv sync && uv pip install -e .`: install Python dependencies and editable package.
-- `python markio/main.py`: run the API locally at `http://localhost:8000`.
-- `docker compose up -d`: start services with containerized dependencies.
-- `uv run pytest`: run default test suite (`-m "not live"` from `pytest.ini`).
-- `uv run pytest -m live`: run tests that require a running external Markio service.
-- `cd frontend && npm install && npm run dev`: run frontend dev server.
-- `cd frontend && npm run build`: type-check and build frontend assets.
+## Read Order
 
-## Coding Style & Naming Conventions
-- Python: 4-space indentation, type hints on public interfaces, and small focused modules.
-- Prefer `black` formatting, `ruff` linting, and `mypy` type checks from the dev dependency set.
-- Naming: `snake_case` for modules/functions, `PascalCase` for classes, `UPPER_SNAKE_CASE` for constants.
-- Frontend: Vue components in `PascalCase` (for example `TaskDetail.vue`), API/store modules with suffix patterns like `*Api.ts` and `*Store.ts`.
+1. Start at [.trellis/spec/README.md](.trellis/spec/README.md)
+2. Use [.trellis/spec/backend/index.md](.trellis/spec/backend/index.md) before changing FastAPI, parser, task, SDK, or CLI code
+3. Use [.trellis/spec/frontend/index.md](.trellis/spec/frontend/index.md) before changing the Vue console
+4. Use [.trellis/spec/shared/verification.md](.trellis/spec/shared/verification.md) before claiming completion
 
-## Testing Guidelines
-- Framework: `pytest` with `pytest-asyncio` (`asyncio_mode = auto`).
-- Name tests `test_<feature>.py`; keep parser/service regressions close to existing suites (for example `tests/test_parser_registry_dispatch.py`).
-- Mark external-integration tests with `@pytest.mark.live`.
-- No fixed coverage threshold is enforced; new features should include happy-path and error-path tests.
+## Working Rules
 
-## Commit & Pull Request Guidelines
-- Follow Conventional Commit style seen in history, e.g. `feat(parsers): ...`, `refactor(env): ...`, `chore(dependencies): ...`.
-- Keep commit messages imperative, scoped, and single-purpose.
-- PRs should include: concise summary, linked issue/design doc, test commands run, and config/env changes.
-- Include screenshots for `frontend/` UI updates and request/response examples for API behavior changes.
+- Treat `.trellis/spec/` as the detailed source of truth for AI-assisted work.
+- Markio is an API-first document parsing platform, not a generic Python/Vite template.
+- Preserve JWT auth on `/v1/*` routes and owner isolation for async tasks.
+- Keep Redis optional; the default local task backend remains in-memory unless explicitly configured.
+- Keep the Vue console same-origin friendly and built to `markio/webapp`.
+- Update Trellis specs whenever behavior, routes, parser contracts, task semantics, scripts, or verification commands change.
+
+## Execution Style
+
+- Read the relevant router, parser, service, schema, frontend store/API client, and tests before editing.
+- Keep parser and task changes explicit and covered by existing pytest suites where possible.
+- For UI work, follow the existing Vue 3 + Pinia + Tailwind 4 console patterns.
+- Run targeted checks first, then the repository verification gate.

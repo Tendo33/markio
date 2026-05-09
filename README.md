@@ -122,6 +122,10 @@ docker compose up -d
 
 Compose keeps Redis internal-only and aligns with same-origin hosting: API at `/v1/*`, console at `/console`.
 
+## AI Collaboration
+
+Project facts for AI-assisted development live in `.trellis/spec/`. Start with `.trellis/spec/README.md`, then read the backend or frontend spec index and `.trellis/spec/shared/verification.md` before changing routes, parsers, tasks, SDK/CLI behavior, console UI, or deployment assumptions.
+
 ## Common Workflows
 
 ### Sync parse a file
