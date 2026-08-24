@@ -30,7 +30,7 @@ dependencies = [
     "fastapi>=0.115.13",
     "fastapi-mcp>=0.3.4",
     "gradio>=4.0.0",
-    "mineru[all]>=2.5.0",
+    "mineru[all]==3.4.5",
     "pypandoc>=1.15",
     "python-multipart>=0.0.20",
     "python-dotenv>=1.0.0",

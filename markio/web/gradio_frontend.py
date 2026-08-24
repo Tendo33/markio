@@ -7,14 +7,20 @@ from gradio.exceptions import Error as gr_Error
 from gradio_pdf import PDF
 
 # Configuration
-BASE_URL = (os.getenv("MARKIO_API_BASE_URL", "http://127.0.0.1:8000") or "").strip().rstrip("/")
+BASE_URL = (
+    (os.getenv("MARKIO_API_BASE_URL", "http://127.0.0.1:8000") or "")
+    .strip()
+    .rstrip("/")
+)
 if not BASE_URL:
     BASE_URL = "http://127.0.0.1:8000"
 API_PREFIX = (os.getenv("MARKIO_API_PREFIX", "/v1") or "/v1").strip()
 if not API_PREFIX.startswith("/"):
     API_PREFIX = f"/{API_PREFIX}"
 API_BASE_URL = f"{BASE_URL}{API_PREFIX}"
-API_DOCS_URL = (os.getenv("MARKIO_API_DOCS_URL", f"{BASE_URL}/docs") or f"{BASE_URL}/docs").strip()
+API_DOCS_URL = (
+    os.getenv("MARKIO_API_DOCS_URL", f"{BASE_URL}/docs") or f"{BASE_URL}/docs"
+).strip()
 SUPPORTED_FORMATS = [
     ".pdf",
     ".docx",
@@ -33,8 +39,22 @@ SUPPORTED_FORMATS = [
 # Parser method configuration
 PIPELINE_METHODS = ["Auto", "OCR"]
 PIPELINE_METHOD_VALUES = ["auto", "ocr"]
-VLM_METHODS = ["VLM Engine (vLLM)"]
-VLM_METHODS_VALUES = ["vlm-vllm-engine"]
+VLM_METHODS = ["VLM Engine"]
+VLM_METHODS_VALUES = ["vlm-engine"]
+# Duplicated on purpose: the frontend reads PDF_PARSE_ENGINE straight from the
+# environment and must not import markio.settings, which eagerly builds Settings
+# and would make AUTH_JWT_SECRET a hard requirement just to render the UI. Keep
+# in sync with VLM_PDF_ENGINES and the aliases in normalize_pdf_engine().
+VLM_ENGINE_NAMES = [
+    "vlm-vllm-engine",
+    "vlm-vllm-client",
+    "vlm-auto-engine",
+    "hybrid-auto-engine",
+    "vlm-engine",
+    "hybrid-engine",
+    "vlm-http-client",
+    "hybrid-http-client",
+]
 
 
 class MarkioFrontend:
@@ -45,9 +65,7 @@ class MarkioFrontend:
         self.session.timeout = 300
         self.api_token = (os.getenv("MARKIO_API_TOKEN", "") or "").strip()
         if self.api_token:
-            self.session.headers.update(
-                {"Authorization": f"Bearer {self.api_token}"}
-            )
+            self.session.headers.update({"Authorization": f"Bearer {self.api_token}"})
         self.pdf_engine = None
         self._init_pdf_engine()
 
@@ -62,7 +80,7 @@ class MarkioFrontend:
 
     def get_parse_methods(self):
         """Get currently available parsing methods"""
-        if self.pdf_engine in ["vlm-vllm-engine", "vlm-vllm-client"]:
+        if self.pdf_engine in VLM_ENGINE_NAMES:
             return VLM_METHODS, VLM_METHODS_VALUES
         else:
             return PIPELINE_METHODS, PIPELINE_METHOD_VALUES
@@ -324,8 +342,8 @@ def create_simple_interface():
             - **Pipeline Engine** (PDF_PARSE_ENGINE=pipeline):
                 - **Auto Select**: Automatically choose the best parsing method.
                 - **OCR Engine**: Use Optical Character Recognition to process images or scanned documents.
-            - **VLM Engine** (PDF_PARSE_ENGINE=vlm-vllm-engine):
-                - **VLM Engine**: Use a Visual Language Model (vLLM) for parsing.
+            - **VLM/Hybrid Engine** (PDF_PARSE_ENGINE=vlm-engine / hybrid-engine / *-http-client):
+                - **VLM/Hybrid Engine**: Use a Visual Language Model for parsing.
             
             **Supported Formats**:
             - **Documents**: PDF, Word (.doc, .docx), PowerPoint (.ppt, .pptx), Excel (.xlsx), HTML, EPUB

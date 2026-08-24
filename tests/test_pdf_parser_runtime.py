@@ -85,7 +85,9 @@ async def test_pdf_parse_returns_generic_http_500_error(monkeypatch, tmp_path):
     async def fake_process_resource_path(resource_path: str, output_dir=None):
         return resource_path
 
-    def fake_prepare_output_dirs(file_name: str, save_parsed_content: bool, output_dir: str):
+    def fake_prepare_output_dirs(
+        file_name: str, save_parsed_content: bool, output_dir: str
+    ):
         base_dir = tmp_path / "runtime"
         base_dir.mkdir(parents=True, exist_ok=True)
         return base_dir, base_dir / "images", base_dir / "md", None, None
@@ -107,3 +109,116 @@ async def test_pdf_parse_returns_generic_http_500_error(monkeypatch, tmp_path):
 
     assert exc.value.status_code == 500
     assert exc.value.detail == "PDF parsing failed"
+
+
+def test_run_pipeline_uses_streaming_api_and_collects_result(monkeypatch):
+    import sys
+
+    calls = {"kw": None}
+
+    def fake_streaming(
+        *, pdf_bytes_list, image_writer_list, lang_list, on_doc_ready, **_kw
+    ):
+        calls["kw"] = {
+            "pdf_bytes_list": pdf_bytes_list,
+            "image_writer_list": image_writer_list,
+            "lang_list": lang_list,
+        }
+        # Simulate MinerU invoking the callback with a finalized middle_json.
+        on_doc_ready(
+            0,
+            ["model-block-1"],
+            {"pdf_info": [{"preproc_blocks": []}]},
+            True,
+        )
+
+    fake_module = type(
+        "_fake_pipeline",
+        (),
+        {"doc_analyze_streaming": staticmethod(fake_streaming)},
+    )()
+    monkeypatch.setitem(
+        sys.modules,
+        "mineru.backend.pipeline.pipeline_analyze",
+        fake_module,
+    )
+    monkeypatch.setattr(pdf_parser, "mineru_normalize_backend", lambda b: b)
+
+    middle_json, model_list, mode = pdf_parser._run_pipeline(
+        pdf_bytes=b"%PDF-demo",
+        lang="en",
+        parse_method="ocr",
+        image_writer="writer",
+    )
+
+    assert mode == "pipeline"
+    assert calls["kw"]["pdf_bytes_list"] == [b"%PDF-demo"]
+    assert calls["kw"]["lang_list"] == ["en"]
+    assert model_list == ["model-block-1"]
+    assert middle_json == {"pdf_info": [{"preproc_blocks": []}]}
+
+
+def test_normalize_backend_supports_legacy_and_new_names(monkeypatch):
+    from mineru.cli.backend_options import normalize_backend as real_normalize
+
+    monkeypatch.setattr(pdf_parser, "mineru_normalize_backend", real_normalize)
+
+    assert pdf_parser._normalize_backend("pipeline") == "pipeline"
+    assert pdf_parser._normalize_backend("vlm-engine") == "vlm-engine"
+    assert pdf_parser._normalize_backend("hybrid-engine") == "hybrid-engine"
+    # legacy aliases map to current names
+    assert pdf_parser._normalize_backend("vlm-vllm-engine") == "vlm-engine"
+    assert pdf_parser._normalize_backend("vlm-vllm-client") == "vlm-http-client"
+    assert pdf_parser._normalize_backend("vlm-auto-engine") == "vlm-engine"
+    assert pdf_parser._normalize_backend("hybrid-auto-engine") == "hybrid-engine"
+
+
+def test_every_accepted_engine_value_is_dispatchable():
+    """Guards against a value passing config validation but hitting no dispatch branch.
+
+    Both mcp_server and run_local route on the normalized name, so anything the
+    PDF_PARSE_ENGINE Literal accepts must normalize into a known engine.
+    """
+    from typing import get_args
+
+    from markio.settings.config_model import (
+        PIPELINE_PDF_ENGINE,
+        VLM_PDF_ENGINES,
+        ApplicationConfig,
+        normalize_pdf_engine,
+    )
+
+    accepted = get_args(ApplicationConfig.model_fields["pdf_parse_engine"].annotation)
+    assert accepted, "pdf_parse_engine should stay a Literal of accepted values"
+
+    for value in accepted:
+        normalized = normalize_pdf_engine(value)
+        assert normalized == PIPELINE_PDF_ENGINE or normalized in VLM_PDF_ENGINES, (
+            f"{value!r} normalizes to {normalized!r}, which no dispatch site handles"
+        )
+
+
+def test_run_pipeline_raises_when_callback_never_fires(monkeypatch):
+    import sys
+
+    def fake_streaming(**_kw):
+        return None  # never invokes on_doc_ready
+
+    fake_module = type(
+        "_fake_pipeline",
+        (),
+        {"doc_analyze_streaming": staticmethod(fake_streaming)},
+    )()
+    monkeypatch.setitem(
+        sys.modules,
+        "mineru.backend.pipeline.pipeline_analyze",
+        fake_module,
+    )
+
+    with pytest.raises(RuntimeError, match="on_doc_ready was never called"):
+        pdf_parser._run_pipeline(
+            pdf_bytes=b"%PDF-demo",
+            lang="en",
+            parse_method="ocr",
+            image_writer="writer",
+        )

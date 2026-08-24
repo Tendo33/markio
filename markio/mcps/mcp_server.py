@@ -27,7 +27,16 @@ from contextlib import suppress
 from datetime import datetime
 from typing import Any, Dict
 
-from fastapi import APIRouter, Body, Depends, FastAPI, File, HTTPException, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Response,
+    UploadFile,
+)
 from fastapi.responses import JSONResponse
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR
 from pydantic.warnings import PydanticDeprecatedSince211
@@ -61,6 +70,11 @@ from markio.schemas.parsers_schemas import (
 )
 from markio.routers._request_guards import enforce_upload_size
 from markio.settings import settings
+from markio.settings.config_model import (
+    PIPELINE_PDF_ENGINE,
+    VLM_PDF_ENGINES,
+    normalize_pdf_engine,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -198,23 +212,27 @@ class MarkioMCP:
 
         if file_extension == ".pdf":
             # For PDF files, select parser based on environment variables
-            pdf_parse_engine = settings.pdf_parse_engine
+            pdf_parse_engine = normalize_pdf_engine(settings.pdf_parse_engine)
             logger.info(f"Using PDF parse engine: {pdf_parse_engine}")
 
-            if pdf_parse_engine == "pipeline":
+            if pdf_parse_engine == PIPELINE_PDF_ENGINE:
                 # Use pipeline parser
                 return await pdf_parser.pdf_parse_main(
                     resource_path=file_path,
                     **parser_kwargs,
                 )
-            elif pdf_parse_engine in ["vlm-vllm-engine", "vlm-vllm-client"]:
-                # Use VLM parser with vLLM backend
+            elif pdf_parse_engine in VLM_PDF_ENGINES:
+                # Use VLM/hybrid parser
                 return await pdf_parser_vlm.pdf_parse_vlm_main(
                     resource_path=file_path,
                     **parser_kwargs,
                 )
             else:
-                error_msg = f"Invalid PDF_PARSE_ENGINE value: {pdf_parse_engine}. Must be 'pipeline', 'vlm-vllm-engine', or 'vlm-vllm-client'"
+                error_msg = (
+                    f"Invalid PDF_PARSE_ENGINE value: {pdf_parse_engine}. "
+                    "Must be 'pipeline', 'vlm-engine', 'hybrid-engine', "
+                    "'vlm-http-client', or 'hybrid-http-client'"
+                )
                 logger.error(error_msg)
                 raise ValueError(error_msg)
         else:
@@ -273,13 +291,17 @@ class MarkioMCP:
                     "parsed_at": datetime.now().isoformat(),
                 }
             except ValueError as exc:
-                logger.error(f"Validation error for uploaded file {file.filename}: {exc}")
+                logger.error(
+                    f"Validation error for uploaded file {file.filename}: {exc}"
+                )
                 raise HTTPException(
                     status_code=HTTP_400_BAD_REQUEST,
                     detail=str(exc),
                 ) from exc
             except HTTPException:
-                logger.warning(f"Uploaded file {file.filename} rejected by request guard")
+                logger.warning(
+                    f"Uploaded file {file.filename} rejected by request guard"
+                )
                 raise
             except Exception as exc:
                 logger.exception(f"Error parsing uploaded file {file.filename}")

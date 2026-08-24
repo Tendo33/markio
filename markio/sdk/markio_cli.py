@@ -90,7 +90,7 @@ def pdf_vlm(
         None,
         "--server",
         "-sv",
-        help="Server URL for vllm-client backend (required when using vlm-vllm-client engine).",
+        help="Server URL for http-client backend (required when using vlm-http-client or hybrid-http-client engine).",
     ),
     output: Optional[str] = typer.Option(
         None, "--output", "-o", help="Output file path"

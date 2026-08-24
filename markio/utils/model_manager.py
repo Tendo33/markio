@@ -3,6 +3,11 @@ from contextlib import contextmanager
 from typing import Any, Optional
 
 from markio.settings import settings
+from markio.settings.config_model import (
+    PIPELINE_PDF_ENGINE,
+    VLM_PDF_ENGINES,
+    normalize_pdf_engine,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -39,13 +44,13 @@ class ModelManager:
                 )
                 return True
 
-            engine = settings.pdf_parse_engine.lower()
+            engine = normalize_pdf_engine(settings.pdf_parse_engine)
             logger.info(f"Initializing models for engine: {engine}")
 
             try:
-                if engine in ["pipeline", "pipeline-engine"]:
+                if engine == PIPELINE_PDF_ENGINE:
                     success = self._initialize_pipeline_model()
-                elif engine in ["vlm", "vlm-vllm-engine", "vlm-vllm-client"]:
+                elif engine in VLM_PDF_ENGINES:
                     success = self._initialize_vlm_model(engine)
                 else:
                     logger.warning(
@@ -74,8 +79,8 @@ class ModelManager:
 
     def _validate_vlm_config(self, engine: str) -> bool:
         """Validate VLM configuration validity"""
-        if engine == "vlm-vllm-client":
-            if not hasattr(settings, "vlm_server_url") or not settings.vlm_server_url:
+        if engine.endswith("-http-client"):
+            if not getattr(settings, "vlm_server_url", None):
                 logger.error(f"{engine} engine requires vlm_server_url configuration")
                 return False
         return True
@@ -109,21 +114,17 @@ class ModelManager:
         try:
             # Import VLM model singleton
             from mineru.backend.vlm.vlm_analyze import ModelSingleton
+            from mineru.utils.engine_utils import get_vlm_engine
 
-            # Determine backend and server_url based on engine type
-            if engine == "vlm-vllm-client":
-                backend = "vllm-client"
+            if engine.endswith("-http-client"):
+                backend = "http-client"
                 server_url = getattr(settings, "vlm_server_url", None)
-                logger.info("Using vllm-client backend (MinerU 2.5.0+)")
-            elif engine == "vlm-vllm-engine":
-                backend = "vllm-async-engine"
-                server_url = None
-                logger.info("Using vllm-engine backend (MinerU 2.5.0+)")
+                logger.info("Using http-client backend (MinerU 3.x)")
             else:
-                # Default to vllm-engine
-                backend = "vllm-engine"
+                # Local *-engine backends resolve to an available local inference engine.
+                backend = get_vlm_engine(inference_engine="auto", is_async=False)
                 server_url = None
-                logger.info("Using default vllm-engine backend")
+                logger.info(f"Using {backend} backend (MinerU 3.x)")
 
             # Directly initialize VLM model
             model_singleton = ModelSingleton()

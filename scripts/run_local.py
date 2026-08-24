@@ -18,16 +18,21 @@ from markio.parsers.pptx_parser import pptx_parse_main
 from markio.parsers.url_parser import url_parse_main
 from markio.parsers.xlsx_parser import xlsx_parse_main
 from markio.settings import settings
+from markio.settings.config_model import (
+    PIPELINE_PDF_ENGINE,
+    VLM_PDF_ENGINES,
+    normalize_pdf_engine,
+)
 from markio.utils.logger_config import get_logger
 
 logger = get_logger(__name__)
 
 
 # Select PDF parser based on environment variables
-pdf_parse_engine = settings.pdf_parse_engine
-if pdf_parse_engine == "pipeline":
+pdf_parse_engine = normalize_pdf_engine(settings.pdf_parse_engine)
+if pdf_parse_engine == PIPELINE_PDF_ENGINE:
     pdf_parser_func = pdf_parse_main
-elif pdf_parse_engine in ["vlm-vllm-engine", "vlm-vllm-client"]:
+elif pdf_parse_engine in VLM_PDF_ENGINES:
     pdf_parser_func = pdf_parse_vlm_main
 else:
     logger.warning(

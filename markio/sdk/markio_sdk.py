@@ -206,7 +206,7 @@ class MarkioSDK:
             save_middle_content (bool): Whether to save intermediate processing results
             start_page (int): First page to parse (0-based)
             end_page (int): Last page to parse (inclusive)
-            server_url (str): Server URL for vllm-client backend (required when using vlm-vllm-client engine).
+            server_url (str): Server URL for http-client backend (required when using vlm-http-client or hybrid-http-client engine).
 
         Returns:
             Dict containing parsed content and metadata

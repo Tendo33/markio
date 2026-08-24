@@ -4,7 +4,7 @@
 
 - Python `>=3.11`
 - FastAPI, Uvicorn, Pydantic-style schemas, JWT auth helpers
-- Docling, MinerU, Pandoc/LibreOffice helpers, Biopython parsers, URL parsing utilities
+- Docling, MinerU `mineru[all]==3.4.5` (via `mineru.cli.*` official entrypoints; see `markio/parsers/pdf_parser.py`), Pandoc/LibreOffice helpers, Biopython parsers, URL parsing utilities
 - Optional Redis via `redis[hiredis]`
 - Pytest and pytest-asyncio for tests
 

@@ -28,16 +28,36 @@ class ApplicationConfig(BaseModel):
     )
 
     # PDF parsing engine configuration
-    pdf_parse_engine: Literal["pipeline", "vlm-vllm-engine", "vlm-vllm-client"] = Field(
+    # Note: legacy values are kept for backward compatibility and normalized at
+    # load time / on use via normalize_pdf_engine(). Do not remove them without
+    # a migration, or existing deployments will fail config validation at startup.
+    pdf_parse_engine: Literal[
+        "pipeline",
+        "vlm-engine",
+        "hybrid-engine",
+        "vlm-http-client",
+        "hybrid-http-client",
+        "vlm-vllm-engine",
+        "vlm-vllm-client",
+        "vlm-auto-engine",
+        "hybrid-auto-engine",
+    ] = Field(
         default="pipeline",
-        description="PDF parsing engine selection, options: 'pipeline', 'vlm-vllm-engine', 'vlm-vllm-client'",
+        description=(
+            "PDF parsing engine selection. Options: 'pipeline' (pure CPU/GPU pipeline), "
+            "'vlm-engine' (local VLM, auto-selects inference engine), "
+            "'hybrid-engine' (pipeline + VLM), 'vlm-http-client' / 'hybrid-http-client' "
+            "(remote OpenAI-compatible endpoint, requires VLM_SERVER_URL). "
+            "Legacy 'vlm-vllm-engine'/'vlm-vllm-client'/'vlm-auto-engine'/'hybrid-auto-engine' "
+            "values remain accepted for backward compatibility."
+        ),
         alias="PDF_PARSE_ENGINE",
     )
 
     # VLM related configuration
     vlm_server_url: Optional[str] = Field(
         default=None,
-        description="VLM server URL, required when using vlm-vllm-client engine",
+        description="VLM server URL, required when using vlm-http-client or hybrid-http-client engine",
         alias="VLM_SERVER_URL",
     )
 
@@ -310,3 +330,34 @@ class ApplicationConfig(BaseModel):
         populate_by_name=True,
         extra="ignore",
     )
+
+
+# Canonical engine names, i.e. what normalize_pdf_engine() returns. Dispatch
+# sites must compare against these instead of hardcoding their own name lists,
+# otherwise a legacy alias accepted by ApplicationConfig gets misrouted.
+PIPELINE_PDF_ENGINE = "pipeline"
+VLM_PDF_ENGINES = frozenset(
+    {
+        "vlm-engine",
+        "hybrid-engine",
+        "vlm-http-client",
+        "hybrid-http-client",
+    }
+)
+
+
+def normalize_pdf_engine(raw: str | None) -> str:
+    """Normalize legacy PDF_PARSE_ENGINE values to their current canonical names.
+
+    Kept in the settings layer so both parsers and the model manager share one
+    mapping. `raw is None`/empty falls back to the default pipeline engine.
+    """
+    engine = (raw or "pipeline").strip().lower()
+    alias_map = {
+        "vlm-vllm-engine": "vlm-engine",
+        "vlm-vllm-client": "vlm-http-client",
+        "vlm-auto-engine": "vlm-engine",
+        "hybrid-auto-engine": "hybrid-engine",
+        "pipeline-engine": "pipeline",
+    }
+    return alias_map.get(engine, engine)

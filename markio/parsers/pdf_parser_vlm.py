@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from markio.parsers.pdf_parser import pdf_parse_main
 from markio.settings import settings
+from markio.settings.config_model import PIPELINE_PDF_ENGINE, normalize_pdf_engine
 
 
 async def pdf_parse_vlm_main(
@@ -15,9 +16,9 @@ async def pdf_parse_vlm_main(
     end_page: int = None,
     server_url: str | None = None,
 ):
-    backend = settings.pdf_parse_engine
-    if backend.lower() == "pipeline":
-        backend = "vlm-auto-engine"
+    backend = normalize_pdf_engine(settings.pdf_parse_engine)
+    if backend == PIPELINE_PDF_ENGINE:
+        backend = "vlm-engine"
 
     return await pdf_parse_main(
         resource_path=resource_path,
