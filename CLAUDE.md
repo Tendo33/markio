@@ -1,13 +1,5 @@
 # Claude Project Entrypoint
 
-Use Trellis as the working memory for this repository:
-
-1. Read [.trellis/spec/README.md](.trellis/spec/README.md)
-2. Read [.trellis/spec/backend/index.md](.trellis/spec/backend/index.md) for API, parser, task, SDK, and CLI changes
-3. Read [.trellis/spec/frontend/index.md](.trellis/spec/frontend/index.md) for Vue console changes
-4. Read [.trellis/spec/shared/verification.md](.trellis/spec/shared/verification.md)
-
-Keep this file thin. Long architecture, API, parser, frontend, and verification facts belong in `.trellis/spec/`.
 
 ## Guardrails
 
