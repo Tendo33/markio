@@ -312,12 +312,12 @@ def create_simple_interface():
                     with gr.Tab("Markdown rendering"):
                         rendered_result = gr.Markdown(
                             label="Markdown rendering",
-                            show_copy_button=True,
+                            buttons=["copy"],
                             line_breaks=True,
                         )
                     with gr.Tab("Markdown text"):
                         raw_result = gr.TextArea(
-                            lines=45, show_copy_button=True, label="Raw Content"
+                            lines=45, buttons=["copy"], label="Raw Content"
                         )
 
         # Help section
