@@ -18,7 +18,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     MINERU_HOME=/root/.mineru
 
 # 安装最小化的运行时依赖，并配置环境
-RUN sed -i 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g; s/security.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
+# APT 镜像走 HTTPS（可用 --build-arg APT_MIRROR=archive.ubuntu.com 切换）
+ARG APT_MIRROR=mirrors.tuna.tsinghua.edu.cn
+RUN sed -i "s#http://archive.ubuntu.com#https://${APT_MIRROR}#g; s#http://security.ubuntu.com#https://${APT_MIRROR}#g" /etc/apt/sources.list && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
@@ -81,7 +83,11 @@ RUN uv sync --frozen
 
 # 4. 下载模型（MinerU 4：按 tier 下载到 $MINERU_HOME/models）
 #    standard = pipeline 小模型 + VLM 模型，覆盖 markio 的 pipeline/vlm/hybrid 引擎
-RUN bash -c "source .venv/bin/activate && mineru-models-download --tier standard -s modelscope"
+# 构建机通常没有 GPU，auto 会只下载 ONNX + GGUF；显式下载 GPU 运行时需要的 torch 小模型和 vLLM 权重，
+# 同时保留 ONNX + GGUF 作为无 GPU 时的回退。
+RUN bash -c "source .venv/bin/activate && \
+    mineru-models-download --tier standard --small-backend torch --vlm-engine vllm -s modelscope && \
+    mineru-models-download --tier standard --small-backend onnx --vlm-engine llama-cpp -s modelscope"
 
 # =================================================================================================
 # Stage 3: Final Image
@@ -95,7 +101,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /uvx /usr/local/bin/
 
 # 从 builder 阶段拷贝源代码和下载好的模型
 COPY --from=builder /workspace /workspace
-COPY --from=frontend-builder /frontend/dist /workspace/markio/webapp
+COPY --from=frontend-builder /markio/webapp /workspace/markio/webapp
 COPY --from=builder /opt/uv-python /opt/uv-python
 COPY --from=builder /root/.mineru /root/.mineru
 
