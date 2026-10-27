@@ -122,7 +122,7 @@ docker compose up -d
 
 Compose 默认采用同源部署：API 在 `/v1/*`，console 在 `/console`，Redis 仅在内部网络暴露。
 
-MinerU 4 / vLLM 0.28 在 Linux 上使用 CUDA 13 版 torch，GPU 宿主机需要 NVIDIA 驱动 >= 580。MinerU 模型（`--tier standard`）预置在 `/root/.mineru`，运行时 `MINERU_MODEL_SOURCE=local`。
+镜像基于 `nvidia/cuda:13.0.2-cudnn-devel-ubuntu24.04`（MinerU 4 / vLLM 0.28 依赖 CUDA 13 版 torch），GPU 宿主机需要 NVIDIA 驱动 >= 580。MinerU 模型（`--tier standard`）预置在 `/root/.mineru`，运行时 `MINERU_MODEL_SOURCE=local`。
 
 ### MinerU 4 说明
 
