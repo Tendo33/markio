@@ -114,8 +114,13 @@ def _validate_url_format(url: str) -> None:
 
 
 def _is_blocked_ip_address(ip: ipaddress._BaseAddress) -> bool:
+    # Unwrap IPv4-mapped IPv6 (::ffff:a.b.c.d) so older Pythons classify it correctly.
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:
+        ip = mapped
     return (
-        ip.is_private
+        not ip.is_global  # also covers 100.64.0.0/10 (CGNAT, e.g. 100.100.100.200 metadata)
+        or ip.is_private
         or ip.is_loopback
         or ip.is_link_local
         or ip.is_multicast

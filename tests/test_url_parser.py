@@ -301,3 +301,23 @@ async def test_download_file_from_url_uses_pinned_resolver(monkeypatch, tmp_path
     assert resolver._pinned_hosts["example.com"] == ("93.184.216.34",)
     assert seen_urls == ["https://example.com/download.txt"]
     assert Path(output_path).exists()
+
+
+@pytest.mark.parametrize(
+    "raw_ip",
+    [
+        "100.100.100.200",  # CGNAT / cloud metadata (not is_private)
+        "100.64.0.1",
+        "::ffff:127.0.0.1",
+        "::ffff:169.254.169.254",
+        "127.0.0.1",
+        "10.0.0.1",
+    ],
+)
+def test_is_blocked_ip_address_blocks_non_global(raw_ip):
+    assert url_parser._is_blocked_ip_address(ipaddress.ip_address(raw_ip))
+
+
+@pytest.mark.parametrize("raw_ip", ["93.184.216.34", "2606:4700:4700::1111"])
+def test_is_blocked_ip_address_allows_public(raw_ip):
+    assert not url_parser._is_blocked_ip_address(ipaddress.ip_address(raw_ip))
