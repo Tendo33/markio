@@ -71,9 +71,10 @@ def build_vlm_config(backend: str, server_url: str | None = None, api_key: str |
         key = api_key if api_key is not None else settings.vlm_api_key
         if key:
             update["api_key"] = key
-        return base.model_copy(update=update)
+        # model_validate (not model_copy) so MinerU normalizes/validates server_url.
+        return type(base).model_validate({**base.model_dump(), **update})
     # Local engines: never talk to a remote server.
-    return base.model_copy(update={"server_url": ""})
+    return type(base).model_validate({**base.model_dump(), "server_url": ""})
 
 
 def page_range_from_pages(start_page: int = 0, end_page: int | None = None) -> str:
