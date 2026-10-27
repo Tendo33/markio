@@ -5,6 +5,7 @@ import binascii
 import hashlib
 import hmac
 import json
+import math
 import time
 from dataclasses import dataclass
 
@@ -80,10 +81,24 @@ def _verify_hs256(token: str, secret: str, expected_alg: str) -> dict:
     exp = payload.get("exp")
     if exp is None:
         raise ValueError("JWT exp is required")
-    if not isinstance(exp, (int, float)):
+    if isinstance(exp, bool) or not isinstance(exp, (int, float)):
         raise ValueError("JWT exp must be numeric")
-    if time.time() >= float(exp):
+    if not math.isfinite(exp):
+        raise ValueError("JWT exp must be finite")
+    now = time.time()
+    if now >= float(exp):
         raise ValueError("JWT has expired")
+
+    nbf = payload.get("nbf")
+    if nbf is not None:
+        if (
+            isinstance(nbf, bool)
+            or not isinstance(nbf, (int, float))
+            or not math.isfinite(nbf)
+        ):
+            raise ValueError("JWT nbf must be a finite number")
+        if now < float(nbf):
+            raise ValueError("JWT is not yet valid")
 
     return payload
 

@@ -321,3 +321,31 @@ def test_is_blocked_ip_address_blocks_non_global(raw_ip):
 @pytest.mark.parametrize("raw_ip", ["93.184.216.34", "2606:4700:4700::1111"])
 def test_is_blocked_ip_address_allows_public(raw_ip):
     assert not url_parser._is_blocked_ip_address(ipaddress.ip_address(raw_ip))
+
+
+@pytest.mark.asyncio
+async def test_download_file_from_url_same_name_does_not_overwrite(monkeypatch, tmp_path: Path):
+    async def _fake_validate_target_host(url: str, **kwargs):
+        return {ipaddress.ip_address("93.184.216.34")}
+
+    bodies = iter(["first", "second"])
+
+    def _fake_client_session(*args, **kwargs):
+        response = _FakeResponse(text=next(bodies), url="https://example.com/report.pdf")
+        return _FakeSession([response], [], **kwargs)
+
+    monkeypatch.setattr(aiohttp, "ClientSession", _fake_client_session)
+    monkeypatch.setattr(url_parser, "_validate_target_host", _fake_validate_target_host)
+
+    first = await url_parser.download_file_from_url(
+        url="https://example.com/report.pdf", output_dir=str(tmp_path)
+    )
+    second = await url_parser.download_file_from_url(
+        url="https://example.com/report.pdf", output_dir=str(tmp_path)
+    )
+
+    assert first != second
+    assert Path(first).name == Path(second).name == "report.pdf"
+    assert Path(first).read_text() == "first"
+    assert Path(second).read_text() == "second"
+    assert Path(first).parent.parent == tmp_path.resolve()

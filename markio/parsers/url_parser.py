@@ -4,7 +4,7 @@ import asyncio
 import ipaddress
 import socket
 from pathlib import Path
-from tempfile import gettempdir
+from tempfile import gettempdir, mkdtemp
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
@@ -392,8 +392,13 @@ async def download_file_from_url(
                         response,
                         max_response_bytes,
                     )
-                    output_path.write_bytes(payload)
-                    return str(output_path)
+                    # Write into a per-download directory so concurrent downloads
+                    # of the same filename never overwrite each other, while the
+                    # original basename is preserved for downstream parsers.
+                    download_dir = Path(mkdtemp(prefix="markio_dl_", dir=base_dir))
+                    unique_output_path = download_dir / output_path.name
+                    unique_output_path.write_bytes(payload)
+                    return str(unique_output_path)
     except aiohttp.ClientResponseError as exc:
         raise URLFetchError(
             f"Failed to fetch URL content: HTTP {exc.status}"
