@@ -38,7 +38,7 @@ def test_dockerfile_builds_console_assets_in_image():
     assert "FROM node:20-bookworm-slim AS frontend-builder" in dockerfile
     assert "RUN corepack enable && pnpm install --frozen-lockfile" in dockerfile
     assert "RUN pnpm run build" in dockerfile
-    assert "COPY --from=frontend-builder /frontend/dist /workspace/markio/webapp" in dockerfile
+    assert "COPY --from=frontend-builder /markio/webapp /workspace/markio/webapp" in dockerfile
 
 
 def test_frontend_dockerfile_uses_markio_branding():
