@@ -160,6 +160,7 @@ markio epub ./book.epub --save
 | `MINERU_MODEL_SOURCE` | `auto`、`huggingface`、`modelscope` 或 `local`（MinerU 4） |
 | `MINERU_HOME` | MinerU 模型/配置目录（默认 `~/.mineru`） |
 | `VLM_SERVER_URL` | 远程 VLM 服务地址 |
+| `VLM_API_KEY` | 远程 VLM 服务的可选 API Key |
 
 ## 故障排查
 
