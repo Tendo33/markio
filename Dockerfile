@@ -2,6 +2,9 @@
 # Stage 1: Base Image
 # 包含构建和运行都必需的基础环境，如CUDA、Python运行时等。
 # =================================================================================================
+# NOTE: MinerU 4 + vLLM 0.28 resolve to torch 2.13 (CUDA 13 wheels, bundled via pip)
+# on Linux; GPU hosts need an NVIDIA driver >= 580. The CUDA 13 base image bump is
+# tracked separately on branch feat/mineru-4-cuda13.
 FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04 AS base
 
 # 设置持久化的环境变量
@@ -10,20 +13,17 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONPATH=/workspace \
     PYTHONUNBUFFERED=1 \
     LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8
+    LC_ALL=C.UTF-8 \
+    UV_PYTHON_INSTALL_DIR=/opt/uv-python \
+    MINERU_HOME=/root/.mineru
 
 # 安装最小化的运行时依赖，并配置环境
-RUN sed -i 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
-    sed -i 's/security.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
+RUN sed -i 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g; s/security.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         wget \
-        # Python 运行环境
-        python3.11 \
-        python3.11-venv \
-        python3.11-dev \
-        python3-pip \
+        ca-certificates \
         # 基础运行工具 (根据你的应用实际需求调整)
         ffmpeg \
         libsm6 \
@@ -32,9 +32,6 @@ RUN sed -i 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/source
         pandoc \
         # 语言环境
         locales && \
-    # 更新 python 的软链接
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
     # 设置语言环境
     locale-gen C.UTF-8 && \
     # 清理APT缓存
@@ -64,25 +61,27 @@ RUN pnpm run build
 # =================================================================================================
 FROM base AS builder
 
-# 安装 uv
-RUN curl -LsSf https://gitee.com/wangnov/uv-custom/releases/download/0.7.19/uv-installer-custom.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
+# 安装 uv（需要能读取 lock revision 5 的新版本 uv）
+COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /uvx /usr/local/bin/
 
 # 1. 仅复制依赖文件，最大化利用缓存
 COPY pyproject.toml uv.lock ./ 
 
 # 2. 创建虚拟环境并安装依赖
-RUN uv venv -p python3.11 && \
+# 使用 uv 托管的 CPython 3.11
+RUN uv python install 3.11 && \
+    uv venv -p 3.11 && \
     uv sync --frozen --no-install-project && \
     uv cache clean
 
 # 3. 复制所有项目代码
 COPY . .
 
-RUN uv sync
+RUN uv sync --frozen
 
-# 4. 下载模型
-RUN bash -c "source .venv/bin/activate && mineru-models-download -s modelscope -m all"
+# 4. 下载模型（MinerU 4：按 tier 下载到 $MINERU_HOME/models）
+#    standard = pipeline 小模型 + VLM 模型，覆盖 markio 的 pipeline/vlm/hybrid 引擎
+RUN bash -c "source .venv/bin/activate && mineru-models-download --tier standard -s modelscope"
 
 # =================================================================================================
 # Stage 3: Final Image
@@ -92,14 +91,16 @@ FROM base AS final
 
 WORKDIR /workspace
 
-RUN curl -LsSf https://gitee.com/wangnov/uv-custom/releases/download/0.7.19/uv-installer-custom.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
+COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /uvx /usr/local/bin/
 
 # 从 builder 阶段拷贝源代码和下载好的模型
 COPY --from=builder /workspace /workspace
 COPY --from=frontend-builder /frontend/dist /workspace/markio/webapp
-COPY --from=builder /root/.cache/modelscope/hub /root/.cache/modelscope/hub
-COPY --from=builder /root/mineru.json /root/mineru.json
+COPY --from=builder /opt/uv-python /opt/uv-python
+COPY --from=builder /root/.mineru /root/.mineru
+
+# 镜像内已预置模型，运行时只读本地模型
+ENV MINERU_MODEL_SOURCE=local
 
 # 设置 PATH，将虚拟环境的 bin 目录加入，这样可以直接执行 venv 内的命令
 ENV PATH="/workspace/.venv/bin:$PATH"

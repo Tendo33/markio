@@ -62,9 +62,14 @@ class ApplicationConfig(BaseModel):
     )
 
     # MINERU related configuration
+    # MinerU 4 reads MINERU_* environment variables directly (MINERU_DEVICE_MODE,
+    # MINERU_MODEL_SOURCE, MINERU_HOME, ...). These fields only document/validate
+    # them for markio. MINERU_MIN_BATCH_INFERENCE_SIZE and MINERU_VIRTUAL_VRAM_SIZE
+    # were MinerU 3 knobs and are ignored by MinerU 4; they stay accepted so
+    # existing .env files keep loading.
     mineru_min_batch_inference_size: int = Field(
         default=256,
-        description="MINERU model inference minimum batch size",
+        description="Deprecated (ignored by MinerU 4): model inference minimum batch size",
         alias="MINERU_MIN_BATCH_INFERENCE_SIZE",
     )
 
@@ -74,15 +79,21 @@ class ApplicationConfig(BaseModel):
         alias="MINERU_DEVICE_MODE",
     )
 
-    mineru_model_source: Literal["local", "remote"] = Field(
-        default="local",
-        description="MINERU model source, such as 'local' or 'remote'",
+    mineru_model_source: Literal[
+        "auto", "huggingface", "modelscope", "local", "remote"
+    ] = Field(
+        default="auto",
+        description=(
+            "MinerU 4 model source: 'auto' (probe HuggingFace, fall back to ModelScope), "
+            "'huggingface', 'modelscope', or 'local' (only use models under $MINERU_HOME/models). "
+            "Legacy 'remote' is accepted but MinerU 4 does not understand it; use 'auto'."
+        ),
         alias="MINERU_MODEL_SOURCE",
     )
 
     mineru_virtual_vram_size: int = Field(
         default=8192,
-        description="MINERU virtual VRAM size (MB), default 8GB",
+        description="Deprecated (ignored by MinerU 4): virtual VRAM size (MB)",
         alias="MINERU_VIRTUAL_VRAM_SIZE",
     )
 

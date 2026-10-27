@@ -13,15 +13,15 @@ logger = get_logger(__name__)
 
 
 def image_to_pdf(path):
-    """Convert image to PDF format using MinerU tools"""
+    """Convert an image to single-page PDF bytes (same converter MinerU 4 uses)."""
     if not isinstance(path, Path):
         path = Path(path)
     with open(str(path), "rb") as input_file:
         file_bytes = input_file.read()
-        if path.suffix in image_suffixes:
-            from mineru.utils.pdf_image_tools import images_bytes_to_pdf_bytes
+        if path.suffix.lower() in image_suffixes:
+            from docvortex.document.pdf import PDFDocument
 
-            return images_bytes_to_pdf_bytes(file_bytes)
+            return PDFDocument.from_image(file_bytes).bytes
         else:
             raise Exception(f"Unknown file suffix: {path.suffix}")
 

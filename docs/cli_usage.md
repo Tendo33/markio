@@ -157,6 +157,8 @@ Relevant environment variables:
 | `LOG_LEVEL` | Logging level |
 | `PDF_PARSE_ENGINE` | Default PDF engine |
 | `MINERU_DEVICE_MODE` | `cuda`, `cpu`, or `mps` |
+| `MINERU_MODEL_SOURCE` | `auto`, `huggingface`, `modelscope`, or `local` (MinerU 4) |
+| `MINERU_HOME` | MinerU model/config home (default `~/.mineru`) |
 | `VLM_SERVER_URL` | Remote VLM server |
 
 ## Troubleshooting

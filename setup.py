@@ -7,7 +7,7 @@ setup(
     version=__version__,
     packages=find_packages(),
     install_requires=[
-        "mineru[all]",
+        "mineru[all]>=4.0.12",
         "pypandoc",
         "aiofiles",
         "aiohttp",

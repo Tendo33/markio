@@ -86,25 +86,31 @@ class ModelManager:
         return True
 
     def _initialize_pipeline_model(self) -> bool:
-        """Initialize pipeline model"""
+        """Prepare the MinerU 4 ``basic`` tier (small models, no VLM).
+
+        MinerU 4 loads models lazily on the first parse; here we only verify
+        that the runtime dependencies for the tier are importable.
+        """
         if self.pipeline_initialized:
             return True
 
         try:
-            from mineru.backend.pipeline.pipeline_analyze import custom_model_init
+            from mineru.parser.tier import ensure_tier_runtime_dependencies
 
-            logger.info("Initializing pipeline model...")
-            custom_model_init()
+            from markio.parsers.pdf_parser import PIPELINE_TIER
+
+            logger.info("Checking MinerU 4 runtime for tier 'basic'...")
+            ensure_tier_runtime_dependencies(PIPELINE_TIER)
             self.pipeline_initialized = True
             self.current_engine = "pipeline"
-            logger.info("Pipeline model initialized successfully")
+            logger.info("Pipeline (MinerU basic tier) ready; models load on first parse")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize pipeline model: {e}")
             return False
 
     def _initialize_vlm_model(self, engine: str) -> bool:
-        """Initialize VLM model"""
+        """Prepare the MinerU 4 ``standard`` tier (VLM, local engine or remote server)."""
         if self.vlm_initialized:
             return True
 
@@ -112,35 +118,20 @@ class ModelManager:
             return False
 
         try:
-            # Import VLM model singleton
-            from mineru.backend.vlm.vlm_analyze import ModelSingleton
-            from mineru.utils.engine_utils import get_vlm_engine
+            from mineru.parser.tier import ensure_tier_runtime_dependencies
 
-            if engine.endswith("-http-client"):
-                backend = "http-client"
-                server_url = getattr(settings, "vlm_server_url", None)
-                logger.info("Using http-client backend (MinerU 3.x)")
-            else:
-                # Local *-engine backends resolve to an available local inference engine.
-                backend = get_vlm_engine(inference_engine="auto", is_async=False)
-                server_url = None
-                logger.info(f"Using {backend} backend (MinerU 3.x)")
+            from markio.parsers.pdf_parser import VLM_TIER, build_vlm_config
 
-            # Directly initialize VLM model
-            model_singleton = ModelSingleton()
-            model = model_singleton.get_model(
-                backend,
-                None,
-                server_url,
-                gpu_memory_utilization=settings.vlm_gpu_memory_utilization,
+            vlm_config = build_vlm_config(
+                engine, getattr(settings, "vlm_server_url", None)
             )
-
-            # Store model instance for subsequent management
-            self._models[engine] = model
+            ensure_tier_runtime_dependencies(VLM_TIER, vlm_config=vlm_config)
+            self._models[engine] = vlm_config
 
             self.vlm_initialized = True
             self.current_engine = engine
-            logger.info(f"VLM model initialized successfully with {backend}")
+            target = vlm_config.server_url or f"local engine={vlm_config.engine}"
+            logger.info(f"VLM (MinerU standard tier) ready with {target}")
             return True
 
         except Exception as e:

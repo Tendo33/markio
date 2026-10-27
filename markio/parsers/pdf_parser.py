@@ -1,25 +1,33 @@
+"""PDF parsing on top of the MinerU 4 ``mineru.parser`` API.
+
+MinerU 4 replaced the old pipeline/vlm/hybrid backend modules with a single
+``MinerUParser`` that is configured by a quality *tier* and a ``VlmConfig``.
+markio keeps its own engine names (``PDF_PARSE_ENGINE``) and maps them here:
+
+* ``pipeline``                         -> tier ``basic`` (small ONNX/torch models, no VLM)
+* ``vlm-engine`` / ``hybrid-engine``   -> tier ``standard`` with a local VLM engine
+* ``vlm-http-client`` / ``hybrid-http-client`` -> tier ``standard`` with ``VlmConfig.server_url``
+"""
+
 from __future__ import annotations
 
 import asyncio
-import copy
 import json
 import os
+import shutil
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from fastapi import HTTPException
-from mineru.backend.pipeline.pipeline_middle_json_mkcontent import (
-    union_make as pipeline_union_make,
-)
-from mineru.cli.backend_options import normalize_backend as mineru_normalize_backend
-from mineru.cli.common import convert_pdf_bytes_to_bytes
-from mineru.data.data_reader_writer import FileBasedDataWriter
-from mineru.utils.draw_bbox import draw_layout_bbox, draw_span_bbox
-from mineru.utils.enum_class import MakeMode
 
 from markio.schemas.parsers_schemas import PDF_PARSE_LANG, PDF_PARSE_TYPE
 from markio.settings import settings
-from markio.settings.config_model import normalize_pdf_engine
+from markio.settings.config_model import (
+    PIPELINE_PDF_ENGINE,
+    VLM_PDF_ENGINES,
+    normalize_pdf_engine,
+)
 from markio.utils.file_utils import func_processing_time, process_resource_path
 from markio.utils.logger_config import get_logger
 
@@ -28,177 +36,127 @@ logger = get_logger(__name__)
 _VLM_WARMUP_LOCK = asyncio.Lock()
 _VLM_WARMED_KEYS: set[str] = set()
 
+PIPELINE_TIER = "basic"
+VLM_TIER = "standard"
+_PARSE_MODES = {"auto", "txt", "ocr"}
+
 
 def _normalize_backend(raw_backend: str | None) -> str:
     backend = normalize_pdf_engine(raw_backend or settings.pdf_parse_engine)
-    return mineru_normalize_backend(backend)
+    if backend != PIPELINE_PDF_ENGINE and backend not in VLM_PDF_ENGINES:
+        raise ValueError(f"Unsupported backend: {backend}")
+    return backend
+
+
+def tier_for_backend(backend: str) -> str:
+    """Map a canonical markio engine name onto a MinerU 4 tier."""
+    return PIPELINE_TIER if backend == PIPELINE_PDF_ENGINE else VLM_TIER
+
+
+def build_vlm_config(backend: str, server_url: str | None = None):
+    """Build the MinerU 4 ``VlmConfig`` for a markio engine, or None for pipeline."""
+    if backend == PIPELINE_PDF_ENGINE:
+        return None
+    from mineru.config import VlmConfig
+
+    if backend.endswith("-http-client"):
+        if not server_url:
+            raise ValueError(f"VLM server_url is required for {backend}")
+        return VlmConfig(server_url=server_url)
+    return VlmConfig(engine="auto")
+
+
+def page_range_from_pages(start_page: int = 0, end_page: int | None = None) -> str:
+    """Translate markio's 0-based inclusive start/end pages to MinerU's 1-based range."""
+    start = max(int(start_page or 0), 0)
+    if end_page is None:
+        return "" if start == 0 else f"{start + 1}-r1"
+    end = int(end_page)
+    if end < start:
+        raise ValueError(f"end_page ({end}) must be >= start_page ({start})")
+    return f"{start + 1}-{end + 1}"
+
+
+def _parse_mode(parse_method: str | None) -> str:
+    mode = getattr(parse_method, "value", parse_method) or "auto"
+    if mode not in _PARSE_MODES:
+        raise ValueError(f"Unsupported parse_method: {mode}")
+    return mode
+
+
+def _run_parse(
+    pdf_path: str,
+    *,
+    backend: str,
+    parse_method: str,
+    page_range: str,
+    server_url: str | None,
+):
+    """Run MinerU synchronously and return its ``ParseResult``."""
+    from mineru.parser import MinerUParser
+
+    parser = MinerUParser(
+        tier=tier_for_backend(backend),
+        parse_mode=_parse_mode(parse_method),
+        vlm_config=build_vlm_config(backend, server_url),
+    )
+    try:
+        return parser.parse(pdf_path, page_range=page_range)
+    finally:
+        parser.close()
+
+
+async def _run_parse_async(**kwargs):
+    """Offload parsing to a thread; serialize the first (warm-up) call per VLM backend."""
+    backend = kwargs["backend"]
+    if backend == PIPELINE_PDF_ENGINE or backend in _VLM_WARMED_KEYS:
+        return await asyncio.to_thread(_run_parse, **kwargs)
+
+    async with _VLM_WARMUP_LOCK:
+        if backend in _VLM_WARMED_KEYS:
+            return await asyncio.to_thread(_run_parse, **kwargs)
+        result = await asyncio.to_thread(_run_parse, **kwargs)
+        _VLM_WARMED_KEYS.add(backend)
+        return result
 
 
 def _prepare_output_dirs(
-    file_name: str,
-    save_parsed_content: bool,
-    output_dir: str,
-) -> tuple[str, str, str, FileBasedDataWriter, FileBasedDataWriter]:
+    file_name: str, save_parsed_content: bool, output_dir: str
+) -> tuple[str, str, str]:
     if save_parsed_content:
         base_dir = os.path.join(output_dir, file_name)
     else:
         base_dir = tempfile.mkdtemp(prefix="markio_pdf_")
 
-    local_image_dir = os.path.join(base_dir, file_name, f"{file_name}_artifacts")
     local_md_dir = os.path.join(base_dir, file_name)
+    local_image_dir = os.path.join(local_md_dir, f"{file_name}_artifacts")
     os.makedirs(local_image_dir, exist_ok=True)
-    os.makedirs(local_md_dir, exist_ok=True)
-
-    image_writer = FileBasedDataWriter(local_image_dir)
-    md_writer = FileBasedDataWriter(local_md_dir)
-    return base_dir, local_image_dir, local_md_dir, image_writer, md_writer
+    return base_dir, local_image_dir, local_md_dir
 
 
-def _run_pipeline(
-    pdf_bytes: bytes,
-    lang: str,
-    parse_method: str,
-    image_writer: FileBasedDataWriter,
-):
-    from mineru.backend.pipeline.pipeline_analyze import (
-        doc_analyze_streaming as pipeline_doc_analyze_streaming,
-    )
+def _export_result(result, image_dir_name: str) -> tuple[str, Any, dict, dict[str, bytes]]:
+    """Externalize images and render markdown that points at ``image_dir_name/``.
 
-    results: dict = {}
+    Returns (markdown, structured_content, middle_json_dict, assets).
+    """
+    from docvortex.export import materialize_middle
+    from mineru.parser import ParseResult
 
-    def on_doc_ready(doc_index, model_list, middle_json, ocr_enable):
-        results["model_list"] = model_list
-        results["middle_json"] = middle_json
-
-    pipeline_doc_analyze_streaming(
-        pdf_bytes_list=[pdf_bytes],
-        image_writer_list=[image_writer],
-        lang_list=[lang],
-        on_doc_ready=on_doc_ready,
-        parse_method=parse_method,
-        formula_enable=True,
-        table_enable=True,
-    )
-
-    if "middle_json" not in results:
-        raise RuntimeError(
-            "MinerU pipeline finished without emitting a document; "
-            "on_doc_ready was never called"
-        )
-
-    middle_json = results["middle_json"]
-    model_list = results["model_list"]
-    return middle_json, model_list, "pipeline"
+    middle_json, assets = materialize_middle(result.middle_json)
+    exported = ParseResult(middle_json=middle_json)
+    base_url = f"{image_dir_name}/" if image_dir_name else ""
+    markdown = exported.markdown(asset_base_url=base_url)
+    content_list = exported.structured_content(asset_base_url=base_url)
+    return markdown, content_list, exported.to_dict(), dict(assets.items())
 
 
-def _run_vlm_or_hybrid(
-    backend: str,
-    pdf_bytes: bytes,
-    lang: str,
-    parse_method: str,
-    image_writer: FileBasedDataWriter,
-    server_url: str | None,
-):
-    from mineru.backend.hybrid.hybrid_analyze import doc_analyze as hybrid_doc_analyze
-    from mineru.backend.vlm.vlm_analyze import doc_analyze as vlm_doc_analyze
-    from mineru.utils.engine_utils import get_vlm_engine
-
-    if backend.startswith("vlm-"):
-        runtime_backend = backend[4:]
-        if runtime_backend == "engine":
-            runtime_backend = get_vlm_engine(inference_engine="auto", is_async=False)
-        if runtime_backend == "http-client" and not server_url:
-            raise ValueError("VLM server_url is required for vlm-http-client")
-
-        middle_json, infer_result = vlm_doc_analyze(
-            pdf_bytes,
-            image_writer=image_writer,
-            backend=runtime_backend,
-            server_url=server_url,
-        )
-        return middle_json, infer_result, "vlm"
-
-    if backend.startswith("hybrid-"):
-        runtime_backend = backend[7:]
-        if runtime_backend == "engine":
-            runtime_backend = get_vlm_engine(inference_engine="auto", is_async=False)
-        if runtime_backend == "http-client" and not server_url:
-            raise ValueError("VLM server_url is required for hybrid-http-client")
-
-        middle_json, infer_result = hybrid_doc_analyze(
-            pdf_bytes,
-            image_writer=image_writer,
-            backend=runtime_backend,
-            parse_method=parse_method,
-            inline_formula_enable=True,
-            server_url=server_url,
-        )
-        return middle_json, infer_result, "hybrid"
-
-    raise ValueError(f"Unsupported backend: {backend}")
-
-
-async def _run_vlm_or_hybrid_async(
-    backend: str,
-    pdf_bytes: bytes,
-    lang: str,
-    parse_method: str,
-    image_writer: FileBasedDataWriter | None,
-    server_url: str | None,
-):
-    warmup_key = backend
-
-    if warmup_key in _VLM_WARMED_KEYS:
-        return await asyncio.to_thread(
-            _run_vlm_or_hybrid,
-            backend=backend,
-            pdf_bytes=pdf_bytes,
-            lang=lang,
-            parse_method=parse_method,
-            image_writer=image_writer,
-            server_url=server_url,
-        )
-
-    async with _VLM_WARMUP_LOCK:
-        if warmup_key in _VLM_WARMED_KEYS:
-            return await asyncio.to_thread(
-                _run_vlm_or_hybrid,
-                backend=backend,
-                pdf_bytes=pdf_bytes,
-                lang=lang,
-                parse_method=parse_method,
-                image_writer=image_writer,
-                server_url=server_url,
-            )
-
-        result = await asyncio.to_thread(
-            _run_vlm_or_hybrid,
-            backend=backend,
-            pdf_bytes=pdf_bytes,
-            lang=lang,
-            parse_method=parse_method,
-            image_writer=image_writer,
-            server_url=server_url,
-        )
-        _VLM_WARMED_KEYS.add(warmup_key)
-        return result
-
-
-def _build_markdown(pdf_info: dict, image_dir: str, parser_mode: str):
-    if parser_mode == "pipeline":
-        markdown_content = pipeline_union_make(pdf_info, MakeMode.MM_MD, image_dir)
-        content_list_content = pipeline_union_make(
-            pdf_info, MakeMode.CONTENT_LIST, image_dir
-        )
-        return markdown_content, content_list_content
-
-    from mineru.backend.vlm.vlm_middle_json_mkcontent import (
-        union_make as vlm_union_make,
-    )
-
-    markdown_content = vlm_union_make(pdf_info, MakeMode.MM_MD, image_dir)
-    content_list_content = vlm_union_make(pdf_info, MakeMode.CONTENT_LIST, image_dir)
-    return markdown_content, content_list_content
+def _write_bytes(root: str, rel_path: str, data: bytes) -> None:
+    target = os.path.normpath(os.path.join(root, rel_path))
+    if not target.startswith(os.path.normpath(root) + os.sep):
+        raise ValueError(f"Refusing to write asset outside output dir: {rel_path}")
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with open(target, "wb") as f:
+        f.write(data)
 
 
 @func_processing_time
@@ -214,98 +172,67 @@ async def pdf_parse_main(
     backend: str | None = None,
     server_url: str | None = None,
 ):
+    """Parse a PDF into markdown.
+
+    ``lang`` is accepted for API compatibility only: MinerU 4 selects the OCR
+    language model automatically and no longer exposes a per-call language.
+    """
     local_pdf_path = await process_resource_path(
         resource_path=resource_path,
         output_dir=output_dir if save_parsed_content else None,
     )
-
-    file_path = Path(local_pdf_path)
-    file_name = file_path.stem
-
-    with open(local_pdf_path, "rb") as source:
-        pdf_bytes = source.read()
-
-    if start_page > 0 or end_page is not None:
-        pdf_bytes = convert_pdf_bytes_to_bytes(
-            pdf_bytes=pdf_bytes,
-            start_page_id=start_page,
-            end_page_id=end_page,
-        )
-
-    (
-        base_dir,
-        local_image_dir,
-        local_md_dir,
-        image_writer,
-        md_writer,
-    ) = _prepare_output_dirs(
+    file_name = Path(local_pdf_path).stem
+    base_dir, local_image_dir, local_md_dir = _prepare_output_dirs(
         file_name=file_name,
         save_parsed_content=save_parsed_content,
         output_dir=output_dir,
     )
 
-    normalized_backend = _normalize_backend(backend)
-
     try:
-        if normalized_backend == "pipeline":
-            middle_json, model_output, parser_mode = _run_pipeline(
-                pdf_bytes=pdf_bytes,
-                lang=lang,
-                parse_method=parse_method,
-                image_writer=image_writer,
-            )
-        else:
-            middle_json, model_output, parser_mode = await _run_vlm_or_hybrid_async(
-                backend=normalized_backend,
-                pdf_bytes=pdf_bytes,
-                lang=lang,
-                parse_method=parse_method,
-                image_writer=image_writer,
-                server_url=server_url or settings.vlm_server_url,
-            )
+        normalized_backend = _normalize_backend(backend)
+        page_range = page_range_from_pages(start_page, end_page)
+        if lang and str(getattr(lang, "value", lang)) != PDF_PARSE_LANG.ch.value:
+            logger.debug("lang=%s ignored: MinerU 4 auto-selects the OCR language", lang)
 
-        pdf_info = middle_json["pdf_info"]
-        image_dir = str(os.path.basename(local_image_dir))
-        markdown_content, content_list_content = _build_markdown(
-            pdf_info=pdf_info,
-            image_dir=image_dir,
-            parser_mode=parser_mode,
+        result = await _run_parse_async(
+            pdf_path=str(local_pdf_path),
+            backend=normalized_backend,
+            parse_method=parse_method,
+            page_range=page_range,
+            server_url=server_url or settings.vlm_server_url,
+        )
+
+        image_dir_name = os.path.basename(local_image_dir)
+        markdown_content, content_list, middle_dict, assets = _export_result(
+            result, image_dir_name
         )
 
         if save_parsed_content:
-            md_writer.write_string(f"{file_name}.md", markdown_content)
-            md_writer.write_string(
-                f"{file_name}_content_list.json",
-                json.dumps(content_list_content, ensure_ascii=False, indent=4),
-            )
+            for rel_path, payload in assets.items():
+                _write_bytes(local_image_dir, rel_path, payload)
+            with open(os.path.join(local_md_dir, f"{file_name}.md"), "w", encoding="utf-8") as f:
+                f.write(markdown_content)
+            with open(
+                os.path.join(local_md_dir, f"{file_name}_content_list.json"), "w", encoding="utf-8"
+            ) as f:
+                json.dump(content_list, f, ensure_ascii=False, indent=4)
 
-        if save_middle_content and save_parsed_content:
-            draw_layout_bbox(
-                pdf_info, pdf_bytes, local_md_dir, f"{file_name}_layout.pdf"
-            )
-            if parser_mode == "pipeline":
-                draw_span_bbox(
-                    pdf_info, pdf_bytes, local_md_dir, f"{file_name}_spans.pdf"
-                )
+            if save_middle_content:
+                shutil.copyfile(local_pdf_path, os.path.join(local_md_dir, f"{file_name}_origin.pdf"))
+                with open(os.path.join(local_md_dir, f"{file_name}_middle.json"), "w", encoding="utf-8") as f:
+                    json.dump(middle_dict, f, ensure_ascii=False, indent=4)
+                model_output = getattr(result, "_model_output", None)
+                if model_output is not None:
+                    with open(os.path.join(local_md_dir, f"{file_name}_model.json"), "w", encoding="utf-8") as f:
+                        json.dump(
+                            model_output.to_dict(skip_defaults=False),
+                            f,
+                            ensure_ascii=False,
+                            indent=4,
+                            default=str,
+                        )
 
-            md_writer.write(f"{file_name}_origin.pdf", pdf_bytes)
-            md_writer.write_string(
-                f"{file_name}_model.json",
-                json.dumps(
-                    copy.deepcopy(model_output),
-                    ensure_ascii=False,
-                    indent=4,
-                    default=str,
-                ),
-            )
-            md_writer.write_string(
-                f"{file_name}_middle.json",
-                json.dumps(middle_json, ensure_ascii=False, indent=4),
-            )
-
-        logger.info(
-            f"PDF {file_name} parsed successfully with backend={normalized_backend}"
-        )
+        logger.info(f"PDF {file_name} parsed successfully with backend={normalized_backend}")
         return markdown_content
 
     except Exception as exc:  # noqa: BLE001
@@ -313,11 +240,4 @@ async def pdf_parse_main(
         raise HTTPException(status_code=500, detail="PDF parsing failed")
     finally:
         if not save_parsed_content:
-            import shutil
-
-            try:
-                shutil.rmtree(base_dir, ignore_errors=True)
-            except Exception as cleanup_error:  # noqa: BLE001
-                logger.warning(
-                    f"Failed to clean up temporary directory: {cleanup_error}"
-                )
+            shutil.rmtree(base_dir, ignore_errors=True)

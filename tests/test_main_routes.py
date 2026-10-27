@@ -3,8 +3,15 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 
+def _registered_paths():
+    """Collect route paths; FastAPI >=0.16x wraps included routers lazily."""
+    paths = {route.path for route in main_module.app.routes if hasattr(route, "path")}
+    paths.update(main_module.app.openapi()["paths"].keys())
+    return paths
+
+
 def test_task_routes_registered():
-    paths = {route.path for route in main_module.app.routes}
+    paths = _registered_paths()
     assert "/v1/tasks/submit" in paths
     assert "/v1/tasks/stats" in paths
     assert "/v1/tasks/dashboard" in paths
@@ -16,7 +23,7 @@ def test_task_routes_registered():
 
 
 def test_health_routes_registered():
-    paths = {route.path for route in main_module.app.routes}
+    paths = _registered_paths()
     assert "/healthz" in paths
     assert "/readyz" in paths
 

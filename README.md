@@ -122,6 +122,15 @@ docker compose up -d
 
 Compose keeps Redis internal-only and aligns with same-origin hosting: API at `/v1/*`, console at `/console`.
 
+MinerU 4 / vLLM 0.28 pull CUDA 13 torch wheels on Linux, so GPU hosts need an NVIDIA driver >= 580. MinerU models (`--tier standard`) are baked into `/root/.mineru` and loaded with `MINERU_MODEL_SOURCE=local`.
+
+### MinerU 4 notes
+
+- PDF parsing uses the MinerU 4 `MinerUParser` API: `pipeline` maps to the `basic` tier, `vlm-*` / `hybrid-*` engines map to the `standard` tier (local VLM engine is auto-selected; `*-http-client` uses `VLM_SERVER_URL`).
+- Pre-download models outside Docker with `mineru-models-download --tier standard -s modelscope` (or `--tier basic` for pipeline-only); `MINERU_MODEL_SOURCE` accepts `auto`, `huggingface`, `modelscope`, `local`.
+- MinerU 4 has no per-call OCR language: the `lang` option is accepted for compatibility but ignored.
+- Images are written to `<name>_artifacts/`; the `_layout.pdf` / `_spans.pdf` debug overlays are no longer produced. `MINERU_MIN_BATCH_INFERENCE_SIZE` and `MINERU_VIRTUAL_VRAM_SIZE` are ignored.
+
 ## AI Collaboration
 
 

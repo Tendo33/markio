@@ -1,4 +1,6 @@
 import asyncio
+import sys
+import types
 
 import pytest
 from fastapi import HTTPException
@@ -15,24 +17,24 @@ async def test_vlm_parse_runs_via_thread_offload(monkeypatch):
         return func(*args, **kwargs)
 
     def fake_run(**kwargs):
-        return {"pdf_info": {}}, {"model": "ok"}, "vlm"
+        return "result"
 
     monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
-    monkeypatch.setattr(pdf_parser, "_run_vlm_or_hybrid", fake_run)
+    monkeypatch.setattr(pdf_parser, "_run_parse", fake_run)
     pdf_parser._VLM_WARMED_KEYS.clear()
 
-    result = await pdf_parser._run_vlm_or_hybrid_async(
-        backend="vlm-auto-engine",
-        pdf_bytes=b"demo",
-        lang="ch",
+    result = await pdf_parser._run_parse_async(
+        pdf_path="x.pdf",
+        backend="vlm-engine",
         parse_method="auto",
-        image_writer=None,
+        page_range="",
         server_url=None,
     )
 
-    assert result[2] == "vlm"
+    assert result == "result"
     assert len(calls) == 1
     assert calls[0][0] is fake_run
+    assert "vlm-engine" in pdf_parser._VLM_WARMED_KEYS
 
 
 @pytest.mark.asyncio
@@ -46,35 +48,20 @@ async def test_vlm_warmup_failure_does_not_mark_backend_ready(monkeypatch):
         attempts["count"] += 1
         if attempts["count"] == 1:
             raise RuntimeError("warmup failed")
-        return {"pdf_info": {}}, {"model": "ok"}, "vlm"
+        return "ok"
 
     monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
-    monkeypatch.setattr(pdf_parser, "_run_vlm_or_hybrid", flaky_run)
+    monkeypatch.setattr(pdf_parser, "_run_parse", flaky_run)
     pdf_parser._VLM_WARMED_KEYS.clear()
+    kwargs = dict(pdf_path="x.pdf", backend="vlm-engine", parse_method="auto", page_range="", server_url=None)
 
     with pytest.raises(RuntimeError):
-        await pdf_parser._run_vlm_or_hybrid_async(
-            backend="vlm-auto-engine",
-            pdf_bytes=b"demo",
-            lang="ch",
-            parse_method="auto",
-            image_writer=None,
-            server_url=None,
-        )
+        await pdf_parser._run_parse_async(**kwargs)
+    assert "vlm-engine" not in pdf_parser._VLM_WARMED_KEYS
 
-    assert "vlm-auto-engine" not in pdf_parser._VLM_WARMED_KEYS
-
-    result = await pdf_parser._run_vlm_or_hybrid_async(
-        backend="vlm-auto-engine",
-        pdf_bytes=b"demo",
-        lang="ch",
-        parse_method="auto",
-        image_writer=None,
-        server_url=None,
-    )
-    assert result[2] == "vlm"
+    assert await pdf_parser._run_parse_async(**kwargs) == "ok"
     assert attempts["count"] == 2
-    assert "vlm-auto-engine" in pdf_parser._VLM_WARMED_KEYS
+    assert "vlm-engine" in pdf_parser._VLM_WARMED_KEYS
 
 
 @pytest.mark.asyncio
@@ -85,19 +72,11 @@ async def test_pdf_parse_returns_generic_http_500_error(monkeypatch, tmp_path):
     async def fake_process_resource_path(resource_path: str, output_dir=None):
         return resource_path
 
-    def fake_prepare_output_dirs(
-        file_name: str, save_parsed_content: bool, output_dir: str
-    ):
-        base_dir = tmp_path / "runtime"
-        base_dir.mkdir(parents=True, exist_ok=True)
-        return base_dir, base_dir / "images", base_dir / "md", None, None
-
-    def fake_run_pipeline(**kwargs):
+    def fake_run_parse(**kwargs):
         raise RuntimeError("internal parse stack details")
 
     monkeypatch.setattr(pdf_parser, "process_resource_path", fake_process_resource_path)
-    monkeypatch.setattr(pdf_parser, "_prepare_output_dirs", fake_prepare_output_dirs)
-    monkeypatch.setattr(pdf_parser, "_run_pipeline", fake_run_pipeline)
+    monkeypatch.setattr(pdf_parser, "_run_parse", fake_run_parse)
 
     with pytest.raises(HTTPException) as exc:
         await pdf_parser.pdf_parse_main(
@@ -111,74 +90,100 @@ async def test_pdf_parse_returns_generic_http_500_error(monkeypatch, tmp_path):
     assert exc.value.detail == "PDF parsing failed"
 
 
-def test_run_pipeline_uses_streaming_api_and_collects_result(monkeypatch):
-    import sys
+def _install_fake_parser(monkeypatch, record):
+    class FakeParser:
+        def __init__(self, **kwargs):
+            record["init"] = kwargs
 
-    calls = {"kw": None}
+        def parse(self, path, *, page_range=""):
+            record["parse"] = (path, page_range)
+            return "parse-result"
 
-    def fake_streaming(
-        *, pdf_bytes_list, image_writer_list, lang_list, on_doc_ready, **_kw
-    ):
-        calls["kw"] = {
-            "pdf_bytes_list": pdf_bytes_list,
-            "image_writer_list": image_writer_list,
-            "lang_list": lang_list,
-        }
-        # Simulate MinerU invoking the callback with a finalized middle_json.
-        on_doc_ready(
-            0,
-            ["model-block-1"],
-            {"pdf_info": [{"preproc_blocks": []}]},
-            True,
-        )
+        def close(self):
+            record["closed"] = True
 
-    fake_module = type(
-        "_fake_pipeline",
-        (),
-        {"doc_analyze_streaming": staticmethod(fake_streaming)},
-    )()
-    monkeypatch.setitem(
-        sys.modules,
-        "mineru.backend.pipeline.pipeline_analyze",
-        fake_module,
-    )
-    monkeypatch.setattr(pdf_parser, "mineru_normalize_backend", lambda b: b)
+    fake = types.ModuleType("mineru.parser")
+    fake.MinerUParser = FakeParser
+    monkeypatch.setitem(sys.modules, "mineru.parser", fake)
 
-    middle_json, model_list, mode = pdf_parser._run_pipeline(
-        pdf_bytes=b"%PDF-demo",
-        lang="en",
-        parse_method="ocr",
-        image_writer="writer",
+
+def test_run_parse_pipeline_maps_to_basic_tier(monkeypatch):
+    record = {}
+    _install_fake_parser(monkeypatch, record)
+
+    out = pdf_parser._run_parse(
+        pdf_path="a.pdf", backend="pipeline", parse_method="ocr", page_range="2-3", server_url=None
     )
 
-    assert mode == "pipeline"
-    assert calls["kw"]["pdf_bytes_list"] == [b"%PDF-demo"]
-    assert calls["kw"]["lang_list"] == ["en"]
-    assert model_list == ["model-block-1"]
-    assert middle_json == {"pdf_info": [{"preproc_blocks": []}]}
+    assert out == "parse-result"
+    assert record["init"] == {"tier": "basic", "parse_mode": "ocr", "vlm_config": None}
+    assert record["parse"] == ("a.pdf", "2-3")
+    assert record["closed"] is True
 
 
-def test_normalize_backend_supports_legacy_and_new_names(monkeypatch):
-    from mineru.cli.backend_options import normalize_backend as real_normalize
+def test_run_parse_http_client_uses_server_url(monkeypatch):
+    record = {}
+    _install_fake_parser(monkeypatch, record)
 
-    monkeypatch.setattr(pdf_parser, "mineru_normalize_backend", real_normalize)
+    pdf_parser._run_parse(
+        pdf_path="a.pdf",
+        backend="hybrid-http-client",
+        parse_method="auto",
+        page_range="",
+        server_url="http://vlm:30000/v1",
+    )
 
+    assert record["init"]["tier"] == "standard"
+    assert record["init"]["vlm_config"].server_url == "http://vlm:30000/"
+
+
+def test_build_vlm_config():
+    assert pdf_parser.build_vlm_config("pipeline") is None
+    assert pdf_parser.build_vlm_config("vlm-engine").engine == "auto"
+    assert pdf_parser.build_vlm_config("vlm-engine").server_url == ""
+    with pytest.raises(ValueError):
+        pdf_parser.build_vlm_config("vlm-http-client", None)
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "expected"),
+    [(0, None, ""), (2, None, "3-r1"), (0, 0, "1-1"), (1, 4, "2-5")],
+)
+def test_page_range_from_pages(start, end, expected):
+    assert pdf_parser.page_range_from_pages(start, end) == expected
+
+
+def test_page_range_rejects_inverted_range():
+    with pytest.raises(ValueError):
+        pdf_parser.page_range_from_pages(5, 2)
+
+
+def test_parse_mode_validation():
+    assert pdf_parser._parse_mode(None) == "auto"
+    assert pdf_parser._parse_mode(pdf_parser.PDF_PARSE_TYPE.txt) == "txt"
+    with pytest.raises(ValueError):
+        pdf_parser._parse_mode("bogus")
+
+
+def test_normalize_backend_supports_legacy_and_new_names():
     assert pdf_parser._normalize_backend("pipeline") == "pipeline"
     assert pdf_parser._normalize_backend("vlm-engine") == "vlm-engine"
     assert pdf_parser._normalize_backend("hybrid-engine") == "hybrid-engine"
-    # legacy aliases map to current names
     assert pdf_parser._normalize_backend("vlm-vllm-engine") == "vlm-engine"
     assert pdf_parser._normalize_backend("vlm-vllm-client") == "vlm-http-client"
     assert pdf_parser._normalize_backend("vlm-auto-engine") == "vlm-engine"
     assert pdf_parser._normalize_backend("hybrid-auto-engine") == "hybrid-engine"
+    with pytest.raises(ValueError):
+        pdf_parser._normalize_backend("bogus-engine")
+
+
+def test_tier_for_backend():
+    assert pdf_parser.tier_for_backend("pipeline") == "basic"
+    for b in ("vlm-engine", "hybrid-engine", "vlm-http-client", "hybrid-http-client"):
+        assert pdf_parser.tier_for_backend(b) == "standard"
 
 
 def test_every_accepted_engine_value_is_dispatchable():
-    """Guards against a value passing config validation but hitting no dispatch branch.
-
-    Both mcp_server and run_local route on the normalized name, so anything the
-    PDF_PARSE_ENGINE Literal accepts must normalize into a known engine.
-    """
     from typing import get_args
 
     from markio.settings.config_model import (
@@ -189,36 +194,27 @@ def test_every_accepted_engine_value_is_dispatchable():
     )
 
     accepted = get_args(ApplicationConfig.model_fields["pdf_parse_engine"].annotation)
-    assert accepted, "pdf_parse_engine should stay a Literal of accepted values"
+    assert accepted
 
     for value in accepted:
         normalized = normalize_pdf_engine(value)
-        assert normalized == PIPELINE_PDF_ENGINE or normalized in VLM_PDF_ENGINES, (
-            f"{value!r} normalizes to {normalized!r}, which no dispatch site handles"
-        )
+        assert normalized == PIPELINE_PDF_ENGINE or normalized in VLM_PDF_ENGINES
 
 
-def test_run_pipeline_raises_when_callback_never_fires(monkeypatch):
-    import sys
+def test_mineru4_public_api_is_available():
+    """Guard the MinerU 4 surface markio depends on."""
+    from docvortex.document.pdf import PDFDocument  # noqa: F401
+    from docvortex.export import materialize_middle  # noqa: F401
+    from mineru.config import VlmConfig  # noqa: F401
+    from mineru.parser import MinerUParser, ParseResult  # noqa: F401
+    from mineru.parser.tier import ensure_tier_runtime_dependencies  # noqa: F401
 
-    def fake_streaming(**_kw):
-        return None  # never invokes on_doc_ready
 
-    fake_module = type(
-        "_fake_pipeline",
-        (),
-        {"doc_analyze_streaming": staticmethod(fake_streaming)},
-    )()
-    monkeypatch.setitem(
-        sys.modules,
-        "mineru.backend.pipeline.pipeline_analyze",
-        fake_module,
-    )
+def test_image_to_pdf_produces_pdf(tmp_path):
+    from PIL import Image
 
-    with pytest.raises(RuntimeError, match="on_doc_ready was never called"):
-        pdf_parser._run_pipeline(
-            pdf_bytes=b"%PDF-demo",
-            lang="en",
-            parse_method="ocr",
-            image_writer="writer",
-        )
+    from markio.parsers.image_parser import image_to_pdf
+
+    img = tmp_path / "x.PNG"
+    Image.new("RGB", (40, 30), "white").save(img)
+    assert image_to_pdf(img).startswith(b"%PDF")
