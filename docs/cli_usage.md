@@ -160,6 +160,7 @@ Relevant environment variables:
 | `MINERU_MODEL_SOURCE` | `auto`, `huggingface`, `modelscope`, or `local` (MinerU 4) |
 | `MINERU_HOME` | MinerU model/config home (default `~/.mineru`) |
 | `VLM_SERVER_URL` | Remote VLM server |
+| `VLM_API_KEY` | Optional API key for the remote VLM server |
 
 ## Troubleshooting
 

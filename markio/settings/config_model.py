@@ -60,6 +60,11 @@ class ApplicationConfig(BaseModel):
         description="VLM server URL, required when using vlm-http-client or hybrid-http-client engine",
         alias="VLM_SERVER_URL",
     )
+    vlm_api_key: Optional[str] = Field(
+        default=None,
+        description="Optional API key sent to the VLM server for vlm-http-client / hybrid-http-client",
+        alias="VLM_API_KEY",
+    )
 
     # MINERU related configuration
     # MinerU 4 reads MINERU_* environment variables directly (MINERU_DEVICE_MODE,

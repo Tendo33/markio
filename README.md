@@ -122,11 +122,12 @@ docker compose up -d
 
 Compose keeps Redis internal-only and aligns with same-origin hosting: API at `/v1/*`, console at `/console`.
 
-MinerU 4 / vLLM 0.28 pull CUDA 13 torch wheels on Linux, so GPU hosts need an NVIDIA driver >= 580. MinerU models (`--tier standard`) are baked into `/root/.mineru` and loaded with `MINERU_MODEL_SOURCE=local`.
+The image is built on `nvidia/cuda:13.0.2-cudnn-devel-ubuntu24.04` (MinerU 4 / vLLM 0.28 pull CUDA 13 torch wheels), so GPU hosts need an NVIDIA driver >= 580. MinerU models (`--tier standard`) are baked into `/root/.mineru` and loaded with `MINERU_MODEL_SOURCE=local`.
 
 ### MinerU 4 notes
 
-- PDF parsing uses the MinerU 4 `MinerUParser` API: `pipeline` maps to the `basic` tier, `vlm-*` / `hybrid-*` engines map to the `standard` tier (local VLM engine is auto-selected; `*-http-client` uses `VLM_SERVER_URL`).
+- PDF parsing uses the MinerU 4 `MinerUParser` API: `pipeline` maps to the `basic` tier, `vlm-*` / `hybrid-*` engines map to the `standard` tier (local VLM engine is auto-selected; `*-http-client` uses `VLM_SERVER_URL` and optional `VLM_API_KEY`). Note: in MinerU 4 `vlm-engine` and `hybrid-engine` map to the same `standard` tier and therefore behave identically (same for the two `*-http-client` engines); `MINERU_*` VLM settings (engine, model, timeouts) are respected.
+- GPU hosts need an NVIDIA driver >= 580 (CUDA 13; 580.95.05+ recommended for the CUDA 13.0.2 base image). Without a GPU, MinerU falls back to ONNX + llama.cpp automatically (slow but works).
 - Pre-download models outside Docker with `mineru-models-download --tier standard -s modelscope` (or `--tier basic` for pipeline-only); `MINERU_MODEL_SOURCE` accepts `auto`, `huggingface`, `modelscope`, `local`.
 - MinerU 4 has no per-call OCR language: the `lang` option is accepted for compatibility but ignored.
 - Images are written to `<name>_artifacts/`; the `_layout.pdf` / `_spans.pdf` debug overlays are no longer produced. `MINERU_MIN_BATCH_INFERENCE_SIZE` and `MINERU_VIRTUAL_VRAM_SIZE` are ignored.

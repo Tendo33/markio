@@ -2,10 +2,10 @@
 # Stage 1: Base Image
 # 包含构建和运行都必需的基础环境，如CUDA、Python运行时等。
 # =================================================================================================
-# NOTE: MinerU 4 + vLLM 0.28 resolve to torch 2.13 (CUDA 13 wheels, bundled via pip)
-# on Linux; GPU hosts need an NVIDIA driver >= 580. The CUDA 13 base image bump is
-# tracked separately on branch feat/mineru-4-cuda13.
-FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04 AS base
+# MinerU 4 + vLLM 0.28 resolve to torch 2.13 (CUDA 13 wheels) on Linux, so the base
+# image moved from CUDA 12.4 / Ubuntu 22.04 to CUDA 13.0 / Ubuntu 24.04.
+# Host requirement: NVIDIA driver >= 580.
+FROM nvidia/cuda:13.0.2-cudnn-devel-ubuntu24.04 AS base
 
 # 设置持久化的环境变量
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -18,9 +18,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     MINERU_HOME=/root/.mineru
 
 # 安装最小化的运行时依赖，并配置环境
+# Ubuntu 24.04 uses deb822 sources in /etc/apt/sources.list.d/ubuntu.sources
 # APT 镜像走 HTTPS（可用 --build-arg APT_MIRROR=archive.ubuntu.com 切换）
 ARG APT_MIRROR=mirrors.tuna.tsinghua.edu.cn
-RUN sed -i "s#http://archive.ubuntu.com#https://${APT_MIRROR}#g; s#http://security.ubuntu.com#https://${APT_MIRROR}#g" /etc/apt/sources.list && \
+RUN sed -i "s#http://archive.ubuntu.com#https://${APT_MIRROR}#g; s#http://security.ubuntu.com#https://${APT_MIRROR}#g" /etc/apt/sources.list.d/ubuntu.sources && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
@@ -70,7 +71,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /uvx /usr/local/bin/
 COPY pyproject.toml uv.lock ./ 
 
 # 2. 创建虚拟环境并安装依赖
-# 使用 uv 托管的 CPython 3.11
+# Ubuntu 24.04 没有 python3.11 apt 包，使用 uv 托管的 CPython 3.11
 RUN uv python install 3.11 && \
     uv venv -p 3.11 && \
     uv sync --frozen --no-install-project && \

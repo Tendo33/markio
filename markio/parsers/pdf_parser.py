@@ -53,17 +53,28 @@ def tier_for_backend(backend: str) -> str:
     return PIPELINE_TIER if backend == PIPELINE_PDF_ENGINE else VLM_TIER
 
 
-def build_vlm_config(backend: str, server_url: str | None = None):
-    """Build the MinerU 4 ``VlmConfig`` for a markio engine, or None for pipeline."""
+def build_vlm_config(backend: str, server_url: str | None = None, api_key: str | None = None):
+    """Build the MinerU 4 ``VlmConfig`` for a markio engine, or None for pipeline.
+
+    Starts from MinerU's global VLM config so ``MINERU_*`` settings (engine, model,
+    api_key, timeouts) are kept; markio only overrides ``server_url`` / ``api_key``.
+    """
     if backend == PIPELINE_PDF_ENGINE:
         return None
-    from mineru.config import VlmConfig
+    from mineru.config import config as mineru_config
 
+    base = mineru_config.model.vlm
     if backend.endswith("-http-client"):
         if not server_url:
             raise ValueError(f"VLM server_url is required for {backend}")
-        return VlmConfig(server_url=server_url)
-    return VlmConfig(engine="auto")
+        update = {"server_url": server_url}
+        key = api_key if api_key is not None else settings.vlm_api_key
+        if key:
+            update["api_key"] = key
+        # model_validate (not model_copy) so MinerU normalizes/validates server_url.
+        return type(base).model_validate({**base.model_dump(), **update})
+    # Local engines: never talk to a remote server.
+    return type(base).model_validate({**base.model_dump(), "server_url": ""})
 
 
 def page_range_from_pages(start_page: int = 0, end_page: int | None = None) -> str:

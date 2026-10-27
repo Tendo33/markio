@@ -218,3 +218,34 @@ def test_image_to_pdf_produces_pdf(tmp_path):
     img = tmp_path / "x.PNG"
     Image.new("RGB", (40, 30), "white").save(img)
     assert image_to_pdf(img).startswith(b"%PDF")
+
+
+def test_build_vlm_config_keeps_global_settings_for_local_engine(monkeypatch):
+    from mineru.config import config as mineru_config
+
+    from markio.parsers.pdf_parser import build_vlm_config
+
+    base = mineru_config.model.vlm.model_copy(update={"engine": "llama-cpp", "server_url": "http://x:1"})
+    monkeypatch.setattr(mineru_config.model, "vlm", base)
+    cfg = build_vlm_config("hybrid-engine")
+    assert cfg.engine == "llama-cpp"
+    assert cfg.server_url == ""
+
+
+def test_build_vlm_config_http_client_passes_api_key(monkeypatch):
+    from markio.parsers import pdf_parser
+
+    monkeypatch.setattr(pdf_parser.settings, "vlm_api_key", "sk-env")
+    cfg = pdf_parser.build_vlm_config("vlm-http-client", "http://127.0.0.1:30000")
+    assert cfg.server_url.startswith("http://127.0.0.1:30000")
+    assert cfg.api_key == "sk-env"
+    assert pdf_parser.build_vlm_config("vlm-http-client", "http://h:1", api_key="sk-arg").api_key == "sk-arg"
+
+
+def test_build_vlm_config_http_client_requires_url():
+    import pytest
+
+    from markio.parsers.pdf_parser import build_vlm_config
+
+    with pytest.raises(ValueError):
+        build_vlm_config("hybrid-http-client", None)

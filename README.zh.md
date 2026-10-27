@@ -122,11 +122,12 @@ docker compose up -d
 
 Compose 默认采用同源部署：API 在 `/v1/*`，console 在 `/console`，Redis 仅在内部网络暴露。
 
-MinerU 4 / vLLM 0.28 在 Linux 上使用 CUDA 13 版 torch，GPU 宿主机需要 NVIDIA 驱动 >= 580。MinerU 模型（`--tier standard`）预置在 `/root/.mineru`，运行时 `MINERU_MODEL_SOURCE=local`。
+镜像基于 `nvidia/cuda:13.0.2-cudnn-devel-ubuntu24.04`（MinerU 4 / vLLM 0.28 依赖 CUDA 13 版 torch），GPU 宿主机需要 NVIDIA 驱动 >= 580。MinerU 模型（`--tier standard`）预置在 `/root/.mineru`，运行时 `MINERU_MODEL_SOURCE=local`。
 
 ### MinerU 4 说明
 
-- PDF 解析使用 MinerU 4 的 `MinerUParser`：`pipeline` 对应 `basic` 档位，`vlm-*` / `hybrid-*` 对应 `standard` 档位（本地 VLM 推理引擎自动选择；`*-http-client` 使用 `VLM_SERVER_URL`）。
+- PDF 解析使用 MinerU 4 的 `MinerUParser`：`pipeline` 对应 `basic` 档位，`vlm-*` / `hybrid-*` 对应 `standard` 档位（本地 VLM 推理引擎自动选择；`*-http-client` 使用 `VLM_SERVER_URL`，可选 `VLM_API_KEY`）。注意：MinerU 4 中 `vlm-engine` 与 `hybrid-engine` 映射到同一 `standard` 档位，行为完全相同（两个 `*-http-client` 同理）；`MINERU_*` 的 VLM 配置（engine、model、超时等）会被保留。
+- GPU 主机需要 NVIDIA 驱动 >= 580（CUDA 13；CUDA 13.0.2 基础镜像建议 580.95.05+）。无 GPU 时 MinerU 自动回退到 ONNX + llama.cpp（较慢但可用）。
 - 非 Docker 环境可预下载模型：`mineru-models-download --tier standard -s modelscope`（仅 pipeline 用 `--tier basic`）；`MINERU_MODEL_SOURCE` 可选 `auto`、`huggingface`、`modelscope`、`local`。
 - MinerU 4 不再支持按次指定 OCR 语言：`lang` 参数保留兼容但会被忽略。
 - 图片输出到 `<name>_artifacts/`；不再生成 `_layout.pdf` / `_spans.pdf` 调试文件。`MINERU_MIN_BATCH_INFERENCE_SIZE`、`MINERU_VIRTUAL_VRAM_SIZE` 已失效。
