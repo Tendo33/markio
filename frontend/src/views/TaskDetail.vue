@@ -1,7 +1,7 @@
 <template>
   <div :aria-busy="taskStore.detailLoading ? 'true' : 'false'">
     <div class="mb-4">
-      <button @click="$router.back()" class="text-link flex items-center text-sm">
+      <button type="button" @click="goBack" class="text-link flex items-center text-sm">
         <ArrowLeft class="w-4 h-4 mr-1" />
         返回
       </button>
@@ -88,7 +88,7 @@
               <dd class="mt-1 text-primary">
                 {{
                   task.processing_duration_ms !== null && task.processing_duration_ms !== undefined
-                    ? `${task.processing_duration_ms} ms`
+                    ? formatDurationMs(task.processing_duration_ms)
                     : formatDuration(task.started_at, task.completed_at)
                 }}
               </dd>
@@ -120,7 +120,16 @@
               <RotateCcw class="w-4 h-4 mr-2" />
               重试任务
             </button>
-            <button @click="refresh" class="btn btn-primary flex items-center">
+            <button
+              v-if="['completed', 'failed', 'canceled'].includes(task.status)"
+              type="button"
+              @click="remove"
+              class="btn btn-danger flex items-center"
+            >
+              <Trash2 class="w-4 h-4 mr-2" />
+              删除任务
+            </button>
+            <button type="button" @click="refresh()" class="btn btn-primary flex items-center">
               <RefreshCw class="w-4 h-4 mr-2" />
               刷新
             </button>
@@ -128,14 +137,54 @@
         </div>
 
         <div class="card">
-          <h2 class="section-title mb-3">解析结果</h2>
-          <div
-            v-if="task.result !== null"
-            class="bg-code text-code text-xs rounded-lg p-4 overflow-auto max-h-[480px]"
-            dir="auto"
-          >
-            <pre class="whitespace-pre-wrap break-words">{{ task.result }}</pre>
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h2 class="section-title">解析结果</h2>
+            <div v-if="task.result" class="flex flex-wrap items-center gap-2">
+              <div class="inline-flex rounded-lg border border-default overflow-hidden text-xs" role="group" aria-label="结果视图">
+                <button
+                  type="button"
+                  class="px-3 py-1.5"
+                  :class="resultView === 'preview' ? 'seg-active' : 'text-secondary'"
+                  :aria-pressed="resultView === 'preview'"
+                  @click="resultView = 'preview'"
+                >
+                  预览
+                </button>
+                <button
+                  type="button"
+                  class="px-3 py-1.5"
+                  :class="resultView === 'source' ? 'seg-active' : 'text-secondary'"
+                  :aria-pressed="resultView === 'source'"
+                  @click="resultView = 'source'"
+                >
+                  源码
+                </button>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm flex items-center" @click="copyResult">
+                <Copy class="w-4 h-4 mr-1" />
+                复制
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm flex items-center" @click="downloadResult">
+                <Download class="w-4 h-4 mr-1" />
+                下载 .md
+              </button>
+            </div>
           </div>
+          <template v-if="task.result">
+            <article
+              v-if="resultView === 'preview'"
+              class="markdown-body text-sm rounded-lg border border-default p-4 overflow-auto max-h-[640px]"
+              dir="auto"
+              v-html="renderedResult"
+            />
+            <div
+              v-else
+              class="bg-code text-code text-xs rounded-lg p-4 overflow-auto max-h-[640px]"
+              dir="auto"
+            >
+              <pre class="whitespace-pre-wrap break-words">{{ task.result }}</pre>
+            </div>
+          </template>
           <div v-else class="text-sm text-secondary">
             {{
               task.status === 'completed'
@@ -158,22 +207,31 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeft, RefreshCw, RotateCcw, X } from 'lucide-vue-next'
+import { computed, ref } from 'vue'
+import { ArrowLeft, Copy, Download, RefreshCw, RotateCcw, Trash2, X } from 'lucide-vue-next'
 
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { useTaskDetailPolling } from '@/composables/useTaskDetailPolling'
-import { formatDateTime, formatDuration } from '@/utils/format'
+import { formatDateTime, formatDuration, formatDurationMs } from '@/utils/format'
+import { renderMarkdown } from '@/utils/markdown'
 
 const {
   cancel,
   confirmState,
+  copyResult,
+  downloadResult,
   executeConfirmedAction,
+  goBack,
   refresh,
+  remove,
   retry,
   task,
   taskStore,
   tokenConfigured,
 } = useTaskDetailPolling()
+
+const resultView = ref<'preview' | 'source'>('preview')
+const renderedResult = computed(() => (task.value?.result ? renderMarkdown(task.value.result) : ''))
 </script>

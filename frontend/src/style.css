@@ -211,6 +211,44 @@
     border-color: var(--border-strong);
   }
 
+  .btn-danger {
+    border: 1px solid var(--status-danger-border);
+    background-color: var(--status-danger-bg);
+    color: var(--status-danger-text);
+  }
+
+  .btn-danger:hover {
+    border-color: var(--status-danger-text);
+  }
+
+  .btn-sm {
+    min-height: 36px;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .seg-active {
+    background-color: var(--accent-soft);
+    color: var(--accent-strong);
+    font-weight: 600;
+  }
+
+  .markdown-body { color: var(--text-primary); line-height: 1.7; overflow-wrap: anywhere; }
+  .markdown-body > * + * { margin-top: 0.75em; }
+  .markdown-body h1 { font-size: 1.5em; font-weight: 700; }
+  .markdown-body h2 { font-size: 1.3em; font-weight: 700; }
+  .markdown-body h3 { font-size: 1.15em; font-weight: 600; }
+  .markdown-body ul { list-style: disc; padding-left: 1.5em; }
+  .markdown-body ol { list-style: decimal; padding-left: 1.5em; }
+  .markdown-body a { color: var(--accent-strong); text-decoration: underline; }
+  .markdown-body code { font-family: ui-monospace, monospace; font-size: 0.9em; background: var(--accent-soft); padding: 0.1em 0.3em; border-radius: 4px; }
+  .markdown-body pre { background: var(--accent-soft); padding: 0.75em; border-radius: 8px; overflow-x: auto; }
+  .markdown-body pre code { background: none; padding: 0; }
+  .markdown-body blockquote { border-left: 3px solid var(--border-default); padding-left: 0.75em; color: var(--text-secondary); }
+  .markdown-body table { border-collapse: collapse; display: block; overflow-x: auto; }
+  .markdown-body th, .markdown-body td { border: 1px solid var(--border-default); padding: 0.35em 0.6em; }
+  .markdown-body img { max-width: 100%; }
+
   .btn:focus-visible,
   .icon-btn:focus-visible,
   input[type="text"]:focus-visible,

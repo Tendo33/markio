@@ -67,3 +67,18 @@ export function formatDuration(startTime: string | null, endTime: string | null)
     return `${hours}小时${minutes}分`
   }
 }
+
+/**
+ * 格式化毫秒级耗时，例如 850 毫秒、12.3秒、2分5秒
+ */
+export function formatDurationMs(ms: number | null | undefined): string {
+  if (ms === null || ms === undefined || !Number.isFinite(ms) || ms < 0) return '-'
+  if (ms < 1000) return `${Math.round(ms)}毫秒`
+  const totalSeconds = ms / 1000
+  if (totalSeconds < 60) return `${totalSeconds.toFixed(1)}秒`
+  const rounded = Math.round(totalSeconds)
+  const hours = Math.floor(rounded / 3600)
+  const minutes = Math.floor((rounded % 3600) / 60)
+  const secs = rounded % 60
+  return hours > 0 ? `${hours}小时${minutes}分` : `${minutes}分${secs}秒`
+}

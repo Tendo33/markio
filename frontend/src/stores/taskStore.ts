@@ -172,6 +172,15 @@ export const useTaskStore = defineStore('task', () => {
     await Promise.all([loadTasks(page.value), loadDashboard(8)])
   }
 
+  async function remove(taskId: string) {
+    const response = await taskApi.deleteTask(taskId)
+    if (!response.deleted) {
+      throw new Error('任务当前不可删除')
+    }
+    tasks.value = tasks.value.filter((item) => item.task_id !== taskId)
+    await Promise.all([loadTasks(page.value), loadDashboard(8)])
+  }
+
   function resetState() {
     tasks.value = []
     currentTaskSummary.value = null
@@ -227,6 +236,7 @@ export const useTaskStore = defineStore('task', () => {
     retry,
     resetState,
     resetCurrentTask,
+    remove,
     clearError,
   }
 })

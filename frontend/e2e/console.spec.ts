@@ -293,11 +293,73 @@ test('polls task detail until completion and fetches final result exactly once',
 
   await page.goto('/console/tasks/task-detail-001')
   await expect(page.getByText('任务详情')).toBeVisible()
-  await expect(page.getByText('# final markdown')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: 'final markdown' })).toBeVisible({ timeout: 10_000 })
 
   await page.waitForTimeout(500)
   expect(detailRequests).toBeGreaterThanOrEqual(3)
   expect(includeResultRequests).toBe(1)
+  expect(unexpectedRequests).toEqual([])
+})
+
+test('renders markdown preview, downloads, deletes and falls back to the list', async ({ page }) => {
+  await seedToken(page)
+  let deleted = false
+  const record = taskRecord({
+    task_id: 'task-md-001',
+    filename: 'paper.pdf',
+    status: 'completed',
+    result: '# Title\n\n- item one\n\n<img src=x onerror="window.__xss=1">',
+    started_at: '2026-05-07T12:00:01Z',
+    completed_at: '2026-05-07T12:00:07Z',
+    processing_duration_ms: 6500,
+  })
+  const unexpectedRequests = await installStrictApiMock(page, async (route, url) => {
+    const method = route.request().method()
+    if (url.pathname === '/v1/tasks/dashboard') {
+      await fulfillJson(route, dashboardPayload())
+      return true
+    }
+    if (url.pathname === '/v1/tasks/task-md-001/download') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/markdown; charset=utf-8',
+        headers: { 'content-disposition': "attachment; filename=\"paper.md\"; filename*=UTF-8''paper.md" },
+        body: String(record.result),
+      })
+      return true
+    }
+    if (url.pathname === '/v1/tasks/task-md-001' && method === 'DELETE') {
+      deleted = true
+      await fulfillJson(route, { task_id: 'task-md-001', deleted: true })
+      return true
+    }
+    if (url.pathname === '/v1/tasks/task-md-001') {
+      await fulfillJson(route, record)
+      return true
+    }
+    if (url.pathname === '/v1/tasks') {
+      await fulfillJson(route, { items: [], total: 0, page: 1, page_size: 20 })
+      return true
+    }
+    return false
+  })
+
+  await page.goto('/console/tasks/task-md-001')
+  await expect(page.getByRole('heading', { name: 'Title' })).toBeVisible()
+  await expect(page.getByText('6.5秒')).toBeVisible()
+  expect(await page.evaluate(() => (window as any).__xss)).toBeUndefined()
+
+  await page.getByRole('button', { name: '源码' }).click()
+  await expect(page.locator('pre')).toContainText('# Title')
+
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: '下载 .md' }).click()
+  expect((await downloadPromise).suggestedFilename()).toBe('paper.md')
+
+  await page.getByRole('button', { name: '删除任务' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: /确认|确定|删除/ }).last().click()
+  await expect(page).toHaveURL(/\/console\/tasks$/)
+  expect(deleted).toBe(true)
   expect(unexpectedRequests).toEqual([])
 })
 

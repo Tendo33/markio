@@ -83,6 +83,11 @@ export interface QueuePauseResumeResponse {
   paused: boolean
 }
 
+export interface DeleteResponse {
+  task_id: string
+  deleted: boolean
+}
+
 export interface CancelResponse {
   task_id: string
   canceled: boolean

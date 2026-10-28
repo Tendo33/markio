@@ -1,12 +1,15 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+
+import { downloadTaskResult } from '@/api/taskApi'
 
 import { useAuthStore, useTaskStore } from '@/stores'
 import { toast } from '@/utils/toast'
 
 export function useTaskDetailPolling() {
   const route = useRoute()
+  const router = useRouter()
   const authStore = useAuthStore()
   const taskStore = useTaskStore()
   const { configured: tokenConfigured } = storeToRefs(authStore)
@@ -115,6 +118,57 @@ export function useTaskDetailPolling() {
     }
   }
 
+  function remove() {
+    confirmState.value = {
+      visible: true,
+      title: '删除任务',
+      message: `确认删除任务 ${taskId.value} 吗？删除后无法恢复。`,
+      type: 'danger',
+      action: async () => {
+        stopPolling()
+        await taskStore.remove(taskId.value)
+        toast.success('任务已删除')
+        await router.replace({ name: 'task-list' })
+      },
+    }
+  }
+
+  function goBack() {
+    // A direct link has no in-app history entry; fall back to the task list
+    if (window.history.state?.back) {
+      router.back()
+    } else {
+      router.push({ name: 'task-list' })
+    }
+  }
+
+  async function copyResult() {
+    const text = task.value?.result
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('已复制 Markdown')
+    } catch {
+      toast.error('复制失败，请手动选择文本复制')
+    }
+  }
+
+  async function downloadResult() {
+    try {
+      const { blob, filename } = await downloadTaskResult(taskId.value)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (error: any) {
+      toast.error(error?.message || '下载失败')
+    }
+  }
+
   async function executeConfirmedAction() {
     const action = confirmState.value.action
     if (!action) return
@@ -189,7 +243,11 @@ export function useTaskDetailPolling() {
     taskStore,
     tokenConfigured,
     cancel,
+    copyResult,
+    downloadResult,
     executeConfirmedAction,
+    goBack,
+    remove,
     refresh,
     retry,
   }

@@ -1,6 +1,7 @@
 import apiClient from './client'
 import type {
   CancelResponse,
+  DeleteResponse,
   DashboardPayload,
   RetryResponse,
   SubmitTaskRequest,
@@ -77,4 +78,32 @@ export async function cancelTask(taskId: string): Promise<CancelResponse> {
 export async function retryTask(taskId: string): Promise<RetryResponse> {
   const response = await apiClient.post<RetryResponse>(`${TASK_BASE}/${taskId}/retry`)
   return response.data
+}
+
+export async function deleteTask(taskId: string): Promise<DeleteResponse> {
+  const response = await apiClient.delete<DeleteResponse>(`${TASK_BASE}/${taskId}`)
+  return response.data
+}
+
+export async function downloadTaskResult(
+  taskId: string
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiClient.get<Blob>(`${TASK_BASE}/${taskId}/download`, {
+    responseType: 'blob',
+  })
+  const disposition = String(response.headers['content-disposition'] || '')
+  return { blob: response.data, filename: parseDownloadFilename(disposition) }
+}
+
+export function parseDownloadFilename(disposition: string, fallback = 'result.md'): string {
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded[1].trim())
+    } catch {
+      // fall through to the plain filename
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(disposition)
+  return plain ? plain[1].trim() : fallback
 }
