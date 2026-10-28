@@ -159,6 +159,19 @@ class RedisTaskStoreTests(unittest.IsolatedAsyncioTestCase):
         stats = await self.store.get_stats()
         self.assertEqual(stats.canceled, 1)
 
+    async def test_delete_finished_task_removes_indexes(self):
+        request = SubmitTaskRequest(filename="del.pdf", file_path="/tmp/del.pdf")
+        record = await self.store.submit_task(request)
+        self.assertFalse(await self.store.delete_task(record.task_id))  # pending
+        await self.store.claim_next_task()
+        await self.store.mark_completed(record.task_id, "# r")
+        self.assertFalse(await self.store.delete_task(record.task_id, owner_id="someone-else"))
+        self.assertTrue(await self.store.delete_task(record.task_id))
+        self.assertIsNone(await self.store.get_task(record.task_id))
+        self.assertIsNone(await self.redis.get(f"result:{record.task_id}"))
+        self.assertEqual(await self.redis.zcard("task:created"), 0)
+        self.assertEqual((await self.store.list_tasks()).total, 0)
+
     async def test_list_tasks_by_status(self):
         now = datetime.now(timezone.utc)
         for idx in range(3):

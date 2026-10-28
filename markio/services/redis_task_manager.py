@@ -218,6 +218,13 @@ class RedisTaskManager(BaseTaskManager):
     async def cancel_task(self, task_id: str, owner_id: str | None = None) -> bool:
         return await self.store.cancel_task(task_id, owner_id=owner_id)
 
+    async def delete_task(self, task_id: str, owner_id: str | None = None) -> bool:
+        request = await self.store.get_request(task_id, owner_id=owner_id)
+        deleted = await self.store.delete_task(task_id, owner_id=owner_id)
+        if deleted and request is not None:
+            self._cleanup_temp_file(request.file_path)
+        return deleted
+
     async def retry_task(self, task_id: str, owner_id: str | None = None) -> bool:
         request = await self.store.get_request(task_id, owner_id=owner_id)
         if request is None or not os.path.exists(request.file_path):

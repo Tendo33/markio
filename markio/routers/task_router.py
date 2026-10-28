@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import Response
 
 from markio.auth import AuthUser, require_admin_user, require_auth_user
 from markio.routers._request_guards import (
@@ -266,6 +268,68 @@ async def cancel_task(
         )
 
     return jsonable_encoder({"task_id": task_id, "canceled": canceled})
+
+
+@router.get("/tasks/{task_id}/download", tags=["Async Tasks"])
+async def download_task_result(
+    task_id: str,
+    current_user: AuthUser = Depends(require_auth_user),
+):
+    """Download a completed task's Markdown result as a file."""
+    _validate_task_id(task_id)
+    task = await get_task_manager().get_task(
+        task_id,
+        owner_id=current_user.user_id,
+        include_result=True,
+    )
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.status != TaskStatus.completed or not isinstance(task.result, str):
+        raise HTTPException(status_code=409, detail="Task has no result to download")
+
+    raw_stem = Path(task.filename or "").stem
+    stem = "".join(ch for ch in raw_stem if ch.isprintable() and ch not in '"\\/') or "result"
+    download_name = f"{stem}.md"
+    ascii_name = download_name.encode("ascii", "ignore").decode()
+    if ascii_name in {"", ".md"}:
+        ascii_name = "result.md"
+    return Response(
+        content=task.result,
+        media_type="text/markdown; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{ascii_name}"; '
+                f"filename*=UTF-8''{quote(download_name)}"
+            )
+        },
+    )
+
+
+@router.delete("/tasks/{task_id}", tags=["Async Tasks"])
+async def delete_task(
+    task_id: str,
+    current_user: AuthUser = Depends(require_auth_user),
+):
+    """Delete a finished task. Pending/processing tasks must be canceled first."""
+    _validate_task_id(task_id)
+    task = await get_task_manager().get_task(
+        task_id,
+        owner_id=current_user.user_id,
+        include_result=False,
+    )
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    deleted = await get_task_manager().delete_task(
+        task_id,
+        owner_id=current_user.user_id,
+    )
+    if not deleted:
+        raise HTTPException(
+            status_code=409,
+            detail="Only completed, failed or canceled tasks can be deleted",
+        )
+    return jsonable_encoder({"task_id": task_id, "deleted": True})
 
 
 @router.post("/tasks/{task_id}/retry", tags=["Async Tasks"])

@@ -43,6 +43,8 @@ from markio.services.task_transitions import (
 
 logger = logging.getLogger(__name__)
 
+DELETABLE_STATUSES = frozenset({TaskStatus.completed, TaskStatus.failed, TaskStatus.canceled})
+
 
 @dataclass
 class QueueItem:
@@ -352,6 +354,25 @@ class AsyncTaskManager(BaseTaskManager):
             self._pending_items.pop(task_id, None)
             self._persist_state_locked()
 
+        return True
+
+    async def delete_task(self, task_id: str, owner_id: str | None = None) -> bool:
+        """Delete a finished task (completed, failed or canceled) and its upload."""
+        async with self._lock:
+            record = self._records.get(task_id)
+            if record is None:
+                return False
+            if owner_id and record.owner_id != owner_id:
+                return False
+            if record.status not in DELETABLE_STATUSES:
+                return False
+            request = self._requests.pop(task_id, None)
+            self._records.pop(task_id, None)
+            self._pending_items.pop(task_id, None)
+            self._persist_state_locked()
+
+        if request is not None:
+            self._cleanup_temp_file(request.file_path)
         return True
 
     async def retry_task(self, task_id: str, owner_id: str | None = None) -> bool:

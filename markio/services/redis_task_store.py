@@ -267,6 +267,31 @@ class RedisTaskStore:
         await self._move_status(task_id, payload, TaskStatus.canceled, created_score)
         return True
 
+    async def delete_task(self, task_id: str, owner_id: str | None = None) -> bool:
+        """Remove a finished task and its result from every index."""
+        redis = self._ensure_redis()
+        payload = await redis.hgetall(self._task_key(task_id))
+        if not payload:
+            return False
+        payload = self._decode_mapping(payload)
+        if not self._owner_matches(payload, owner_id):
+            return False
+        if payload.get("status", "") not in {
+            TaskStatus.completed.value,
+            TaskStatus.failed.value,
+            TaskStatus.canceled.value,
+        }:
+            return False
+
+        task_owner = payload.get("owner_id", "anonymous")
+        await redis.zrem(self._task_created_key(), task_id)
+        await redis.zrem(self._owner_tasks_key(task_owner), task_id)
+        for status in TaskStatus:
+            await redis.zrem(self._task_status_key(status), task_id)
+            await redis.zrem(self._owner_status_key(task_owner, status), task_id)
+        await redis.delete(self._task_key(task_id), self._result_key(task_id))
+        return True
+
     async def list_tasks(
         self,
         *,

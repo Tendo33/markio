@@ -605,3 +605,73 @@ async def test_submit_task_sanitizes_malicious_filename(monkeypatch, tmp_path: P
     assert Path(captured["file_path"]).resolve().is_relative_to(
         Path(routers.task_router.settings.task_upload_dir).resolve()
     )
+
+
+@pytest.mark.asyncio
+async def test_download_and_delete_task_endpoints(monkeypatch, tmp_path: Path):
+    async def fake_parser(path: str, request: SubmitTaskRequest) -> str:
+        return "# 标题\n\nbody"
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=fake_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+    app = _build_app()
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/v1/tasks/submit",
+            files={"file": ("my report.pdf", b"demo", "application/pdf")},
+        )
+        task_id = response.json()["task_id"]
+        for _ in range(40):
+            if (await client.get(f"/v1/tasks/{task_id}")).json()["status"] == "completed":
+                break
+            await asyncio.sleep(0.05)
+
+        download = await client.get(f"/v1/tasks/{task_id}/download")
+        assert download.status_code == 200
+        assert download.headers["content-type"].startswith("text/markdown")
+        assert ".md" in download.headers["content-disposition"]
+        assert download.text == "# 标题\n\nbody"
+
+        other = _build_app(user_id="user-b")
+        async with AsyncClient(
+            transport=ASGITransport(app=other), base_url="http://testserver"
+        ) as intruder:
+            assert (await intruder.get(f"/v1/tasks/{task_id}/download")).status_code == 404
+            assert (await intruder.delete(f"/v1/tasks/{task_id}")).status_code == 404
+
+        deleted = await client.delete(f"/v1/tasks/{task_id}")
+        assert deleted.status_code == 200
+        assert deleted.json() == {"task_id": task_id, "deleted": True}
+        assert (await client.get(f"/v1/tasks/{task_id}")).status_code == 404
+        assert (await client.delete(f"/v1/tasks/{task_id}")).status_code == 404
+        assert (await client.get("/v1/tasks/" + "0" * 32 + "/download")).status_code == 404
+
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_delete_rejects_active_task(monkeypatch):
+    gate = asyncio.Event()
+
+    async def slow_parser(path: str, request: SubmitTaskRequest) -> str:
+        await gate.wait()
+        return "x"
+
+    manager = AsyncTaskManager(worker_count=1, parser_func=slow_parser)
+    await manager.start()
+    monkeypatch.setattr(runtime, "_task_manager", manager)
+    async with AsyncClient(
+        transport=ASGITransport(app=_build_app()), base_url="http://testserver"
+    ) as client:
+        task_id = (
+            await client.post("/v1/tasks/submit", files={"file": ("a.pdf", b"x", "application/pdf")})
+        ).json()["task_id"]
+        assert (await client.delete(f"/v1/tasks/{task_id}")).status_code == 409
+        assert (await client.get(f"/v1/tasks/{task_id}/download")).status_code == 409
+        gate.set()
+    await manager.stop()
