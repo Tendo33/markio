@@ -48,30 +48,31 @@
             >
               {{ showMobileTokenPanel ? '收起 Token' : '配置 Token' }}
             </button>
-            <div class="hidden lg:flex items-center gap-2">
+            <form class="hidden lg:flex items-center gap-2" aria-label="API Token" @submit.prevent="saveToken">
               <input
                 v-model="apiToken"
                 type="password"
                 class="min-h-[44px] w-56 rounded-xl border border-default bg-surface px-3 py-2.5 text-sm text-primary xl:w-64"
                 placeholder="输入 JWT Token"
                 aria-label="API JWT Token"
-                @keyup.enter="saveToken"
+                autocomplete="off"
               />
               <button
-                @click="saveToken"
+                type="submit"
                 class="btn btn-secondary text-xs"
                 aria-label="保存 API Token"
               >
                 保存
               </button>
               <button
+                type="button"
                 @click="clearToken"
                 class="btn btn-secondary text-xs"
                 aria-label="清除 API Token"
               >
                 清除
               </button>
-            </div>
+            </form>
             <div class="hidden md:flex items-center gap-3 px-3 py-1.5 bg-subtle rounded-lg border border-subtle">
               <div class="flex items-center gap-1.5 text-xs">
                 <div
@@ -108,30 +109,31 @@
       v-if="showMobileTokenPanel"
       class="border-b border-subtle bg-surface px-4 py-3 sm:px-6 lg:hidden"
     >
-      <div class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+      <form class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]" aria-label="移动端 API Token" @submit.prevent="saveToken">
         <input
           v-model="apiToken"
           type="password"
           class="min-h-[44px] rounded-xl border border-default bg-surface px-3 py-2.5 text-sm text-primary"
           placeholder="输入 JWT Token"
           aria-label="移动端 API JWT Token"
-          @keyup.enter="saveToken"
+          autocomplete="off"
         />
         <button
-          @click="saveToken"
+          type="submit"
           class="btn btn-secondary text-xs"
           aria-label="保存移动端 API Token"
         >
           保存
         </button>
         <button
+          type="button"
           @click="clearToken"
           class="btn btn-secondary text-xs"
           aria-label="清除移动端 API Token"
         >
           清除
         </button>
-      </div>
+      </form>
     </section>
 
     <section
