@@ -132,9 +132,6 @@ The image is built on `nvidia/cuda:13.0.2-cudnn-devel-ubuntu24.04` (MinerU 4 / v
 - MinerU 4 has no per-call OCR language: the `lang` option is accepted for compatibility but ignored.
 - Images are written to `<name>_artifacts/`; the `_layout.pdf` / `_spans.pdf` debug overlays are no longer produced. `MINERU_MIN_BATCH_INFERENCE_SIZE` and `MINERU_VIRTUAL_VRAM_SIZE` are ignored.
 
-## AI Collaboration
-
-
 ## Common Workflows
 
 ### Sync parse a file
