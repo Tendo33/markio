@@ -122,7 +122,7 @@ docker compose up -d
 
 Compose keeps Redis internal-only and aligns with same-origin hosting: API at `/v1/*`, console at `/console`.
 
-The image is built on `nvidia/cuda:13.0.2-cudnn-devel-ubuntu24.04` (MinerU 4 / vLLM 0.28 pull CUDA 13 torch wheels), so GPU hosts need an NVIDIA driver >= 580. MinerU models (`--tier standard`) are baked into `/root/.mineru` and loaded with `MINERU_MODEL_SOURCE=local`.
+The final image is `nvidia/cuda:13.0.2-cudnn-runtime-ubuntu24.04`. The devel image is used only to install wheels. MinerU 4 / vLLM 0.28 pull CUDA 13 torch wheels, so GPU hosts need an NVIDIA driver >= 580. MinerU models (`--tier standard`) are baked into `/root/.mineru` and loaded with `MINERU_MODEL_SOURCE=local`. Pass `--build-arg INSTALL_MODELS=0` to skip that download.
 
 ### MinerU 4 notes
 

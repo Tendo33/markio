@@ -4,6 +4,9 @@
   "version": "0.1.6",
   "type": "module",
   "packageManager": "pnpm@10.29.2",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "@tailwindcss/oxide"]
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

@@ -10,7 +10,7 @@
 # ============================================================================
 # Stage 1: Build Stage
 # ============================================================================
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -20,8 +20,9 @@ COPY frontend/package.json frontend/pnpm-lock.yaml ./
 # 安装依赖（使用国内镜像加速）
 # 注意：构建阶段需要 devDependencies（包括 vite, typescript, postcss 等）
 RUN corepack enable && \
+    corepack prepare pnpm@10.29.2 --activate && \
     pnpm config set registry https://registry.npmmirror.com && \
-    pnpm install --frozen-lockfile --ignore-scripts && \
+    pnpm install --frozen-lockfile && \
     pnpm store prune
 
 # 复制前端源代码
@@ -33,7 +34,7 @@ RUN pnpm run build
 # ============================================================================
 # Stage 2: Production Stage with Nginx
 # ============================================================================
-FROM nginx:1.27-alpine AS production
+FROM nginx:1.30.6-alpine AS production
 
 # 安装 curl 用于健康检查
 RUN apk add --no-cache curl
@@ -57,9 +58,14 @@ server {
                application/x-javascript application/xml+rss
                application/javascript application/json;
 
+    # Vite base 是 /console/。根路径只做跳转，SPA 回退必须落到 /console/index.html。
+    location = / {
+        return 302 /console/;
+    }
+
     # 前端路由支持（Vue Router History Mode）
     location / {
-        try_files $uri $uri/ /index.html;
+        try_files $uri $uri/ /console/index.html;
         add_header Cache-Control "no-cache, no-store, must-revalidate";
     }
 
@@ -106,8 +112,9 @@ server {
 }
 EOF
 
-# 复制构建产物
-COPY --from=builder /app/dist /usr/share/nginx/html
+# 复制构建产物。vite base 是 /console/，outDir 是 ../markio/webapp。
+# 放到 nginx 根目录会让 /console/assets 全部 404。
+COPY --from=builder /markio/webapp /usr/share/nginx/html/console
 
 # 创建启动脚本（替换 Nginx 配置中的环境变量）
 RUN cat > /docker-entrypoint.sh <<'SCRIPT'
@@ -132,7 +139,7 @@ EXPOSE 80
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost/ || exit 1
+    CMD curl -f http://localhost/console/ || exit 1
 
 # 使用启动脚本
 CMD ["/docker-entrypoint.sh"]

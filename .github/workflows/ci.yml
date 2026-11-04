@@ -32,3 +32,21 @@ jobs:
         working-directory: frontend
       - run: pnpm run build
         working-directory: frontend
+
+  # The CUDA final image installs torch, vLLM, and MinerU models. That build is
+  # too large for this runner. This job checks the frontend stage, which is the
+  # part that otherwise drifts from the Node version used above.
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: frontend-builder
+          push: false
+          tags: markio-frontend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

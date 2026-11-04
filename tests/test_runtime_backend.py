@@ -35,8 +35,11 @@ def test_dockerfile_builds_console_assets_in_image():
     dockerfile_path = Path(__file__).resolve().parents[1] / "Dockerfile"
     dockerfile = dockerfile_path.read_text(encoding="utf-8")
 
-    assert "FROM node:20-bookworm-slim AS frontend-builder" in dockerfile
-    assert "RUN corepack enable && pnpm install --frozen-lockfile" in dockerfile
+    assert "FROM node:22-bookworm-slim AS frontend-builder" in dockerfile
+    assert (
+        "RUN corepack enable && corepack prepare pnpm@10.29.2 --activate "
+        "&& pnpm install --frozen-lockfile"
+    ) in dockerfile
     assert "RUN pnpm run build" in dockerfile
     assert "COPY --from=frontend-builder /markio/webapp /workspace/markio/webapp" in dockerfile
 
@@ -47,5 +50,7 @@ def test_frontend_dockerfile_uses_markio_branding():
 
     assert "Markio Frontend" in dockerfile
     assert "markio-frontend:latest" in dockerfile
+    assert "COPY --from=builder /markio/webapp /usr/share/nginx/html/console" in dockerfile
+    assert "try_files $uri $uri/ /console/index.html;" in dockerfile
     assert "Tianshu" not in dockerfile
     assert "tianshu" not in dockerfile
