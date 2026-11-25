@@ -106,6 +106,12 @@ Open:
 - API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 - Health: [http://localhost:8000/healthz](http://localhost:8000/healthz)
 
+The console is where you submit documents and watch the queue:
+
+| Dashboard | Submit a task |
+| --- | --- |
+| <img src="docs/screenshots/dashboard.webp" alt="The console dashboard: counts per task state, average and P95 duration, and the recent tasks list"> | <img src="docs/screenshots/submit.webp" alt="The submit page: a drag-and-drop upload area, priority and output directory, and PDF-only options hidden for other formats"> |
+
 ### Build the console
 
 The backend serves the Vue SPA only when the built frontend assets exist in `markio/webapp`.

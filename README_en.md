@@ -121,6 +121,12 @@ cd ..
 
 - 控制台：[http://localhost:8000/console](http://localhost:8000/console)
 
+控制台是提交文档、跟踪队列的地方：
+
+| 仪表盘 | 提交任务 |
+| --- | --- |
+| <img src="docs/screenshots/dashboard.webp" alt="控制台仪表盘：各任务状态计数、平均与 P95 耗时，以及最近任务列表"> | <img src="docs/screenshots/submit.webp" alt="提交任务页：拖拽上传区、优先级与输出目录，非 PDF 文件会自动隐藏 PDF 专属参数"> |
+
 若构建产物缺失，`/console` 会返回提示用的 fallback 页面，而不是一个损坏的 SPA，这属于设计内的保护行为。
 
 ### Docker Compose
