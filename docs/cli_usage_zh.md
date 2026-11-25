@@ -1,6 +1,6 @@
 # Markio CLI 使用指南
 
-[返回 README](../README.zh.md) | [English Version](cli_usage.md)
+[返回 README](../README_en.md) | [English Version](cli_usage.md)
 
 ## 适用范围
 

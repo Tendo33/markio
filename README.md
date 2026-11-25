@@ -3,12 +3,23 @@
   <h1>Markio</h1>
   <p><strong>API-first document parsing platform built with FastAPI, Docling, and MinerU</strong></p>
   <p>
-    <a href="https://www.python.org/"><img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-blue"></a>
-    <a href="https://fastapi.tiangolo.com/"><img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-API-009688"></a>
-    <a href="https://vuejs.org/"><img alt="Vue 3" src="https://img.shields.io/badge/Vue-3-42b883"></a>
-    <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"></a>
+    <a href="https://www.python.org/"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python_3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white"></a>
+    <a href="https://fastapi.tiangolo.com/"><img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white"></a>
+    <a href="https://vuejs.org/"><img alt="Vue 3" src="https://img.shields.io/badge/Vue_3-42B883?style=flat-square&logo=vuedotjs&logoColor=white"></a>
+    <a href="https://www.docling.ai/"><img alt="Docling" src="https://img.shields.io/badge/Docling-4B5563?style=flat-square"></a>
+    <a href="https://github.com/opendatalab/MinerU"><img alt="MinerU" src="https://img.shields.io/badge/MinerU_4-2563EB?style=flat-square"></a>
+    <a href="https://www.docker.com/"><img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white"></a>
+    <a href="https://redis.io/"><img alt="Redis" src="https://img.shields.io/badge/Redis_optional-DC382D?style=flat-square&logo=redis&logoColor=white"></a>
+    <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-2EA043?style=flat-square"></a>
   </p>
-  <p><strong>English</strong> | <a href="README.zh.md">中文</a></p>
+  <p>
+    <a href="#quick-start">Quick Start</a> ·
+    <a href="#architecture">Architecture</a> ·
+    <a href="#cli-and-sdk">CLI and SDK</a> ·
+    <a href="#configuration">Configuration</a> ·
+    <a href="#documentation-map">Docs</a>
+  </p>
+  <p><strong>English</strong> | <a href="README_en.md">中文</a></p>
 </div>
 
 ---
@@ -272,12 +283,16 @@ Redis-specific details: [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
 
 ## Documentation Map
 
-- CLI guide: [docs/cli_usage.md](docs/cli_usage.md)
-- SDK guide: [docs/sdk_usage.md](docs/sdk_usage.md)
-- Console guide: [docs/console_frontend.md](docs/console_frontend.md)
-- Biological parsing guide: [docs/biological_data_parsing.md](docs/biological_data_parsing.md)
-- Redis guide: [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
-- Test guide: [tests/README.md](tests/README.md)
+Each guide exists in English and Chinese.
+
+| Topic | English | 中文 |
+| --- | --- | --- |
+| CLI | [docs/cli_usage.md](docs/cli_usage.md) | [docs/cli_usage_zh.md](docs/cli_usage_zh.md) |
+| Python SDK | [docs/sdk_usage.md](docs/sdk_usage.md) | [docs/sdk_usage_zh.md](docs/sdk_usage_zh.md) |
+| Console (Vue) | [docs/console_frontend.md](docs/console_frontend.md) | [docs/console_frontend_zh.md](docs/console_frontend_zh.md) |
+| Biological parsing | [docs/biological_data_parsing.md](docs/biological_data_parsing.md) | [docs/biological_data_parsing_zh.md](docs/biological_data_parsing_zh.md) |
+| Redis integration | [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md) | — |
+| Test guide | [tests/README.md](tests/README.md) | — |
 
 ## Testing
 

@@ -1,6 +1,6 @@
 # 生物数据解析指南
 
-[返回 README](../README.zh.md) | [English Version](biological_data_parsing.md)
+[返回 README](../README_en.md) | [English Version](biological_data_parsing.md)
 
 ## 当前状态
 

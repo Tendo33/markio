@@ -1,6 +1,6 @@
 # Markio SDK 使用指南
 
-[返回 README](../README.zh.md) | [English Version](sdk_usage.md)
+[返回 README](../README_en.md) | [English Version](sdk_usage.md)
 
 ## 适用范围
 

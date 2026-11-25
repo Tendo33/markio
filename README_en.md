@@ -1,12 +1,23 @@
 <div align="center">
-  <img src="assets/image.png" alt="Markio Logo" height="240">
+  <img src="assets/image.png" alt="Markio Logo" height="200">
   <h1>Markio</h1>
   <p><strong>基于 FastAPI、Docling 与 MinerU 的 API 优先文档解析平台</strong></p>
   <p>
-    <a href="https://www.python.org/"><img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-blue"></a>
-    <a href="https://fastapi.tiangolo.com/"><img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-API-009688"></a>
-    <a href="https://vuejs.org/"><img alt="Vue 3" src="https://img.shields.io/badge/Vue-3-42b883"></a>
-    <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"></a>
+    <a href="https://www.python.org/"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python_3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white"></a>
+    <a href="https://fastapi.tiangolo.com/"><img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white"></a>
+    <a href="https://vuejs.org/"><img alt="Vue 3" src="https://img.shields.io/badge/Vue_3-42B883?style=flat-square&logo=vuedotjs&logoColor=white"></a>
+    <a href="https://www.docling.ai/"><img alt="Docling" src="https://img.shields.io/badge/Docling-4B5563?style=flat-square"></a>
+    <a href="https://github.com/opendatalab/MinerU"><img alt="MinerU" src="https://img.shields.io/badge/MinerU_4-2563EB?style=flat-square"></a>
+    <a href="https://www.docker.com/"><img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white"></a>
+    <a href="https://redis.io/"><img alt="Redis" src="https://img.shields.io/badge/Redis_可选-DC382D?style=flat-square&logo=redis&logoColor=white"></a>
+    <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-2EA043?style=flat-square"></a>
+  </p>
+  <p>
+    <a href="#快速开始">快速开始</a> ·
+    <a href="#架构概览">架构</a> ·
+    <a href="#cli-与-sdk">CLI 与 SDK</a> ·
+    <a href="#配置说明">配置</a> ·
+    <a href="#文档导航">文档</a>
   </p>
   <p><a href="README.md">English</a> | <strong>中文</strong></p>
 </div>
@@ -115,7 +126,7 @@ cd ..
 ### Docker Compose
 
 ```bash
-export AUTH_JWT_SECRET="<高强度随机密钥>"
+export AUTH_JWT_SECRET="<strong-random-secret>"
 export REDIS_PASSWORD="<redis-password>"
 docker compose up -d
 ```
@@ -261,7 +272,9 @@ URL 获取统一收敛到 `markio/parsers/url_parser.py`：
 | `TASK_QUEUE_BACKEND` | `memory` | `memory` 或 `redis` |
 | `TASK_WORKER_COUNT` | `2` | 异步任务 worker 数 |
 | `TASK_MAX_UPLOAD_SIZE_BYTES` | `52428800` | 异步上传大小上限 |
+| `TASK_PROCESSING_TIMEOUT_SECONDS` | `0` | 仅 Redis 后端：超过该时长仍停在 `processing` 的任务会被重新入队 |
 | `RATE_LIMIT_ENABLED` | `true` | 轻量限流 |
+| `RATE_LIMIT_TRUST_PROXY_HEADERS` | `false` | 在受控代理后面时，信任 `Forwarded` / `X-Forwarded-For` 用于识别客户端 IP |
 | `ENABLE_MCP` | `false` | 挂载 MCP 端点 |
 | `MARKIO_API_BASE_URL` | `""` | SDK/CLI 远程模式地址 |
 | `MARKIO_API_TOKEN` | `""` | SDK/CLI 远程 Bearer token |
@@ -270,12 +283,16 @@ Redis 细节见：[docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
 
 ## 文档导航
 
-- CLI 指南：[docs/cli_usage_zh.md](docs/cli_usage_zh.md)
-- SDK 指南：[docs/sdk_usage_zh.md](docs/sdk_usage_zh.md)
-- Console 指南：[docs/console_frontend_zh.md](docs/console_frontend_zh.md)
-- 生物数据解析指南：[docs/biological_data_parsing_zh.md](docs/biological_data_parsing_zh.md)
-- Redis 指南：[docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md)
-- 测试说明：[tests/README.md](tests/README.md)
+每份指南都有中英两版。
+
+| 主题 | 中文 | English |
+| --- | --- | --- |
+| CLI | [docs/cli_usage_zh.md](docs/cli_usage_zh.md) | [docs/cli_usage.md](docs/cli_usage.md) |
+| Python SDK | [docs/sdk_usage_zh.md](docs/sdk_usage_zh.md) | [docs/sdk_usage.md](docs/sdk_usage.md) |
+| 控制台（Vue） | [docs/console_frontend_zh.md](docs/console_frontend_zh.md) | [docs/console_frontend.md](docs/console_frontend.md) |
+| 生物数据解析 | [docs/biological_data_parsing_zh.md](docs/biological_data_parsing_zh.md) | [docs/biological_data_parsing.md](docs/biological_data_parsing.md) |
+| Redis 集成 | — | [docs/REDIS_INTEGRATION.md](docs/REDIS_INTEGRATION.md) |
+| 测试指南 | — | [tests/README.md](tests/README.md) |
 
 ## 测试
 

@@ -1,6 +1,6 @@
 # Markio Console 前端说明
 
-[返回 README](../README.zh.md) | [English Version](console_frontend.md)
+[返回 README](../README_en.md) | [English Version](console_frontend.md)
 
 ## 它是什么
 
