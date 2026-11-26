@@ -1,10 +1,5 @@
-# Claude Project Entrypoint
+# markio
 
+入口在 [AGENTS.md](AGENTS.md)：接口契约、目录结构与验证命令都在那里。
 
-## Guardrails
-
-- Markio converts documents and web content to Markdown through FastAPI routes, async tasks, SDK/CLI, and a Vue console.
-- Every `/v1/*` route requires JWT auth.
-- Redis is optional and must not become mandatory for default local development.
-- The Vue console is served at `/console` from `markio/webapp` after `pnpm --prefix frontend run build`.
-- Keep Python on `>=3.11` and frontend package management on pnpm with `frontend/pnpm-lock.yaml`.
+要点复述：`/v1/*` 必须带 JWT，Redis 不得成为本地开发的必需项，前端构建产物要落到 `markio/webapp` 供 `/console` 使用。
